@@ -1,0 +1,6 @@
+import mts.tasks._
+val taskSpec = MTurkHello
+import taskSpec.Messages._
+import akka.actor._
+val system = ActorSystem("system")
+val task = taskSpec.createMonitor(system, taskSpec.questions.iterator, 2)
