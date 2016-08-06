@@ -2,16 +2,13 @@ package mts
 
 import java.nio.file.{Paths, Path, Files}
 import scala.util.Try
+import scala.collection.mutable
 
 object FileManager {
   private[this] val mTurkAnnotationPath = Paths.get("annotations")
   private[this] val CoNLLRootPath = Paths.get("conll-2012")
   private[this] val CoNLLAnnotationPath = CoNLLRootPath.resolve("v4/data/development/data/english/annotations")
-
-  // TODO
-  private[this] def normalizeUsername(username: String) = {
-    username.replaceAll("[ /]", "_")
-  }
+  private[this] val questionFilePath = Paths.get("questions")
 
   private[this] def getHITTypePath(hitType: String) = {
     val hitTypePath = mTurkAnnotationPath.resolve(hitType)
@@ -31,9 +28,7 @@ object FileManager {
   }
 
   private[this] def getQuestionStorePath(hitType: String) = {
-    val hitTypePath = getHITTypePath(hitType)
-    val questionStorePath = hitTypePath.resolve("questions")
-    questionStorePath
+    getHITTypePath(hitType).resolve(questionFilePath)
   }
 
   def saveAnnotation(annotation: Annotation): Try[Unit] = Try {
@@ -77,10 +72,23 @@ object FileManager {
     }
   }
 
-  def getCoNLLFile(path: CoNLLPath): Option[CoNLLFile] = {
-    val fullPath = CoNLLAnnotationPath.resolve(path.get)
-    import scala.collection.JavaConverters._
-    val lines = Files.lines(fullPath).iterator.asScala
-    Some(CoNLLFile.readFromLines(lines))
+  // TODO bound the cache's memory use / number of files
+  val conllCache = mutable.Map.empty[CoNLLPath, CoNLLFile]
+
+  def getCoNLLFile(path: CoNLLPath): Try[CoNLLFile] = Try {
+    if(conllCache.contains(path)) {
+      conllCache(path)
+    } else {
+      val fullPath = CoNLLAnnotationPath.resolve(path.get)
+      import scala.collection.JavaConverters._
+      val lines = Files.lines(fullPath).iterator.asScala
+      val file = CoNLLFile.readFromLines(lines)
+      conllCache.put(path, file)
+      file
+    }
   }
+
+  def getCoNLLSentence(path: CoNLLSentencePath): Try[CoNLLSentence] = for {
+    file <- getCoNLLFile(path.filePath)
+  } yield file.sentences(path.sentenceNum)
 }

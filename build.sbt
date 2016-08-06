@@ -9,6 +9,7 @@ libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "0.3.7",
   "com.lihaoyi" %% "upickle" % "0.2.7",
   "com.typesafe.akka" %% "akka-actor" % "2.4.8",
+  "com.lihaoyi" %% "scalatags" % "0.4.6",
   // java deps:
   "log4j" % "log4j" % "1.2.17",
   "net.ettinsmoor" % "java-aws-mturk" % "1.6.2"

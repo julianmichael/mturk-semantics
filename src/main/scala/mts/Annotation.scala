@@ -1,12 +1,13 @@
 package mts
 
 case class Annotation(
+  assignmentId: String,
   hitType: String,
   hitId: String,
-  question: Question,
+  question: Option[Question],
   workerId: String,
   answer: String,
-  submitTime: Long,
-  assignmentId: String
+  acceptTime: Long,
+  submitTime: Long
 )
 

@@ -2,9 +2,14 @@ package mts
 
 case class CoNLLPath(get: String)
 
+case class CoNLLSentencePath(
+  filePath: CoNLLPath,
+  sentenceNum: Int
+)
+
 case class CoNLLFile(
   id: String,
-  sentences: List[CoNLLSentence]
+  sentences: Vector[CoNLLSentence]
 )
 object CoNLLFile {
   def readFromLines(lines: Iterator[String]): CoNLLFile = {
@@ -21,7 +26,7 @@ object CoNLLFile {
           (prevSentences, line :: curLines, sentenceNum)
         }
     }
-    CoNLLFile(id, sentences.reverse)
+    CoNLLFile(id, sentences.toVector.reverse)
   }
 }
 

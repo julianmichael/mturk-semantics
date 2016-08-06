@@ -4,6 +4,7 @@ import mts.Question
 import mts.Annotation
 
 import com.amazonaws.mturk.service.axis.RequesterService
+import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
 object HelloSpec extends QASpec {
   type QuestionData = String
@@ -15,8 +16,7 @@ object HelloSpec extends QASpec {
     q.annotation
 
   override def extractAnswerData(answerXML: String): AnswerData = {
-    val openTag = "<FreeText>"
-    val closeTag = "</FreeText>"
-    answerXML.substring(answerXML.indexOf(openTag) + openTag.length, answerXML.indexOf(closeTag))
+    RequesterService.parseAnswers(answerXML).getAnswer.get(0)
+      .asInstanceOf[QuestionFormAnswersType.AnswerType].getFreeText;
   }
 }

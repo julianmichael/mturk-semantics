@@ -3,6 +3,7 @@ package mts.tasks
 import mts.Annotation
 import mts.Question
 import mts.FileManager
+import mts._
 
 import mts.qa.QASpec
 
@@ -30,11 +31,15 @@ import akka.actor.Cancellable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+// TODO: make it so if we have SOME assignments saved for a HIT, but enough to meet our quota,
+// we will send more HITs out to gather those annotations.
+
+// TODO: add a facility for evaluating the quality of workers and banning them appropriately.
 trait MTurkTask {
 
   // final members and methods
 
-  final val assignmentReviewPolicy = null // new ReviewPolicy("", Array.empty[PolicyParameter])
+  final val assignmentReviewPolicy = null
   final val hitReviewPolicy = null
 
   final lazy val hitType = service.registerHITType(
@@ -79,8 +84,7 @@ trait MTurkTask {
         numAssignmentsPerHIT,
         question.annotation,
         qualRequirements,
-        // Array.empty[String], //("Request.Minimal"), // response groups
-        Array("Minimal", "HITQuestion", "HITDetail"), // response groups
+        Array("Minimal", "HITQuestion", "HITDetail"), // response groups --- these don't actually do anything
         uniqueRequestToken,
         assignmentReviewPolicy,
         hitReviewPolicy
@@ -97,29 +101,48 @@ trait MTurkTask {
     annotation <- reviewHIT(hit)
   } yield annotation
 
-  // for now, assumes that the HIT is reviewable.
+  // for now, we assume that the HIT is reviewable.
+  // TODO: work even when it's not, just approving the submitted assignments.
+  // This will be better for the case that we disable HITs that only have some of their submissions in.
   final def reviewHIT(hit: HIT): List[Annotation] = {
+    // the HIT status seems to always be null, I suppose because of response groups not working.
     if(hit.getHITStatus() == null || !hit.getHITStatus().equals("Reviewable")) {
-      println
-      System.err.println(s"reviewing a non-reviewable HIT. id: ${hit.getHITId()}; status: ${hit.getHITStatus()}")
+      // println
+      // System.err.println(s"reviewing a non-reviewable HIT. id: ${hit.getHITId()}; status: ${hit.getHITStatus()}")
     }
 
+    // first, get submissions and review them, retrieving the newly approved annotations and extending the HIT if necessary.
+    val approvedAnnotations = {
+      val assignments = service.getAllAssignmentsForHIT(hit.getHITId())
+      val submittedAssignments = assignments.filter(a =>
+        a.getAssignmentStatus.equals(AssignmentStatus.Submitted))
+      val approvedAssignments = assignments.filter(a =>
+        a.getAssignmentStatus.equals(AssignmentStatus.Approved))
+
+      if(submittedAssignments.size + approvedAssignments.size < numAssignmentsPerHIT) {
+        // If we don't have all of the assignments in, then extend the HIT.
+        // We do this because the only reason it would be reviewable is if it had expired.
+        service.extendHIT(hit.getHITId(), 1, lifetime)
+        println
+        println("Extended HIT: " + hit.getHITId());
+        println("You may see your HIT with HITTypeId '" + hit.getHITTypeId() + "' here: ");
+        println(service.getWebsiteURL() + "/mturk/preview?groupId=" + hit.getHITTypeId());
+      }
+
+      // review the submitted assignments and return the newly approved annotations in a list.
+      for {
+        assignment <- submittedAssignments.toList
+        annotation <- reviewAssignment(hit, assignment)
+      } yield annotation
+    }
+
+    // now, check if the HIT is done and dispose of it if necessary.
     val assignments = service.getAllAssignmentsForHIT(hit.getHITId())
     val submittedAssignments = assignments.filter(a =>
       a.getAssignmentStatus.equals(AssignmentStatus.Submitted))
     val approvedAssignments = assignments.filter(a =>
       a.getAssignmentStatus.equals(AssignmentStatus.Approved))
-
-    if(submittedAssignments.size + approvedAssignments.size < numAssignmentsPerHIT) {
-      // If we don't have all of the assignments in, then extend the HIT.
-      // The only reason it would be reviewable is if it had expired.
-      service.extendHIT(hit.getHITId(), 1, lifetime)
-      println
-      println("Extended HIT: " + hit.getHITId());
-      println("You may see your HIT with HITTypeId '" + hit.getHITTypeId() + "' here: ");
-      println(service.getWebsiteURL() + "/mturk/preview?groupId=" + hit.getHITTypeId());
-
-    } else if(approvedAssignments.size >= numAssignmentsPerHIT && submittedAssignments.size == 0) {
+    if(approvedAssignments.size >= numAssignmentsPerHIT && submittedAssignments.size == 0) {
       // If we have approved enough assignments, and no more are in the queue, dispose of the HIT.
       service.disposeHIT(hit.getHITId())
       println
@@ -127,11 +150,7 @@ trait MTurkTask {
       println(s"HIT type of disposed: $hitType")
     }
 
-    // Finally, review the submitted assignments and return the newly approved annotations in a list.
-    for {
-      assignment <- submittedAssignments.toList
-      annotation <- reviewAssignment(hit, assignment)
-    } yield annotation
+    approvedAnnotations
   }
 
   /* Overridable or abstract fields */
@@ -140,14 +159,14 @@ trait MTurkTask {
   // Otherwise returns None.
   // Override to do more interesting things if we don't want to auto-approve.
   def reviewAssignment(hit: HIT, assignment: Assignment): Option[Annotation] = {
-    val question = questionStore.get(hit.getHITId()) match {
-      case Some(q) => q
-      case None => Question("Question lost.", "Question lost.")
-    }
-    val annotation = Annotation(hitType, hit.getHITId(), question,
-                                assignment.getWorkerId(), assignment.getAnswer(),
-                                assignment.getSubmitTime().getTime().getTime(),
-                                assignment.getAssignmentId())
+    // TODO: do something clever to save the approval time as well, maybe.
+    val annotation = Annotation(assignmentId = assignment.getAssignmentId(),
+                                hitType = hitType, hitId = hit.getHITId(),
+                                question = questionStore.get(hit.getHITId()),
+                                workerId = assignment.getWorkerId(),
+                                answer = assignment.getAnswer(),
+                                acceptTime = assignment.getAcceptTime().getTime().getTime(),
+                                submitTime = assignment.getSubmitTime().getTime().getTime())
     FileManager.saveAnnotation(annotation) match {
       case Success(_) => // don't approve the assignment until we can successfully save the results
         service.approveAssignment(assignment.getAssignmentId(), "")
@@ -170,7 +189,7 @@ trait MTurkTask {
   val keywords: String
   val reward: Double
   val autoApprovalDelay = 3600L // seconds (1 hour)
-  val assignmentDuration = 120L // seconds (2 minutes)
+  val assignmentDuration = 300L // seconds (2 minutes)
   val qualRequirements = Array.empty[QualificationRequirement]
 
   // other fields
@@ -183,7 +202,7 @@ trait MTurkTask {
   def annotatedQAPairs = FileManager.loadAnnotationsForHITType(hitType)
     .groupBy(_.hitId)
     .map {
-    case (hitId, annos) => (hitId -> annos.map(qaSpec.getQAPair))
+    case (hitId, annos) => (hitId -> annos.flatMap(qaSpec.getQAPair))
   }
 
   def createMonitor(system: ActorSystem,
@@ -194,29 +213,33 @@ trait MTurkTask {
     system.actorOf(Props(Monitor(questions, numHITs, interval)))
   }
 
-  object Messages {
-    val Start = "start"
-    val Stop = "stop"
-    val Update = "update"
-    val Expire = "expire"
+  sealed trait Message
+  object Message {
+    case object Start extends Message
+    case object Stop extends Message
+    case object Update extends Message
+    case object Expire extends Message
+    case object Disable extends Message
+    case class AddQuestion(q: QuestionData) extends Message
   }
 
   // runs this MTurk task for the given data.
   // (the "given data" consists of the abstract fields)
   case class Monitor(
-    val questions: Iterator[QuestionData],
-    val numHITsToKeepActive: Int = 5,
-    val interval: FiniteDuration = 1 minute
+    val questionSource: Iterator[QuestionData],
+    val numHITsToKeepActive: Int = 100,
+    val interval: FiniteDuration = 10 seconds
   ) extends Actor {
 
-    import Messages._
+    import Message._
 
     override def receive = {
       case Start => start()
       case Stop => stop()
       case Update => update()
-      case Expire => expireAll()
-      case _ => ()
+      case Expire => expire()
+      case Disable => disable()
+      case AddQuestion(q) => addQuestion(q)
     }
 
     override def postStop(): Unit = {
@@ -225,26 +248,37 @@ trait MTurkTask {
 
     val finishedQuestions = {
       val savedAnnotations = FileManager.loadAnnotationsForHITType(hitType)
-      val set = mutable.HashSet[Question]()
-      set ++= savedAnnotations.map(_.question)
+      val set = mutable.HashSet[QuestionData]()
+      set ++= savedAnnotations.flatMap(_.question.map(qaSpec.extractQuestionData))
       set
     }
 
-    var remainingQuestions: Iterator[Question] = questions
-      .map(createQuestion)
-    // as more stuff gets added to finishedQuestionIds, this still ensures that
-    // every time we pull something out of remainingQuestions,
-    // it does not match a finishedQuestion.
-      .filter(q => !finishedQuestions.contains(q))
+    final val stackedQuestions: mutable.Stack[QuestionData] = mutable.Stack.empty[QuestionData]
+    // questionSource (class param)
+    final val failedQuestions: mutable.Queue[QuestionData] = mutable.Queue.empty[QuestionData]
+
+    def getNextQuestion(): Option[QuestionData] = {
+      val allQuestions = stackedQuestions.iterator ++ questionSource ++ failedQuestions.iterator
+      val validQuestions = allQuestions.filter(q => !finishedQuestions.contains(q))
+      validQuestions.nextOption
+    }
+
+    def getNextNQuestions(n: Int): Seq[QuestionData] = {
+      val questions = mutable.Buffer.empty[QuestionData]
+      var nRemaining = n
+      while(nRemaining > 0) {
+        getNextQuestion() match {
+          case Some(q) =>
+            questions += q
+            nRemaining = nRemaining - 1
+          case None =>
+            nRemaining = 0
+        }
+      }
+      questions.toVector
+    }
 
     var schedule: Option[Cancellable] = None
-
-    def expireAll(): Unit = {
-      stop()
-      service.searchAllHITs()
-        .filter(hit => hit.getHITTypeId().equals(hitType))
-        .foreach(hit => service.forceExpireHIT(hit.getHITId()))
-    }
 
     def start(): Unit = {
       if(schedule.isEmpty || schedule.get.isCancelled) {
@@ -261,38 +295,63 @@ trait MTurkTask {
       schedule.foreach(_.cancel())
     }
 
+
+    // used to temporarily withdraw HITs from the system; an Update will re-extend them
+    def expire(): Unit = {
+      stop()
+      service.searchAllHITs()
+        .filter(hit => hit.getHITTypeId().equals(hitType))
+        .foreach(hit => {
+                   service.forceExpireHIT(hit.getHITId())
+                   println
+                   println(s"Expired HIT: ${hit.getHITId()}")
+                   println(s"HIT type for expired HIT: $hitType")
+                 })
+    }
+
+    // delete all HITs from the system and forget about the results
+    def disable(): Unit = {
+      reviewHITs // approve of finished tasks and collect the results first, just to prevent waste
+      service.searchAllHITs()
+        .filter(hit => hit.getHITTypeId().equals(hitType))
+        .foreach(hit => {
+                   service.disableHIT(hit.getHITId())
+                   println
+                   println(s"Disabled HIT: ${hit.getHITId()}")
+                   println(s"HIT type for disabled HIT: $hitType")
+                 })
+      questionStore.clear()
+      stop()
+    }
+
     def update(): Unit = {
       val newAnnotations = reviewHITs
-      finishedQuestions ++= newAnnotations.map(_.question)
+      finishedQuestions ++= newAnnotations.flatMap(_.question.map(qaSpec.extractQuestionData))
 
       val hitsOfThisType = service.searchAllHITs()
         .filter(hit => hit.getHITTypeId().equals(hitType))
 
       if(hitsOfThisType.size < numHITsToKeepActive) {
-        if(remainingQuestions.hasNext) {
-          val questionsToTry = remainingQuestions.take(numHITsToKeepActive - hitsOfThisType.size).toList
-          val hitTries = questionsToTry.map(createHIT(_))
-          hitTries.foreach (hitTry =>
-            hitTry match {
-              case Success(hit) =>
-                println
-                println("Created HIT: " + hit.getHITId());
-                println("You may see your HIT with HITTypeId '" + hit.getHITTypeId() + "' here: ");
-                println(service.getWebsiteURL() + "/mturk/preview?groupId=" + hit.getHITTypeId());
-              case Failure(e) =>
-                println
-                System.err.println(e.getLocalizedMessage())
-            })
-
-          val newHITTries = questionsToTry.zip(hitTries)
-          val failedQuestions = newHITTries.filter(_._2.isFailure).map(_._1)
-          // put the failures back in the queue to try later
-          remainingQuestions = remainingQuestions ++
-            failedQuestions.iterator.filter(q => !finishedQuestions.contains(q))
-        } else if(hitsOfThisType.size == 0) {
-          stop()
-        }
+        val questionsToTry = getNextNQuestions(numHITsToKeepActive - hitsOfThisType.size)
+        val hitTries = questionsToTry.zip(questionsToTry.map(qData => createHIT(createQuestion(qData))))
+        hitTries.foreach (hitTry =>
+          hitTry match {
+            case (question, Success(hit)) =>
+              println
+              println("Created HIT: " + hit.getHITId());
+              println("You may see your HIT with HITTypeId '" + hit.getHITTypeId() + "' here: ");
+              println(service.getWebsiteURL() + "/mturk/preview?groupId=" + hit.getHITTypeId());
+            case (question, Failure(e)) =>
+              println
+              System.err.println(e.getLocalizedMessage())
+              failedQuestions += question
+          })
       }
     }
+
+    def addQuestion(q: QuestionData): Unit = {
+      stackedQuestions.push(q)
+    }
+
   }
 }

@@ -1,6 +1,6 @@
 import mts.tasks._
-val taskSpec = MTurkHello
+val taskSpec = MTurkOpenFormHTMLQA(numAssignmentsPerHIT = 1)
 import taskSpec.Messages._
 import akka.actor._
 val system = ActorSystem("system")
-val task = taskSpec.createMonitor(system, taskSpec.questions.iterator, 2)
+val task = taskSpec.createMonitor(system, mts.conllSentences(), 3)

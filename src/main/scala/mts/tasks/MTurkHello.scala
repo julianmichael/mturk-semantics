@@ -3,11 +3,6 @@ package mts.tasks
 import mts.Question
 import mts.qa.HelloSpec
 
-import com.amazonaws.mturk.service.axis.RequesterService
-import com.amazonaws.mturk.service.exception.ServiceException
-import com.amazonaws.mturk.util.PropertiesClientConfig
-import com.amazonaws.mturk.requester.HIT
-
 import scala.util.{Try, Success, Failure}
 
 object MTurkHello extends MTurkTask {
