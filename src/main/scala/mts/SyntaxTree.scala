@@ -25,7 +25,6 @@ object SyntaxTree {
   type SentenceState[A] = State[List[CoNLLWord], A]
 
   import fastparse.all._
-
   val symbolP: P[String] = P(CharIn('A' to 'Z').rep.!)
   lazy val treeP: P[SentenceState[SyntaxTree]] =
     P("(" ~ symbolP ~ treeP.rep ~ ")").map {

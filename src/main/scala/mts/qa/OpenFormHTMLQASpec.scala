@@ -5,6 +5,7 @@ import mts.FileManager
 import mts.Question
 import mts.Annotation
 import mts.TextRendering
+import mts.tasks.Config
 
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
@@ -93,7 +94,7 @@ case class OpenFormHTMLQASpec(numQAs: Int = 3) extends QASpec {
           name := "mturk_form",
           method := "post",
           id := "mturk_form",
-          action := "https://workersandbox.mturk.com/mturk/externalSubmit")(
+          action := Config.externalSubmitURL)(
           input(
             `type` := "hidden",
             value := "",

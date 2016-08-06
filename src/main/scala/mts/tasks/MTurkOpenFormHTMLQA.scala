@@ -11,10 +11,10 @@ case class MTurkOpenFormHTMLQA(
   final val numQAsPerHIT: Int,
   final override val numAssignmentsPerHIT: Int = 5
 ) extends MTurkTask {
-  // HIT type fields
-  final override val title = "Write questions and answers about a sentence"
-  final override val description = """
-    Read a sentence, and write questions about its meaning that are answered in the sentence.
+
+  final override val title = s"Write $numQAsPerHIT questions and answers about a sentence"
+  final override val description = s"""
+    Read write $numQAsPerHIT questions about its meaning that are answered in the sentence.
   """.trim
   final override val keywords: String = "language,english,question answering"
 

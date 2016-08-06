@@ -35,7 +35,11 @@ import scala.language.postfixOps
 // we will send more HITs out to gather those annotations.
 
 // TODO: add a facility for evaluating the quality of workers and banning them appropriately.
+
+// TODO: add a facility for sending completed HITs to another actor for further processing (and perhaps turking)
 trait MTurkTask {
+
+  import Config._
 
   // final members and methods
 
