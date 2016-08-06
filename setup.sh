@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Setup script for coref project.
-# Written by Julian Michael on 13 June 2016.
+# Setup script for MTurk Semantics project.
 # Downloads OntoNotes 5.0 and CoNLL 2012 data,
 # and runs the CoNLL script to format the data so it's ready to be parsed.
+# Also makes sure your Mechanical Turk access keys are set correctly.
 
 # NOTE: the CoNLL 2012 task instructions say to use the CoNLL 2012 package from the LDC.
 # I used the OntoNotes 5.0 package instead and it seems to work fine.
@@ -83,3 +83,12 @@ then
 esac
 fi
 
+if [ ! -e "mturk.properties" ]
+then
+    echo "Missing file: mturk.properties"
+    echo "Please add this file, which should consist of two lines like:"
+    echo "access_key=XXXXXXXXXXXXXXXXXXXX"
+    echo "secret_key=YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+    echo "where these keys are obtained from your AWS account."
+    exit 0
+fi

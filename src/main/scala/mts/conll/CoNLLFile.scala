@@ -1,4 +1,4 @@
-package mts
+package mts.conll
 
 case class CoNLLPath(get: String)
 

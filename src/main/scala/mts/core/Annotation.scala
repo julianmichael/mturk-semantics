@@ -1,4 +1,4 @@
-package mts
+package mts.core
 
 case class Annotation(
   assignmentId: String,

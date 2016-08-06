@@ -1,16 +1,14 @@
 package mts.qa
 
-import mts.CoNLLSentencePath
-import mts.FileManager
-import mts.Question
-import mts.Annotation
-import mts.TextRendering
+import mts.core._
+import mts.util._
+import mts.conll._
 import mts.tasks.Config
 
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
-case class OpenFormHTMLQASpec(numQAs: Int = 3) extends QASpec {
+case class OpenFormHTMLQASpec(numQAs: Int) extends QASpec {
   type QuestionData = (CoNLLSentencePath, String) // path to sentence, sentence
   type AnswerData = (List[(String, String)], String) // QA pairs, comment
 

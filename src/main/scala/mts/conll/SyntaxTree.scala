@@ -1,4 +1,4 @@
-package mts
+package mts.conll
 
 sealed trait SyntaxTree {
   final def toStringMultiline: String = toStringMultiline(0)

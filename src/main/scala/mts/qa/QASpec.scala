@@ -1,7 +1,6 @@
 package mts.qa
 
-import mts.Question
-import mts.Annotation
+import mts.core._
 
 trait QASpec {
   type QuestionData

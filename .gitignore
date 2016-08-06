@@ -18,7 +18,7 @@ project/plugins/project/
 
 # project specific
 
-conll-2012
-ontonotes-release-5.0
 ontonotes-url.txt
 mturk.properties
+ontonotes-release-5.0
+conll-2012

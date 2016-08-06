@@ -1,6 +1,6 @@
 package mts.tasks
 
-import mts.Question
+import mts.core.Question
 import mts.qa.QASpec
 import mts.qa.OpenFormHTMLQASpec
 

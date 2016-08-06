@@ -1,10 +1,7 @@
 package mts.tasks
 
-import mts.Annotation
-import mts.Question
-import mts.FileManager
-import mts._
-
+import mts.core._
+import mts.util._
 import mts.qa.QASpec
 
 import com.amazonaws.mturk.service.axis.RequesterService
