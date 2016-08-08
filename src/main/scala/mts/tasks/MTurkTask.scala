@@ -69,6 +69,7 @@ trait MTurkTask {
 
   final def createHIT(question: Question): Try[HIT] = {
     Try {
+
       // just hash the time and main stuff of our request for the unique token.
       val uniqueRequestToken = (hitType, question.xml, System.nanoTime()).toString.hashCode.toString
 
@@ -146,6 +147,7 @@ trait MTurkTask {
     if(approvedAssignments.size >= numAssignmentsPerHIT && submittedAssignments.size == 0) {
       // If we have approved enough assignments, and no more are in the queue, dispose of the HIT.
       service.disposeHIT(hit.getHITId())
+      questionStore.remove(hit.getHITId())
       println
       println(s"Disposed HIT: ${hit.getHITId()}")
       println(s"HIT type of disposed: $hitType")
@@ -171,7 +173,6 @@ trait MTurkTask {
     FileManager.saveAnnotation(annotation) match {
       case Success(_) => // don't approve the assignment until we can successfully save the results
         service.approveAssignment(assignment.getAssignmentId(), "")
-        questionStore.remove(hit.getHITId())
         println
         println(s"Approved assignment: ${assignment.getAssignmentId()}")
         println(s"HIT for approved assignment: ${hit.getHITId()}")
@@ -190,7 +191,7 @@ trait MTurkTask {
   val keywords: String
   val reward: Double
   val autoApprovalDelay = 3600L // seconds (1 hour)
-  val assignmentDuration = 300L // seconds (2 minutes)
+  val assignmentDuration = 600L // seconds (10 minutes)
   val qualRequirements = Array.empty[QualificationRequirement]
 
   // other fields
@@ -200,7 +201,7 @@ trait MTurkTask {
   val qaSpec: QASpec
   import qaSpec._
 
-  def annotatedQAPairs = FileManager.loadAnnotationsForHITType(hitType)
+  def annotatedQAPairs() = FileManager.loadAnnotationsForHITType(hitType)
     .groupBy(_.hitId)
     .map {
     case (hitId, annos) => (hitId -> annos.flatMap(qaSpec.getQAPair))
@@ -208,10 +209,10 @@ trait MTurkTask {
 
   def createMonitor(system: ActorSystem,
                     questions: Iterator[QuestionData],
-                    numHITs: Int = 5,
-                    interval: FiniteDuration = 1 minute
+                    numHITsToKeepActive: Int,
+                    interval: FiniteDuration = 30 seconds
                     ): ActorRef = {
-    system.actorOf(Props(Monitor(questions, numHITs, interval)))
+    system.actorOf(Props(Monitor(questions, numHITsToKeepActive, interval)))
   }
 
   sealed trait Message
@@ -247,10 +248,11 @@ trait MTurkTask {
       FileManager.saveQuestionStore(hitType, questionStore.toMap)
     }
 
-    val finishedQuestions = {
+    val finishedOrCurrentQuestions = {
       val savedAnnotations = FileManager.loadAnnotationsForHITType(hitType)
       val set = mutable.HashSet[QuestionData]()
       set ++= savedAnnotations.flatMap(_.question.map(qaSpec.extractQuestionData))
+      set ++= questionStore.values.map(qaSpec.extractQuestionData)
       set
     }
 
@@ -260,7 +262,7 @@ trait MTurkTask {
 
     def getNextQuestion(): Option[QuestionData] = {
       val allQuestions = stackedQuestions.iterator ++ questionSource ++ failedQuestions.iterator
-      val validQuestions = allQuestions.filter(q => !finishedQuestions.contains(q))
+      val validQuestions = allQuestions.filter(q => !finishedOrCurrentQuestions.contains(q))
       validQuestions.nextOption
     }
 
@@ -326,8 +328,11 @@ trait MTurkTask {
     }
 
     def update(): Unit = {
+      println
+      println(s"Updating ($hitType)...")
+
       val newAnnotations = reviewHITs
-      finishedQuestions ++= newAnnotations.flatMap(_.question.map(qaSpec.extractQuestionData))
+      finishedOrCurrentQuestions ++= newAnnotations.flatMap(_.question.map(qaSpec.extractQuestionData))
 
       val hitsOfThisType = service.searchAllHITs()
         .filter(hit => hit.getHITTypeId().equals(hitType))

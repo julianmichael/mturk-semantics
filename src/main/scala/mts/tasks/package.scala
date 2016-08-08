@@ -8,6 +8,7 @@ package object tasks {
   sealed trait TaskConfig {
     val service: RequesterService
     val externalSubmitURL: String
+    val label: String
   }
 
   private[this] def loadGlobalConfig(): ClientConfig = {
@@ -24,6 +25,7 @@ package object tasks {
     config.setServiceURL(ClientConfig.PRODUCTION_SERVICE_URL)
     override val service = new RequesterService(config)
     override val externalSubmitURL = "https://www.mturk.com/mturk/externalSubmit"
+    override val label = "production"
   }
 
   private[this] object SandboxTaskConfig extends TaskConfig {
@@ -31,8 +33,9 @@ package object tasks {
     config.setServiceURL(ClientConfig.SANDBOX_SERVICE_URL)
     override val service = new RequesterService(config)
     override val externalSubmitURL = "https://workersandbox.mturk.com/mturk/externalSubmit"
+    override val label = "sandbox"
   }
 
   // change this value to switch between sandbox and production
-  val Config: TaskConfig = SandboxTaskConfig
+  val Config: TaskConfig = ProductionTaskConfig
 }

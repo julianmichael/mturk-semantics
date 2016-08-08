@@ -1,19 +1,19 @@
 package mts.util
 
 import mts.core._
+import mts.tasks.Config
 
 import java.nio.file.{Paths, Path, Files}
 import scala.util.Try
-import scala.collection.mutable
 
 object FileManager {
-  private[this] val mTurkAnnotationPath = Paths.get("annotations")
+  private[this] val mTurkAnnotationPath = Paths.get("annotations").resolve(Config.label)
   private[this] val questionFilePath = Paths.get("questions")
 
   private[this] def getHITTypePath(hitType: String) = {
     val hitTypePath = mTurkAnnotationPath.resolve(hitType)
     if(!Files.exists(hitTypePath)) {
-      Files.createDirectory(hitTypePath);
+      Files.createDirectories(hitTypePath);
     }
     hitTypePath
   }

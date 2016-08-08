@@ -3,7 +3,10 @@ package mts
 import scala.util.{Try, Success, Failure}
 
 package object util {
-  implicit class EnrichedTry[A](t: Try[A]) {
+  lazy val stopwords: Set[String] =
+    io.Source.fromFile("english.stop.txt", "iso-8859-1").getLines.toSet ++ Set("hm", "uh", "um")
+
+  implicit class RichTry[A](val t: Try[A]) extends AnyVal {
     def toOptionPrinting: Option[A] = t match {
       case Success(a) => Some(a)
       case Failure(e) =>
@@ -12,7 +15,7 @@ package object util {
     }
   }
 
-  implicit class EnrichedIterator[A](t: Iterator[A]) {
+  implicit class RichIterator[A](val t: Iterator[A]) extends AnyVal {
     def nextOption: Option[A] = if(t.hasNext) Some(t.next) else None
   }
 }

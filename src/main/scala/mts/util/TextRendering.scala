@@ -6,7 +6,8 @@ object TextRendering {
     "n't", "'s", "'re", "'ve", "'ll", "na", "'m", "'d",
     "%", "-", "+",
     "-RRB-", "-RCB-", "-RSB-",
-    ")", "]", "}"
+    ")", "]", "}",
+    "/."
   )
 
   val noSpaceAfter = Set(
@@ -30,6 +31,7 @@ object TextRendering {
     case "-RCB-" => "}"
     case "-LSB-" => "["
     case "-RSB-" => "]"
+    case "/." => "."
     case w => w.replaceAll("\\/", "/")
   }
 

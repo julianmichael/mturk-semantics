@@ -24,21 +24,19 @@ package object conll {
     sentenceString = TextRendering.renderSentence(sentence)
   } yield (CoNLLSentencePath(path, sentence.sentenceNum), sentenceString)
 
-  implicit class CoNLLTextRendering(tr: TextRendering.type) {
+  implicit class CoNLLTextRendering(val tr: TextRendering.type) extends AnyVal {
     def renderSentence(sentence: CoNLLSentence) = {
       tr.renderSentence(sentence.words.map(_.token))
     }
   }
 
-
   // TODO bound the cache's memory use / number of files
-  val conllCache = mutable.Map.empty[CoNLLPath, CoNLLFile]
+  private[this] val conllCache = mutable.Map.empty[CoNLLPath, CoNLLFile]
+  import java.nio.file.{Paths, Path, Files}
+  private[this] val CoNLLRootPath = Paths.get("conll-2012")
+  private[this] val CoNLLAnnotationPath = CoNLLRootPath.resolve("v4/data/development/data/english/annotations")
 
-  implicit class CoNLLFileManager(fm: FileManager.type) {
-    import java.nio.file.{Paths, Path, Files}
-
-    private[this] val CoNLLRootPath = Paths.get("conll-2012")
-    private[this] val CoNLLAnnotationPath = CoNLLRootPath.resolve("v4/data/development/data/english/annotations")
+  implicit class CoNLLFileManager(val fm: FileManager.type) extends AnyVal {
 
     def getCoNLLFile(path: CoNLLPath): Try[CoNLLFile] = Try {
       if(conllCache.contains(path)) {
@@ -56,6 +54,5 @@ package object conll {
     def getCoNLLSentence(path: CoNLLSentencePath): Try[CoNLLSentence] = for {
       file <- getCoNLLFile(path.filePath)
     } yield file.sentences(path.sentenceNum)
-
   }
 }

@@ -3,7 +3,7 @@
 # Setup script for MTurk Semantics project.
 # Downloads OntoNotes 5.0 and CoNLL 2012 data,
 # and runs the CoNLL script to format the data so it's ready to be parsed.
-# Also makes sure your Mechanical Turk access keys are set correctly.
+# Also makes sure a file with your Mechanical Turk access keys are present.
 
 # NOTE: the CoNLL 2012 task instructions say to use the CoNLL 2012 package from the LDC.
 # I used the OntoNotes 5.0 package instead and it seems to work fine.

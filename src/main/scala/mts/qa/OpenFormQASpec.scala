@@ -8,7 +8,7 @@ import mts.tasks.Config
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
-case class OpenFormHTMLQASpec(numQAs: Int) extends QASpec {
+case class OpenFormQASpec(numQAs: Int) extends QASpec {
   type QuestionData = (CoNLLSentencePath, String) // path to sentence, sentence
   type AnswerData = (List[(String, String)], String) // QA pairs, comment
 
@@ -61,13 +61,13 @@ case class OpenFormHTMLQASpec(numQAs: Int) extends QASpec {
       )(
         p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
           We wish to deconstruct the meanings of English sentences into a list of questions and answers.
-          You will be presented with an English sentence.
+          You will be presented with a selection of English text, usually a sentence or phrase.
           Your task is to write $numQAs simple questions, and their answers, satisfying the following criteria:"""),
         ul(
-          li("""The question must be about the meaning of the sentence, and not, for example, the positions of the words."""),
+          li("""The question must be about the meaning of the selection, and not, for example, the positions of the words."""),
           li("""The question must contain a content word (such as a name, descriptor, or verb other than "be" or "do"),
-             or a derivative of such a word, from the sentence."""),
-          li("""The answer must only contain words (or derivatives of words) that appear in the sentence.""")),
+             or a derivative of such a word, from the selection."""),
+          li("""The answer must only contain words (or derivatives of words) that appear in the selection.""")),
         p("""Consider the sentence: "If the UK is unwilling to accept the free movement of labour,
           it is likely trade will fall by more, leading to a 2.6 per cent decrease in income per person."
           Acceptable questions and answers may include:"""),
@@ -75,16 +75,19 @@ case class OpenFormHTMLQASpec(numQAs: Int) extends QASpec {
           li("""Who might be unwilling to do something? --- the UK"""),
           li("""What would lead to a decrease in income? --- trade falling"""),
           li("""How much of a decrease? --- 2.6 per cent""")),
-        p("""
+        p(s"""
           Note that the answers only contain words (the, UK, trade, 2.6, per, cent) or derivatives of words (falling)
-          that already appear in the sentence.
+          that already appear in the selection.
           Please try to keep the questions and answers as short as possible while remaining correct.
-          Your goal should be that if someone else reads these instructions, the sentence, and your question,
+          Your goal should be that if someone else reads these instructions, the selection, and your question,
           they are likely to write your answer word-for-word.
-          If your response has questions that are all identical, do not use words from the sentence,
+          If your response has questions that are all identical, do not use words from the selection,
           or are clearly not English, it will be rejected.
           Otherwise, your work will be approved in at most one hour.
-          Each HIT should take less than two minutes to complete."""),
+          Each HIT should take less than ${numQAs / 2} minutes to complete.
+          If at any point you have complaints, questions, or concerns,
+          please write them in the "Feedback" field so we may improve the task.
+          """),
         hr(),
         p(s"""Please write $numQAs questions and answers about the following sentence:"""),
         blockquote(qData._2),
@@ -129,7 +132,7 @@ case class OpenFormHTMLQASpec(numQAs: Int) extends QASpec {
         <HTMLContent><![CDATA[
           <!DOCTYPE html>${page.render}
         ]]></HTMLContent>
-        <FrameHeight>540</FrameHeight>
+        <FrameHeight>600</FrameHeight>
       </HTMLQuestion>
     """.trim
     Question(question, upickle.write(qData._1))

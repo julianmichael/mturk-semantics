@@ -2,11 +2,11 @@ package mts.tasks
 
 import mts.core.Question
 import mts.qa.QASpec
-import mts.qa.OpenFormHTMLQASpec
+import mts.qa.OpenFormQASpec
 
 import scala.util.{Try, Success, Failure}
 
-case class MTurkOpenFormHTMLQA(
+case class OpenFormQATask(
   final override val reward: Double,
   final val numQAsPerHIT: Int,
   final override val numAssignmentsPerHIT: Int = 5
@@ -18,5 +18,5 @@ case class MTurkOpenFormHTMLQA(
   """.trim
   final override val keywords: String = "language,english,question answering"
 
-  final override val qaSpec = OpenFormHTMLQASpec(numQAsPerHIT)
+  final override val qaSpec = OpenFormQASpec(numQAsPerHIT)
 }
