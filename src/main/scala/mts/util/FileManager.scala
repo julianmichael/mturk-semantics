@@ -6,6 +6,15 @@ import mts.tasks.Config
 import java.nio.file.{Paths, Path, Files}
 import scala.util.Try
 
+/**
+  * Utility object for saving and loading files.
+  * NOTE: the way we use FileManager, not all of the methods you see called on it will be here!
+  * Instead, each package (conll, experiments, etc) may add extension methods to FileManager
+  * via implicit conversions, to interface with files in ways appropriate to that package.
+  * You can see these extension methods in each package's `package.scala`.
+  * This way file managing functionality is logically separated, but narrowly namespaced.
+  * I'm not totally confident that this is the best way of doing things... but I like it! -J
+  */
 object FileManager {
   private[this] val mTurkAnnotationPath = Paths.get("annotations").resolve(Config.label)
   private[this] val questionFilePath = Paths.get("questions")

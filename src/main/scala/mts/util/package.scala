@@ -18,4 +18,13 @@ package object util {
   implicit class RichIterator[A](val t: Iterator[A]) extends AnyVal {
     def nextOption: Option[A] = if(t.hasNext) Some(t.next) else None
   }
+
+  def sendToClipboard(s: String): Unit = {
+    import java.awt._;
+    import java.awt.datatransfer._;
+    import java.io._;
+    val selection = new StringSelection(s)
+    val clipboard = Toolkit.getDefaultToolkit.getSystemClipboard
+    clipboard.setContents(selection, selection)
+  }
 }

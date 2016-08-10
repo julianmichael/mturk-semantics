@@ -22,3 +22,5 @@ ontonotes-url.txt
 mturk.properties
 ontonotes-release-5.0
 conll-2012
+experiments/*/data/*
+experiments/*/out/*

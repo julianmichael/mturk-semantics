@@ -203,8 +203,12 @@ trait MTurkTask {
 
   def annotatedQAPairs() = FileManager.loadAnnotationsForHITType(hitType)
     .groupBy(_.hitId)
-    .map {
-    case (hitId, annos) => (hitId -> annos.flatMap(qaSpec.getQAPair))
+    .flatMap { case (hitId, annos) =>
+      annos.flatMap(qaSpec.getQAPair) match {
+        case Nil => None
+        case (q, a) :: qaPairs =>
+          Some(hitId -> (q, a :: qaPairs.map(_._2)))
+      }
   }
 
   def createMonitor(system: ActorSystem,

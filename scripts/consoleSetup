@@ -1,5 +1,5 @@
 import mts.tasks._
-val taskSpec = MTurkOpenFormHTMLQA(numAssignmentsPerHIT = 1)
+val taskSpec = OpenFormQATask(numAssignmentsPerHIT = 1)
 import taskSpec.Messages._
 import akka.actor._
 val system = ActorSystem("system")

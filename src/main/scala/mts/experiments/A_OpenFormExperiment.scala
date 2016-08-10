@@ -1,13 +1,16 @@
 package mts.experiments
 
-import mts._
+import mts.core._
 import mts.util._
 import mts.tasks._
 import mts.conll._
 import akka.actor._
 
+import scala.util.Try
+
 // file name has A_ prepended so experiments have an obvious order
 object OpenFormExperiment {
+  val name = "a_open-form"
   // get 100 sentences from conll data
   val annotationFilepaths = List(
     "bn/abc/00/abc_0010.v4_gold_conll",
@@ -46,8 +49,6 @@ object OpenFormExperiment {
   lazy val system = ActorSystem("system")
 
   lazy val tasks = List[(OpenFormQATask, ActorRef)](
-    // the short sentences are mostly boring/bad/meh
-    // makeTask(system)(minTokens = 1, maxTokens = 6, numQAs = 2, reward = 0.10),
     makeTask(system)(minTokens = 7, maxTokens = 18, numQAs = 4, reward = 0.20),
     makeTask(system)(minTokens = 19, maxTokens = 120, numQAs = 6, reward = 0.30)
   )
@@ -61,7 +62,17 @@ object OpenFormExperiment {
   type QuestionData = (CoNLLSentencePath, String)
   type AnswerData = (List[(String, String)], String)
 
-  def getAllAnnotations(): Map[String, List[(QuestionData, AnswerData)]] =
+  def getAllAnnotations(): List[Annotation] =
+    tasks.flatMap(p => FileManager.loadAnnotationsForHITType(p._1.hitType))
+
+  def getAllQAPairs(): Map[String, (QuestionData, List[AnswerData])] =
     tasks.flatMap(_._1.annotatedQAPairs).toMap
 
+  def getAllFeedback(): Iterable[String] = getAllQAPairs().flatMap(_._2._2.map(_._2))
+    .filterNot(_.isEmpty)
+
+  def saveData(): Try[Unit] = Try {
+    FileManager.saveDataFile(name, getAllAnnotations(),
+                             List(AnnotationStat.workerAssignmentNum))
+  }
 }
