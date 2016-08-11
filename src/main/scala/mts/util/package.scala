@@ -1,6 +1,8 @@
 package mts
 
 import scala.util.{Try, Success, Failure}
+import scala.collection.mutable
+import scala.collection.TraversableOnce
 
 package object util {
   lazy val stopwords: Set[String] =
@@ -26,5 +28,11 @@ package object util {
     val selection = new StringSelection(s)
     val clipboard = Toolkit.getDefaultToolkit.getSystemClipboard
     clipboard.setContents(selection, selection)
+  }
+
+  def counts[T](xs: TraversableOnce[T]): Map[T, Int] = {
+    val m = mutable.HashMap.empty[T, Int].withDefaultValue(0)
+    xs.foreach(m(_) += 1)
+    m.toMap
   }
 }

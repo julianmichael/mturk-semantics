@@ -4,7 +4,7 @@ require(plyr)
 
 system("mkdir -p out")
 
-data <- read.csv("data/annotations.tsv", sep="\t")
+data <- read.csv("data/assignments.tsv", sep="\t")
 # convert times to minutes since beginning
 startTime <- min(data$acceptTime)
 data$submitTime <- (data$submitTime - startTime) / 60000.0
@@ -17,7 +17,6 @@ data <- droplevels(data)
 dataMed4 <- subset(data, hitType == "med/4")
 dataLong6 <- subset(data, hitType == "long/6")
 dataBothTypes <- subset(data, workerId %in% dataLong6$workerId & workerId %in% dataMed4$workerId)
-print(dataBothTypes$workerId)
 
 numAssignments <- dim(data)[1]
 cat(sprintf("Assignments: %d\n", numAssignments))
@@ -119,7 +118,7 @@ ggplot(data=subset(data, hitType == "long/6"),
   ggtitle("Time taken by worker for successive assignments (long/6)") +
   labs(x = "Number of assignment", y = "Time taken (minutes)")
 
-# Worker uptake
+# Worker timelines
 uptakeStats <- ddply(data, .(workerId, hitType, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
 uptakeStatsBothTypes <- ddply(dataBothTypes, .(workerId, hitType, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
 uptakeStatsMed4 <- ddply(dataMed4, .(workerId, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))

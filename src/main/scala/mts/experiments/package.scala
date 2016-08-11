@@ -14,16 +14,15 @@ package object experiments {
   implicit class ExperimentFileManager(val fm: FileManager.type) extends AnyVal {
     def saveDataFile(
       experimentName: String,
-      annotations: List[Annotation],
-      extraStats: List[AnnotationStat]
+      fileName: String,
+      contents: String
     ) = Try {
-      val tsvContents = Annotation.toTSV(annotations, extraStats)
       val directory = experimentRootPath.resolve(experimentName).resolve(dataPath)
       if(!Files.exists(directory)) {
         Files.createDirectories(directory)
       }
-      val path = directory.resolve("annotations.tsv")
-      Files.write(path, tsvContents.getBytes())
+      val path = directory.resolve(fileName)
+      Files.write(path, contents.getBytes())
     }
   }
 }
