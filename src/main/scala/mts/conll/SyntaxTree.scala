@@ -1,5 +1,7 @@
 package mts.conll
 
+import mts.util._
+
 sealed trait SyntaxTree {
   final def toStringMultiline: String = toStringMultiline(0)
   def toStringMultiline(indent: Int): String
@@ -39,5 +41,5 @@ object SyntaxTree {
     }
 
   def fromString(s: String, words: List[CoNLLWord]): Option[SyntaxTree] =
-    scala.util.Try(treeP.parse(s).get.value.eval(words)).toOption
+    scala.util.Try(treeP.parse(s).get.value.eval(words)).toOptionPrinting
 }

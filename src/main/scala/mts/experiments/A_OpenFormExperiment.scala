@@ -82,21 +82,22 @@ object OpenFormExperiment {
     import mts.language._
     // q and a must be lower case
     case class QAInfo(
-      val sentence: List[String],
+      val sentence: CoNLLSentence,
       val question: List[String],
       val answer: List[String]
     ) {
-      val indexedSentence = sentence.map(_.toLowerCase).zipWithIndex
+      val sentenceTokens = sentence.words.map(_.token)
+      val indexedSentence = sentenceTokens.map(_.toLowerCase).zipWithIndex
 
-      val sentenceSet = sentence.map(_.toLowerCase).toSet
+      val sentenceSet = sentenceTokens.map(_.toLowerCase).toSet
       val questionSet = question.toSet
       val answerSet = answer.toSet
 
       val questionOverlap = indexedSentence.filter(p => questionSet(p._1)).map(_._2).toSet
-      val proportionQuestionOverlap = questionOverlap.size.toDouble / sentence.size
+      val proportionQuestionOverlap = questionOverlap.size.toDouble / sentenceTokens.size
 
       val answerOverlap = indexedSentence.filter(p => answerSet(p._1)).map(_._2).toSet
-      val proportionAnswerOverlap = answerOverlap.size.toDouble / sentence.size
+      val proportionAnswerOverlap = answerOverlap.size.toDouble / sentenceTokens.size
 
       val newQuestionWords = question.filterNot(sentenceSet)
       val newAnswerWords = answer.filterNot(sentenceSet)
@@ -108,12 +109,13 @@ object OpenFormExperiment {
       } yield (qIndex, aIndex)
       val arcCoverage = arcs.size
       // theoretical max of n(n - 1) arcs between different words
-      val arcCoverageOfN2 = arcs.size.toDouble / (sentence.size * (sentence.size - 1))
+      val arcCoverageOfN2 = arcs.size.toDouble / (sentenceTokens.size * (sentenceTokens.size - 1))
       // practical max of n - 1 arcs forming a tree
-      val arcCoverageOfN1 = arcs.size.toDouble / (sentence.size - 1)
+      val arcCoverageOfN1 = arcs.size.toDouble / (sentenceTokens.size - 1)
       // in reality we will get numbers in between these, counting spurious arcs from function words, etc.
 
       val questionFirstWord = question.head
+      val questionFirstWordIfNew = if(!sentenceSet(questionFirstWord)) Some(question.head) else None
     }
 
     // infos must be for the same sentence
@@ -126,17 +128,20 @@ object OpenFormExperiment {
       val questionOverlap = qas.map(_.questionOverlap).reduce(_ union _)
       val questionOverlapCount = questionOverlap.size
       val questionOverlapPerQA = questionOverlapCount.toDouble / qas.size
-      val questionOverlapProportion = questionOverlap.size.toDouble / sentence.size
+      val questionOverlapProportion = questionOverlap.size.toDouble / sentence.words.size
 
       val answerOverlap = qas.map(_.answerOverlap).reduce(_ union _)
       val answerOverlapCount = answerOverlap.size
       val answerOverlapPerQA = answerOverlapCount.toDouble / qas.size
-      val answerOverlapProportion  = answerOverlap.size.toDouble / sentence.size
+      val answerOverlapProportion  = answerOverlap.size.toDouble / sentence.words.size
 
       val arcs = qas.map(_.arcs).reduce(_ union _)
       val arcCoverage = arcs.size
-      val arcCoverageOfN2 = arcs.size.toDouble / (sentence.size * (sentence.size - 1))
-      val arcCoverageOfN1 = arcs.size.toDouble / (sentence.size - 1)
+      val arcCoveragePerQA = arcCoverage.toDouble / qas.size
+      val arcCoverageOfN1 = arcs.size.toDouble / (sentence.words.size - 1)
+      val arcCoverageOfN1PerQA = (arcs.size.toDouble / (sentence.words.size - 1)) / qas.size
+      val arcCoverageOfN2 = arcs.size.toDouble / (sentence.words.size * (sentence.words.size - 1))
+      val arcCoverageOfN2PerQA = (arcs.size.toDouble / (sentence.words.size * (sentence.words.size - 1))) / qas.size
     }
 
     // assume we have the queston for everything ugh
@@ -145,11 +150,10 @@ object OpenFormExperiment {
       val ((path, _), (qaPairs, _)) = (protoQASpec.extractQuestionData(question), protoQASpec.extractAnswerData(a.answer))
       val infos = for {
         sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
-        tokens = sentence.words.map(_.token)
         (q, a) <- qaPairs
         qTokens = tokenize(q).map(_.toLowerCase)
         aTokens = tokenize(a).map(_.toLowerCase)
-      } yield QAInfo(tokens, qTokens, aTokens)
+      } yield QAInfo(sentence, qTokens, aTokens)
       AggregatedQAInfo(infos.toList)
     }
 
@@ -227,6 +231,7 @@ object OpenFormExperiment {
     }
 
     saveWordCounts("first-qword.tsv", qaInfo => List(qaInfo.questionFirstWord))
+    saveWordCounts("first-qword-new.tsv", qaInfo => qaInfo.questionFirstWordIfNew.toList)
     saveWordCounts("new-qwords.tsv", _.newQuestionWords)
     saveWordCounts("new-awords.tsv", _.newAnswerWords)
   }

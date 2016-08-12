@@ -8,6 +8,10 @@ package object util {
   lazy val stopwords: Set[String] =
     io.Source.fromFile("english.stop.txt", "iso-8859-1").getLines.toSet ++ Set("hm", "uh", "um")
 
+  implicit class RichValForOptions[A](val a: A) extends AnyVal {
+    def onlyIf(p: (A => Boolean)): Option[A] = Some(a).filter(p)
+  }
+
   implicit class RichTry[A](val t: Try[A]) extends AnyVal {
     def toOptionPrinting: Option[A] = t match {
       case Success(a) => Some(a)
