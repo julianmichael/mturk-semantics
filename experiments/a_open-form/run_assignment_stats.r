@@ -61,7 +61,8 @@ system("mkdir -p out")
 
 dimsToKeep <- c("hitId", "hitType", "questionOverlapCount", "questionOverlapProportion", "questionOverlapPerQA",
                 "answerOverlapCount", "answerOverlapProportion", "answerOverlapPerQA",
-                "arcCoverage", "arcCoverageN1", "arcCoverageN2")
+                "coveredLabelProportion", "someWordCoveredLabelProportion", "allWordsCoveredLabelProportion"
+                )
 
 assignmentData <- read.csv("data/assignments.tsv", sep="\t")
 assignmentData <- assignmentData[dimsToKeep]
@@ -187,11 +188,12 @@ make_graphs_for_stat("answerOverlapProportion", "Proportion of sentence words co
 make_graphs_for_stat("answerOverlapPerQA", "Number unique sentence words covered per answer",
                      binwidth = .25)
 
-make_graphs_for_stat("arcCoverage", "Number unique dep arcs covered per QA",
-                     binwidth = 5)
-make_graphs_for_stat("arcCoverageN1", "Number unique dep arcs covered per QA per n - 1 words",
-                     binwidth = .5)
-make_graphs_for_stat("arcCoverageN2", "Number unique dep arcs covered per QA per n(n - 1) words",
+make_graphs_for_stat("coveredLabelProportion", "Aggregate proportion of SRL dep arg spans coverage",
                      binwidth = .05)
+make_graphs_for_stat("someWordCoveredLabelProportion", "Proportion of SRL dep arg spans with some word covered",
+                     binwidth = .05)
+make_graphs_for_stat("allWordsCoveredLabelProportion", "Proportion of SRL dep arg spans with all words covered",
+                     binwidth = .05)
+
 
 dev.off()

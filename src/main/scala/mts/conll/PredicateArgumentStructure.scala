@@ -60,8 +60,6 @@ object ArgumentSpan {
     }
 
   def fromString(s: String, words: List[CoNLLWord]): Try[List[ArgumentSpan]] = Try {
-    val res = allSpansP.parse(s).get.value.eval(words)
-    println(res.mkString("\n"))
-    res
+    allSpansP.parse(s).get.value.eval(words)
   }
 }

@@ -59,14 +59,10 @@ object OpenFormExperiment {
   def expire() = tasks.foreach(p => p._2 ! p._1.Message.Expire)
   def update() = tasks.foreach(p => p._2 ! p._1.Message.Update)
 
-  // def quit() = {
-  //   system.terminate()
-  //   System.exit(0)
-  // }
-
   type QuestionData = (CoNLLSentencePath, String)
   type AnswerData = (List[(String, String)], String)
 
+  // TODO save HIT types and access them here and such
   def getAllAnnotations(): List[Annotation] =
     // tasks.flatMap(p => FileManager.loadAnnotationsForHITType(p._1.hitType))
     List("3NWM3X0LA7LBIGM2QP1Y4BFHQN9XPC", "3JH21YRKZ6B7ZFDTS077Y16U7HJ0JL")
@@ -102,20 +98,14 @@ object OpenFormExperiment {
       val newQuestionWords = question.filterNot(sentenceSet)
       val newAnswerWords = answer.filterNot(sentenceSet)
 
+      val questionFirstWord = question.head
+      val questionFirstWordIfNew = if(!sentenceSet(questionFirstWord)) Some(question.head) else None
+
       val arcs = for {
         qIndex <- questionOverlap
         aIndex <- answerOverlap
         if qIndex != aIndex
       } yield (qIndex, aIndex)
-      val arcCoverage = arcs.size
-      // theoretical max of n(n - 1) arcs between different words
-      val arcCoverageOfN2 = arcs.size.toDouble / (sentenceTokens.size * (sentenceTokens.size - 1))
-      // practical max of n - 1 arcs forming a tree
-      val arcCoverageOfN1 = arcs.size.toDouble / (sentenceTokens.size - 1)
-      // in reality we will get numbers in between these, counting spurious arcs from function words, etc.
-
-      val questionFirstWord = question.head
-      val questionFirstWordIfNew = if(!sentenceSet(questionFirstWord)) Some(question.head) else None
     }
 
     // infos must be for the same sentence
@@ -136,12 +126,78 @@ object OpenFormExperiment {
       val answerOverlapProportion  = answerOverlap.size.toDouble / sentence.words.size
 
       val arcs = qas.map(_.arcs).reduce(_ union _)
-      val arcCoverage = arcs.size
-      val arcCoveragePerQA = arcCoverage.toDouble / qas.size
-      val arcCoverageOfN1 = arcs.size.toDouble / (sentence.words.size - 1)
-      val arcCoverageOfN1PerQA = (arcs.size.toDouble / (sentence.words.size - 1)) / qas.size
-      val arcCoverageOfN2 = arcs.size.toDouble / (sentence.words.size * (sentence.words.size - 1))
-      val arcCoverageOfN2PerQA = (arcs.size.toDouble / (sentence.words.size * (sentence.words.size - 1))) / qas.size
+
+      val coveredArgLabels = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(label, words) <- args
+        spanWord <- words
+        if arcs.contains(pred.head.index, spanWord.index) && !label.equals("V")
+      } yield label
+      val uncoveredArgLabels = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(label, words) <- args
+        spanWord <- words
+        if !arcs.contains(pred.head.index, spanWord.index) && !label.equals("V")
+      } yield label
+      val coveredArgLabelCount = coveredArgLabels.size
+      val uncoveredArgLabelCount = uncoveredArgLabels.size
+      val coveredLabelProportion = coveredArgLabels.size.toDouble / (coveredArgLabels.size + uncoveredArgLabels.size)
+
+      val someWordCoveredLabels = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(label, words) <- args
+        if !label.equals("V") && words.exists(spanWord => arcs.contains(pred.head.index, spanWord.index))
+      } yield label
+      val noWordCoveredLabels = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(label, words) <- args
+        if !label.equals("V") && !words.exists(spanWord => arcs.contains(pred.head.index, spanWord.index))
+      } yield label
+      val someWordCoveredLabelCount = someWordCoveredLabels.size
+      val noWordCoveredLabelCount = noWordCoveredLabels.size
+      val someWordCoveredLabelProportion = someWordCoveredLabelCount.toDouble / (someWordCoveredLabelCount + noWordCoveredLabelCount)
+
+      val allWordsCoveredLabels = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(label, words) <- args
+        if !label.equals("V") && words.forall(spanWord => arcs.contains(pred.head.index, spanWord.index))
+      } yield label
+      val someWordUncoveredLabels = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(label, words) <- args
+        if !label.equals("V") && !words.forall(spanWord => arcs.contains(pred.head.index, spanWord.index))
+      } yield label
+      val allWordsCoveredLabelCount = allWordsCoveredLabels.size
+      val someWordUncoveredLabelCount = someWordUncoveredLabels.size
+      val allWordsCoveredLabelProportion = allWordsCoveredLabelCount.toDouble / (allWordsCoveredLabelCount + someWordUncoveredLabelCount)
+
+      val arcMatches = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(depLabel, argWords) <- args
+        if !depLabel.equals("V")
+        qaInfo <- qas
+        questionLabel <- qaInfo.questionFirstWordIfNew.toList
+        word <- argWords
+        if qaInfo.arcs.contains(pred.head.index, word.index)
+      } yield (depLabel, questionLabel)
+
+      val arcMatchesForSome = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(depLabel, argWords) <- args
+        if !depLabel.equals("V")
+        qaInfo <- qas
+        questionLabel <- qaInfo.questionFirstWordIfNew.toList
+        if argWords.exists(word => qaInfo.arcs.contains(pred.head.index, word.index))
+      } yield (depLabel, questionLabel)
+
+      val arcMatchesForAll = for {
+        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
+        ArgumentSpan(depLabel, argWords) <- args
+        if !depLabel.equals("V")
+        qaInfo <- qas
+        questionLabel <- qaInfo.questionFirstWordIfNew.toList
+        if argWords.exists(word => qaInfo.arcs.contains(pred.head.index, word.index))
+      } yield (depLabel, questionLabel)
     }
 
     // assume we have the queston for everything ugh
@@ -179,14 +235,14 @@ object OpenFormExperiment {
     val answerOverlapPerQAStat = AnnotationStat("answerOverlapPerQA", (annos: List[Annotation]) =>
       annos.map(a => f"${annotationsToInfos(a).answerOverlapPerQA}%.4f"))
 
-    val arcCoverageStat = AnnotationStat("arcCoverage", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).arcCoverage}%.4f"))
+    val coveredLabelProportionStat = AnnotationStat("coveredLabelProportion", (annos: List[Annotation]) =>
+      annos.map(a => f"${annotationsToInfos(a).coveredLabelProportion}%.4f"))
 
-    val arcCoverageN1Stat = AnnotationStat("arcCoverageN1", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).arcCoverageOfN1}%.4f"))
+    val someWordCoveredLabelProportionStat = AnnotationStat("someWordCoveredLabelProportion", (annos: List[Annotation]) =>
+      annos.map(a => f"${annotationsToInfos(a).someWordCoveredLabelProportion}%.4f"))
 
-    val arcCoverageN2Stat = AnnotationStat("arcCoverageN2", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).arcCoverageOfN2}%.4f"))
+    val allWordsCoveredLabelProportionStat = AnnotationStat("allWordsCoveredLabelProportion", (annos: List[Annotation]) =>
+      annos.map(a => f"${annotationsToInfos(a).allWordsCoveredLabelProportion}%.4f"))
 
     val assignmentFileContents = Annotation.toTSV(annotations,
                                                   List(AnnotationStat.workerAssignmentNum,
@@ -196,9 +252,10 @@ object OpenFormExperiment {
                                                        answerOverlapCountStat,
                                                        answerOverlapPerQAStat,
                                                        answerOverlapProportionStat,
-                                                       arcCoverageStat,
-                                                       arcCoverageN1Stat,
-                                                       arcCoverageN2Stat))
+                                                       coveredLabelProportionStat,
+                                                       someWordCoveredLabelProportionStat,
+                                                       allWordsCoveredLabelProportionStat
+                                                  ))
     FileManager.saveDataFile(name, "assignments.tsv", assignmentFileContents)
 
     // now let's compute these stats by HIT instead of just assignment
@@ -207,11 +264,11 @@ object OpenFormExperiment {
       case (hitId, annos) => hitId -> (annos.head.hitType, AggregatedQAInfo(annos.flatMap(a => aggregatedInfoForAnnotation(a).qas)))
     }
     val hitTSV = "hitId\thitType\tquestionOverlapCount\tquestionOverlapProportion\tquestionOverlapPerQA\t" +
-      "answerOverlapCount\tanswerOverlapProportion\tanswerOverlapPerQA\tarcCoverage\tarcCoverageN1\tarcCoverageN2\n" +
+      "answerOverlapCount\tanswerOverlapProportion\tanswerOverlapPerQA\tcoveredLabelProportion\tsomeWordCoveredLabelProportion\tallWordsCoveredLabelProportion\n" +
       infoAggregatedByHIT.toList.map { case (hitId, (hitType, aggInfo)) =>
         import aggInfo._
         s"$hitId\t$hitType\t$questionOverlapCount\t$questionOverlapProportion\t$questionOverlapPerQA\t" +
-          s"$answerOverlapCount\t$answerOverlapProportion\t$answerOverlapPerQA\t$arcCoverage\t$arcCoverageOfN1\t$arcCoverageOfN2"
+          s"$answerOverlapCount\t$answerOverlapProportion\t$answerOverlapPerQA\t$coveredLabelProportion\t$someWordCoveredLabelProportion\t$allWordsCoveredLabelProportion"
       }.mkString("\n")
     FileManager.saveDataFile(name, "hits.tsv", hitTSV)
 
@@ -234,5 +291,51 @@ object OpenFormExperiment {
     saveWordCounts("first-qword-new.tsv", qaInfo => qaInfo.questionFirstWordIfNew.toList)
     saveWordCounts("new-qwords.tsv", _.newQuestionWords)
     saveWordCounts("new-awords.tsv", _.newAnswerWords)
+
+    // all below is stats by HIT
+    val proportionalLabelCoverage = for {
+      (_, aggInfo) <- infoAggregatedByHIT.values
+      coveredLabel <- aggInfo.coveredArgLabels
+    } yield ("Covered", coveredLabel)
+    val proportionalLabelUncoverage = for {
+      (_, aggInfo) <- infoAggregatedByHIT.values
+      uncoveredLabel <- aggInfo.uncoveredArgLabels
+    } yield ("Uncovered", uncoveredLabel)
+    val labelCoverageTSV = "IsCovered\tLabel\n" + (proportionalLabelCoverage ++ proportionalLabelUncoverage)
+      .map(p => s"${p._1}\t${p._2}")
+      .mkString("\n")
+    FileManager.saveDataFile(name, "label-agg-coverage.tsv", labelCoverageTSV)
+
+    val someWordLabelCoverage = for {
+      (_, aggInfo) <- infoAggregatedByHIT.values
+      coveredLabel <- aggInfo.someWordCoveredLabels
+    } yield ("Covered", coveredLabel)
+    val noWordLabelCoverage = for {
+      (_, aggInfo) <- infoAggregatedByHIT.values
+      uncoveredLabel <- aggInfo.noWordCoveredLabels
+    } yield ("Uncovered", uncoveredLabel)
+    val someWordLabelCoverageTSV = "IsCovered\tLabel\n" + (someWordLabelCoverage ++ noWordLabelCoverage)
+      .map(p => s"${p._1}\t${p._2}")
+      .mkString("\n")
+    FileManager.saveDataFile(name, "label-some-word-coverage.tsv", someWordLabelCoverageTSV)
+
+    val allWordsLabelCoverage = for {
+      (_, aggInfo) <- infoAggregatedByHIT.values
+      coveredLabel <- aggInfo.allWordsCoveredLabels
+    } yield ("Covered", coveredLabel)
+    val someWordLabelUncoverage = for {
+      (_, aggInfo) <- infoAggregatedByHIT.values
+      uncoveredLabel <- aggInfo.someWordUncoveredLabels
+    } yield ("Uncovered", uncoveredLabel)
+    val allWordsLabelCoverageTSV = "IsCovered\tLabel\n" + (allWordsLabelCoverage ++ someWordLabelUncoverage)
+      .map(p => s"${p._1}\t${p._2}")
+      .mkString("\n")
+    FileManager.saveDataFile(name, "label-all-words-coverage.tsv", allWordsLabelCoverageTSV)
+
+    val allArcMatches = infoAggregatedByHIT.values.flatMap(_._2.arcMatchesForSome)
+    val arcMatchesTSV = "DepLabel\tQuestionLabel\n" + allArcMatches
+      .map { case (depLabel, qLabel) => s"$depLabel\t$qLabel" }
+      .mkString("\n")
+    FileManager.saveDataFile(name, "arc-matches.tsv", arcMatchesTSV)
   }
 }
