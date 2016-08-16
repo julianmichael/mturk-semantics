@@ -5,16 +5,15 @@ import scala.collection.mutable
 import scala.collection.TraversableOnce
 
 package object util {
-  lazy val stopwords: Set[String] =
-    io.Source.fromFile("english.stop.txt", "iso-8859-1").getLines.toSet ++ Set("hm", "uh", "um")
-
   implicit class RichValForOptions[A](val a: A) extends AnyVal {
     def onlyIf(p: (A => Boolean)): Option[A] = Some(a).filter(p)
+    def ifNot(p: (A => Boolean)): Option[A] = Some(a).filterNot(p)
   }
 
   implicit class RichTry[A](val t: Try[A]) extends AnyVal {
     def toOptionPrinting: Option[A] = t match {
-      case Success(a) => Some(a)
+      case Success(a) =>
+        Some(a)
       case Failure(e) =>
         System.err.println(e.getLocalizedMessage)
         None

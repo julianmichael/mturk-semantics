@@ -19,6 +19,8 @@ object FileManager {
   private[this] val mTurkAnnotationPath = Paths.get("annotations").resolve(Config.label)
   private[this] val questionFilePath = Paths.get("questions")
 
+  val resourcePath = Paths.get("resources")
+
   private[this] def getHITTypePath(hitType: String) = {
     val hitTypePath = mTurkAnnotationPath.resolve(hitType)
     if(!Files.exists(hitTypePath)) {

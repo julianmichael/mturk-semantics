@@ -1,6 +1,0 @@
-import mts.tasks._
-val taskSpec = OpenFormQATask(numAssignmentsPerHIT = 1)
-import taskSpec.Messages._
-import akka.actor._
-val system = ActorSystem("system")
-val task = taskSpec.createMonitor(system, mts.conllSentences(), 3)

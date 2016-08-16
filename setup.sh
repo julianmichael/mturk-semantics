@@ -10,9 +10,9 @@
 # It's the same data, and the directory structure seems to be the same too.
 
 # NOTE: If you already have this data somewhere, go ahead and just symlink
-# conll-2012/(and ontonotes-release-5.0/ if necessary) to it, and this script should accommodate you.
+# resources/conll-2012/(and resources/ontonotes-release-5.0/ if necessary) to it, and this script should accommodate you.
 
-if [ ! -e "conll-2012/" ]
+if [ ! -e "resources/conll-2012/" ]
 then
     read -p $'Download the CoNLL 2012 data? [y/N]\n' answer
     case ${answer:0:1} in
@@ -32,6 +32,7 @@ then
             rm conll-2012-train.v4.tar.gz
             rm zxvf conll-2012-development.v4.tar.gz
             rm zxvf conll-2012-scripts.v3.tar.gz
+            mv conll-2012 resources/conll-2012
             ;;
         * )
             echo "Terminating. Get the data yourself."
@@ -41,9 +42,9 @@ then
 fi
 
 # This is the last file that should be produced by the conll generation script
-if [ ! -e "conll-2012/v4/data/development/data/chinese/annotations/wb/e2c/00/e2c_0010.v4_gold_conll" ]
+if [ ! -e "resources/conll-2012/v4/data/development/data/chinese/annotations/wb/e2c/00/e2c_0010.v4_gold_conll" ]
 then
-    if [ ! -e "ontonotes-release-5.0/" ]
+    if [ ! -e "resources/ontonotes-release-5.0/" ]
     then
         if [ ! -e "ontonotes-url.txt" ]
         then
@@ -64,6 +65,7 @@ then
                 tar \
                     -xvzf ontonotes-release-5.0.tar.gz
                 rm ontonotes-release-5.0.tar.gz
+                mv ontonotes-release-5.0.tar.gz resources/ontonotes-release-5.0.tar.gz
                 ;;
             * )
                 echo "Terminating. Get the data yourself."
@@ -75,9 +77,9 @@ then
     read -p $'It seems that the _conll files have not been generated yet. Do it now? [y/N]\n' answer
     case ${answer:0:1} in
         y|Y )
-            conll-2012/v3/scripts/skeleton2conll.sh -D \
-                                                    ontonotes-release-5.0/data/files/data/ \
-                                                    conll-2012/
+            resources/conll-2012/v3/scripts/skeleton2conll.sh -D \
+                                                              resources/ontonotes-release-5.0/data/files/data/ \
+                                                              resources/conll-2012/
             ;;
         * )
             echo "Terminating. Do it yourself."
