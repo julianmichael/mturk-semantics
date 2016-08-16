@@ -1,5 +1,6 @@
 package mts.experiments
 
+import mts.analysis._
 import mts.core._
 import mts.util._
 import mts.tasks._
@@ -74,147 +75,57 @@ object OpenFormExperiment {
   def getAllFeedback(): Iterable[String] = getAllQAPairs().flatMap(_._2.map(_._2))
     .filterNot(_.isEmpty)
 
-  def saveData(): Try[Unit] = Try {
+  // assume we have the question for everything ugh
+  def annotationToInfo(a: Annotation) = {
     import mts.language._
-    // q and a must be lower case
-    case class QAInfo(
-      val sentence: CoNLLSentence,
-      val question: List[String],
-      val answer: List[String]
-    ) {
-      val sentenceTokens = sentence.words.map(_.token)
-      val indexedSentence = sentenceTokens.map(_.toLowerCase).zipWithIndex
+    val question = a.question.get
+    val ((path, _), (qaPairs, _)) = (protoQASpec.extractQuestionData(question), protoQASpec.extractAnswerData(a.answer))
+    val infos = for {
+      sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
+      (q, a) <- qaPairs
+      qTokens = tokenize(q).map(_.toLowerCase)
+      aTokens = tokenize(a).map(_.toLowerCase)
+    } yield QAInfo(sentence, qTokens, aTokens)
+    AggregatedQAInfo(infos.toList)
+  }
 
-      val sentenceSet = sentenceTokens.map(_.toLowerCase).toSet
-      val questionSet = question.toSet
-      val answerSet = answer.toSet
-
-      val questionOverlap = indexedSentence.filter(p => questionSet(p._1)).map(_._2).toSet
-      val proportionQuestionOverlap = questionOverlap.size.toDouble / sentenceTokens.size
-
-      val answerOverlap = indexedSentence.filter(p => answerSet(p._1)).map(_._2).toSet
-      val proportionAnswerOverlap = answerOverlap.size.toDouble / sentenceTokens.size
-
-      val newQuestionWords = question.filterNot(sentenceSet)
-      val newAnswerWords = answer.filterNot(sentenceSet)
-
-      val questionFirstWord = question.head
-      val questionFirstWordIfNew = if(!sentenceSet(questionFirstWord)) Some(question.head) else None
-
-      val arcs = for {
-        qIndex <- questionOverlap
-        aIndex <- answerOverlap
-        if qIndex != aIndex
-      } yield (qIndex, aIndex)
-    }
-
-    // infos must be for the same sentence
-    // this can be used both for per-assignment stats and per-sentence stats
-    case class AggregatedQAInfo(
-      val qas: List[QAInfo]
-    ) {
-      val sentence = qas.head.sentence
-
-      val questionOverlap = qas.map(_.questionOverlap).reduce(_ union _)
-      val questionOverlapCount = questionOverlap.size
-      val questionOverlapPerQA = questionOverlapCount.toDouble / qas.size
-      val questionOverlapProportion = questionOverlap.size.toDouble / sentence.words.size
-
-      val answerOverlap = qas.map(_.answerOverlap).reduce(_ union _)
-      val answerOverlapCount = answerOverlap.size
-      val answerOverlapPerQA = answerOverlapCount.toDouble / qas.size
-      val answerOverlapProportion  = answerOverlap.size.toDouble / sentence.words.size
-
-      val arcs = qas.map(_.arcs).reduce(_ union _)
-
-      val coveredArgLabels = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(label, words) <- args
-        spanWord <- words
-        if arcs.contains(pred.head.index, spanWord.index) && !label.equals("V")
-      } yield label
-      val uncoveredArgLabels = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(label, words) <- args
-        spanWord <- words
-        if !arcs.contains(pred.head.index, spanWord.index) && !label.equals("V")
-      } yield label
-      val coveredArgLabelCount = coveredArgLabels.size
-      val uncoveredArgLabelCount = uncoveredArgLabels.size
-      val coveredLabelProportion = coveredArgLabels.size.toDouble / (coveredArgLabels.size + uncoveredArgLabels.size)
-
-      val someWordCoveredLabels = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(label, words) <- args
-        if !label.equals("V") && words.exists(spanWord => arcs.contains(pred.head.index, spanWord.index))
-      } yield label
-      val noWordCoveredLabels = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(label, words) <- args
-        if !label.equals("V") && !words.exists(spanWord => arcs.contains(pred.head.index, spanWord.index))
-      } yield label
-      val someWordCoveredLabelCount = someWordCoveredLabels.size
-      val noWordCoveredLabelCount = noWordCoveredLabels.size
-      val someWordCoveredLabelProportion = someWordCoveredLabelCount.toDouble / (someWordCoveredLabelCount + noWordCoveredLabelCount)
-
-      val allWordsCoveredLabels = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(label, words) <- args
-        if !label.equals("V") && words.forall(spanWord => arcs.contains(pred.head.index, spanWord.index))
-      } yield label
-      val someWordUncoveredLabels = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(label, words) <- args
-        if !label.equals("V") && !words.forall(spanWord => arcs.contains(pred.head.index, spanWord.index))
-      } yield label
-      val allWordsCoveredLabelCount = allWordsCoveredLabels.size
-      val someWordUncoveredLabelCount = someWordUncoveredLabels.size
-      val allWordsCoveredLabelProportion = allWordsCoveredLabelCount.toDouble / (allWordsCoveredLabelCount + someWordUncoveredLabelCount)
-
-      val arcMatches = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(depLabel, argWords) <- args
-        if !depLabel.equals("V")
-        qaInfo <- qas
-        questionLabel <- qaInfo.questionFirstWordIfNew.toList
-        word <- argWords
-        if qaInfo.arcs.contains(pred.head.index, word.index)
-      } yield (depLabel, questionLabel)
-
-      val arcMatchesForSome = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(depLabel, argWords) <- args
-        if !depLabel.equals("V")
-        qaInfo <- qas
-        questionLabel <- qaInfo.questionFirstWordIfNew.toList
-        if argWords.exists(word => qaInfo.arcs.contains(pred.head.index, word.index))
-      } yield (depLabel, questionLabel)
-
-      val arcMatchesForAll = for {
-        PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures
-        ArgumentSpan(depLabel, argWords) <- args
-        if !depLabel.equals("V")
-        qaInfo <- qas
-        questionLabel <- qaInfo.questionFirstWordIfNew.toList
-        if argWords.exists(word => qaInfo.arcs.contains(pred.head.index, word.index))
-      } yield (depLabel, questionLabel)
-    }
-
-    // assume we have the queston for everything ugh
-    def aggregatedInfoForAnnotation(a: Annotation) = {
-      val question = a.question.get
-      val ((path, _), (qaPairs, _)) = (protoQASpec.extractQuestionData(question), protoQASpec.extractAnswerData(a.answer))
-      val infos = for {
-        sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
-        (q, a) <- qaPairs
-        qTokens = tokenize(q).map(_.toLowerCase)
-        aTokens = tokenize(a).map(_.toLowerCase)
-      } yield QAInfo(sentence, qTokens, aTokens)
-      AggregatedQAInfo(infos.toList)
-    }
-
+  def readableQATSV(): String = {
     val annotations = getAllAnnotations().filter(!_.question.isEmpty)
-    val annotationsToInfos = annotations.map(a => a -> aggregatedInfoForAnnotation(a)).toMap
+    val annotationsToInfos = annotations.map(a => a -> annotationToInfo(a)).toMap
+    val infoAggregatedByHIT = annotations.groupBy(_.hitId).map {
+      case (hitId, annos) => hitId -> (annos, AggregatedQAInfo(annos.flatMap(a => annotationToInfo(a).qas)))
+    }
+
+    val sb = new java.lang.StringBuilder()
+    for {
+      (annos, aggInfo) <- infoAggregatedByHIT.values
+      _ = sb.append("\n")
+      _ = sb.append(TextRendering.renderSentence(aggInfo.sentence) + "\n")
+      _ = for {
+        annotation <- annos
+        worker = annotation.workerId
+        (_, (qaPairs, feedback)) <- protoQASpec.getQAPair(annotation).toList
+        _ = if(!feedback.isEmpty) sb.append(s"$worker\tFeedback: $feedback\n") else ()
+        (q, a) <- qaPairs
+        _ = sb.append(s"$worker\t$q\t$a\n")
+      } yield ()
+      _ = for { // print dependencies with any formatting
+        PredicateArgumentStructure(Predicate(head, _, _), args) <- aggInfo.sentence.predicateArgumentStructures
+        ArgumentSpan(label, words) <- args
+        if !label.equals("V")
+        covered = words.exists(spanWord => aggInfo.arcs.contains(head.index, spanWord.index) ||
+                                 aggInfo.arcs.contains(spanWord.index, head.index))
+        coveredFlag = if(covered) "V" else "X"
+        spanPhrase = TextRendering.renderSentence(words.map(_.token))
+        _ = sb.append(s"$coveredFlag\t${head.token}\t$label\t$spanPhrase\n")
+      } yield ()
+    } yield ()
+    sb.toString
+  }
+
+  def saveData(): Try[Unit] = Try {
+    val annotations = getAllAnnotations().filter(!_.question.isEmpty)
+    val annotationsToInfos = annotations.map(a => a -> annotationToInfo(a)).toMap
 
     // now calculate some stats
     val questionOverlapCountStat = AnnotationStat("questionOverlapCount", (annos: List[Annotation]) =>
@@ -261,7 +172,7 @@ object OpenFormExperiment {
     // now let's compute these stats by HIT instead of just assignment
 
     val infoAggregatedByHIT = annotations.groupBy(_.hitId).map {
-      case (hitId, annos) => hitId -> (annos.head.hitType, AggregatedQAInfo(annos.flatMap(a => aggregatedInfoForAnnotation(a).qas)))
+      case (hitId, annos) => hitId -> (annos.head.hitType, AggregatedQAInfo(annos.flatMap(a => annotationToInfo(a).qas)))
     }
     val hitTSV = "hitId\thitType\tquestionOverlapCount\tquestionOverlapProportion\tquestionOverlapPerQA\t" +
       "answerOverlapCount\tanswerOverlapProportion\tanswerOverlapPerQA\tcoveredLabelProportion\tsomeWordCoveredLabelProportion\tallWordsCoveredLabelProportion\n" +
@@ -288,6 +199,7 @@ object OpenFormExperiment {
     }
 
     saveWordCounts("first-qword.tsv", qaInfo => List(qaInfo.questionFirstWord))
+    saveWordCounts("first-qphrase.tsv", qaInfo => qaInfo.questionFirstPhrase.toList)
     saveWordCounts("first-qword-new.tsv", qaInfo => qaInfo.questionFirstWordIfNew.toList)
     saveWordCounts("new-qwords.tsv", _.newQuestionWords)
     saveWordCounts("new-awords.tsv", _.newAnswerWords)

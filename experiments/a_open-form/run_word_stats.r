@@ -13,6 +13,8 @@ system("mkdir -p out")
 
 firstQWord <- read.csv("data/first-qword.tsv", sep="\t")
 firstQWord <- firstQWord[order(-firstQWord$Count),]
+firstQPhrase <- read.csv("data/first-qphrase.tsv", sep="\t")
+firstQPhrase <- firstQPhrase[order(-firstQPhrase$Count),]
 firstQWordNew <- read.csv("data/first-qword-new.tsv", sep="\t")
 firstQWordNew <- firstQWordNew[order(-firstQWordNew$Count),]
 newQWords <- read.csv("data/new-qwords.tsv", sep="\t")
@@ -20,21 +22,21 @@ newAWords <- read.csv("data/new-awords.tsv", sep="\t")
 
 pdf("out/word_stats.pdf")
 
-ggplot(subset(firstQWord, Count > 1), aes(x = reorder(Word, -Count), y = Count, label = Count)) +
-  geom_bar(stat = "identity") +
-  scale_y_log10(breaks = base_breaks()) +
-  theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
-  ggtitle("First question word") +
-  labs(x = "Word at beginning of question", y = "Number of occurrences")
+## ggplot(subset(firstQWord, Count > 1), aes(x = reorder(Word, -Count), y = Count, label = Count)) +
+##   geom_bar(stat = "identity") +
+##   scale_y_log10(breaks = base_breaks()) +
+##   theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
+##   ggtitle("First question word") +
+##   labs(x = "Word at beginning of question", y = "Number of occurrences")
 
-total = sum(firstQWord$Count)
-firstQWord <- within(firstQWord, acc_proportion <- (cumsum(Count) / total))
-ggplot(subset(firstQWord, Count > 1), aes(x = reorder(Word, acc_proportion), y = acc_proportion, group = 1)) +
-  geom_step() +
-  ## geom_line(stat = "identity") +
-  theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
-  ggtitle("First question word (Cumulative)") +
-  labs(x = "Word at beginning of question", y = "Number of occurrences")
+## total = sum(firstQWord$Count)
+## firstQWord <- within(firstQWord, acc_proportion <- (cumsum(Count) / total))
+## ggplot(subset(firstQWord, Count > 1), aes(x = reorder(Word, acc_proportion), y = acc_proportion, group = 1)) +
+##   geom_step() +
+##   ## geom_line(stat = "identity") +
+##   theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
+##   ggtitle("First question word (Cumulative)") +
+##   labs(x = "Word at beginning of question", y = "Number of occurrences")
 
 ## first question words not appearing in sentence
 
@@ -46,15 +48,27 @@ ggplot(subset(firstQWordNew, Count > 1), aes(x = reorder(Word, -Count), y = Coun
   theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
   ggtitle("First question word (if not in sentence)") +
   labs(x = "Word at beginning of question", y = "Number of occurrences")
-
-total = sum(firstQWordNew$Count)
-firstQWord <- within(firstQWordNew, acc_proportion <- (cumsum(Count) / total))
 ggplot(subset(firstQWordNew, Count > 1), aes(x = reorder(Word, acc_proportion), y = acc_proportion, group = 1)) +
   geom_step() +
   ## geom_line(stat = "identity") +
   theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
   ggtitle("First question word (Cumulative; if not in sentence)") +
   labs(x = "Word at beginning of question", y = "Number of occurrences")
+
+total = sum(firstQPhrase$Count)
+firstQPhrase <- within(firstQPhrase, acc_proportion <- (cumsum(Count) / total))
+ggplot(subset(firstQPhrase, Count > 1), aes(x = reorder(Word, -Count), y = Count, label = Count)) +
+  geom_bar(stat = "identity") +
+  scale_y_log10(breaks = base_breaks()) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
+  ggtitle("First question phrase") +
+  labs(x = "Phrase at beginning of question", y = "Number of occurrences")
+ggplot(subset(firstQPhrase, Count > 1), aes(x = reorder(Word, acc_proportion), y = acc_proportion, group = 1)) +
+  geom_step() +
+  ## geom_line(stat = "identity") +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
+  ggtitle("First question phrase (Cumulative)") +
+  labs(x = "Phrase at beginning of question", y = "Number of occurrences")
 
 ggplot(subset(newQWords, Count > 10), aes(x = reorder(Word, -Count), y = Count, label = Count)) +
   geom_bar(stat = "identity") +

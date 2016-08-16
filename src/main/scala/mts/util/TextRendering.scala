@@ -32,6 +32,7 @@ object TextRendering {
     case "-LSB-" => "["
     case "-RSB-" => "]"
     case "/." => "."
+    case "/?" => "?"
     case w => w.replaceAll("\\/", "/")
   }
 
