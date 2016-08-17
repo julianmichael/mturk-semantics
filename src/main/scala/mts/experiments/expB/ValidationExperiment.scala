@@ -1,5 +1,7 @@
-package mts.experiments
+package mts.experiments.expB
 
+import mts.experiments._
+import mts.experiments.expA._
 import mts.core._
 import mts.util._
 import mts.tasks._
@@ -11,8 +13,8 @@ import akka.actor._
 import scala.util.Try
 import scala.util.Random
 
-// file name has B_ prepended so experiments have an obvious order
 object ValidationExperiment {
+  // file names should have b_ prepended so experiments have an obvious order
   val experimentName = "b_validation"
 
   type QuestionData = (CoNLLSentencePath, List[String]) // path to sentence, original QA pairs

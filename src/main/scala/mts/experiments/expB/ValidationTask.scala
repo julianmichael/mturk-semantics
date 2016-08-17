@@ -1,8 +1,6 @@
-package mts.tasks
+package mts.experiments.expB
 
-import mts.core.Question
-import mts.qa.QASpec
-import mts.qa.ValidationQASpec
+import mts.tasks._
 
 import scala.util.{Try, Success, Failure}
 

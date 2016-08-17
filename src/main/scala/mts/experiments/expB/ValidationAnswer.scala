@@ -1,4 +1,4 @@
-package mts.qa
+package mts.experiments.expB
 
 sealed trait ValidationAnswer
 case object InvalidQuestion extends ValidationAnswer

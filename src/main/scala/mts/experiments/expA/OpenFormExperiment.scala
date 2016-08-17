@@ -1,5 +1,6 @@
-package mts.experiments
+package mts.experiments.expA
 
+import mts.experiments._
 import mts.analysis._
 import mts.core._
 import mts.util._
@@ -9,8 +10,8 @@ import akka.actor._
 
 import scala.util.Try
 
-// file name has A_ prepended so experiments have an obvious order
 object OpenFormExperiment {
+  // file name has A_ prepended so experiments have an obvious order
   val experimentName = "a_open-form"
   // get 100 sentences from conll data
   val annotationFilepaths = List(
@@ -36,7 +37,7 @@ object OpenFormExperiment {
 
   // bucket sentences and create a task for each bucket
   private[this] def makeTask(system: ActorSystem)(minTokens: Int, maxTokens: Int, numQAs: Int, reward: Double) = {
-    val taskSpec = OpenFormQATask(reward, numQAs, numAssignmentsPerHIT = 1)
+    val taskSpec = OpenFormTask(reward, numQAs, numAssignmentsPerHIT = 1)
     val filteredSentences = sentences.iterator
       .filter { case (_, sentence) => sentence.words.size >= minTokens && sentence.words.size <= maxTokens }
       .map { case (path, sentence) => (path, TextRendering.renderSentence(sentence)) }
@@ -46,12 +47,12 @@ object OpenFormExperiment {
 
   lazy val system = ActorSystem("system")
 
-  lazy val tasks = List[(OpenFormQATask, ActorRef)](
+  lazy val tasks = List[(OpenFormTask, ActorRef)](
     makeTask(system)(minTokens = 7, maxTokens = 18, numQAs = 4, reward = 0.20),
     makeTask(system)(minTokens = 19, maxTokens = 120, numQAs = 6, reward = 0.30)
   )
 
-  val protoTaskSpec = OpenFormQATask(0.0, 0, 0)
+  val protoTaskSpec = OpenFormTask(0.0, 0, 0)
   val protoQASpec = protoTaskSpec.qaSpec
 
   def start() = tasks.foreach(p => p._2 ! p._1.Message.Start)

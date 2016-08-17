@@ -1,12 +1,10 @@
-package mts.tasks
+package mts.experiments.expA
 
-import mts.core.Question
-import mts.qa.QASpec
-import mts.qa.OpenFormQASpec
+import mts.tasks._
 
 import scala.util.{Try, Success, Failure}
 
-case class OpenFormQATask(
+case class OpenFormTask(
   final override val reward: Double,
   final val numQAsPerHIT: Int,
   final override val numAssignmentsPerHIT: Int = 5
