@@ -32,18 +32,23 @@ object ArgumentSpan {
     words <- State.get
     _ <- State.put(words.tail)
   } yield words.head
+
   val labelP: P[String] =
     P(CharIn(('A' to 'Z') ++ ('0' to '9') ++ Seq('-')).rep.!)
+
   val wordP: P[SpanState[CoNLLWord]] =
     P("*").map(_ => popWord)
+
   val wordsP: P[SpanState[List[CoNLLWord]]] =
     P(wordP.rep).map(_.toList.sequence)
+
   val spanP: P[SpanState[ArgumentSpan]] =
     P("(" ~ labelP ~ wordsP ~ ")").map {
       case (label, wordsState) => for {
         words <- wordsState
       } yield ArgumentSpan(label, words)
     }
+
   val spanAndWordsP: P[SpanState[ArgumentSpan]] =
     P(wordsP ~ spanP).map {
       case (wordsState, spanState) => for {
@@ -51,6 +56,7 @@ object ArgumentSpan {
         span <- spanState
       } yield span
     }
+
   val allSpansP: P[SpanState[List[ArgumentSpan]]] =
     P(spanAndWordsP.rep ~ wordsP).map {
       case (spanStates, finalWords) => for {

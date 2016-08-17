@@ -11,7 +11,7 @@ import scala.util.Try
 
 // file name has A_ prepended so experiments have an obvious order
 object OpenFormExperiment {
-  val name = "a_open-form"
+  val experimentName = "a_open-form"
   // get 100 sentences from conll data
   val annotationFilepaths = List(
     "bn/abc/00/abc_0010.v4_gold_conll",
@@ -36,7 +36,7 @@ object OpenFormExperiment {
 
   // bucket sentences and create a task for each bucket
   private[this] def makeTask(system: ActorSystem)(minTokens: Int, maxTokens: Int, numQAs: Int, reward: Double) = {
-    val taskSpec = OpenFormQATask(reward, numQAs, numAssignmentsPerHIT = 3)
+    val taskSpec = OpenFormQATask(reward, numQAs, numAssignmentsPerHIT = 1)
     val filteredSentences = sentences.iterator
       .filter { case (_, sentence) => sentence.words.size >= minTokens && sentence.words.size <= maxTokens }
       .map { case (path, sentence) => (path, TextRendering.renderSentence(sentence)) }
@@ -167,7 +167,7 @@ object OpenFormExperiment {
                                                        someWordCoveredLabelProportionStat,
                                                        allWordsCoveredLabelProportionStat
                                                   ))
-    FileManager.saveDataFile(name, "assignments.tsv", assignmentFileContents)
+    FileManager.saveDataFile(experimentName, "assignments.tsv", assignmentFileContents)
 
     // now let's compute these stats by HIT instead of just assignment
 
@@ -181,7 +181,7 @@ object OpenFormExperiment {
         s"$hitId\t$hitType\t$questionOverlapCount\t$questionOverlapProportion\t$questionOverlapPerQA\t" +
           s"$answerOverlapCount\t$answerOverlapProportion\t$answerOverlapPerQA\t$coveredLabelProportion\t$someWordCoveredLabelProportion\t$allWordsCoveredLabelProportion"
       }.mkString("\n")
-    FileManager.saveDataFile(name, "hits.tsv", hitTSV)
+    FileManager.saveDataFile(experimentName, "hits.tsv", hitTSV)
 
     // now for recording the most common words:
 
@@ -195,7 +195,7 @@ object OpenFormExperiment {
       val tsv = "Word\tCount\n" + wordCounts.toVector.sortBy(-_._2).map {
         case (word, count) => s"$word\t$count"
       }.mkString("\n")
-      FileManager.saveDataFile(name, filename, tsv)
+      FileManager.saveDataFile(experimentName, filename, tsv)
     }
 
     saveWordCounts("first-qword.tsv", qaInfo => List(qaInfo.questionFirstWord))
@@ -216,7 +216,7 @@ object OpenFormExperiment {
     val labelCoverageTSV = "IsCovered\tLabel\n" + (proportionalLabelCoverage ++ proportionalLabelUncoverage)
       .map(p => s"${p._1}\t${p._2}")
       .mkString("\n")
-    FileManager.saveDataFile(name, "label-agg-coverage.tsv", labelCoverageTSV)
+    FileManager.saveDataFile(experimentName, "label-agg-coverage.tsv", labelCoverageTSV)
 
     val someWordLabelCoverage = for {
       (_, aggInfo) <- infoAggregatedByHIT.values
@@ -229,7 +229,7 @@ object OpenFormExperiment {
     val someWordLabelCoverageTSV = "IsCovered\tLabel\n" + (someWordLabelCoverage ++ noWordLabelCoverage)
       .map(p => s"${p._1}\t${p._2}")
       .mkString("\n")
-    FileManager.saveDataFile(name, "label-some-word-coverage.tsv", someWordLabelCoverageTSV)
+    FileManager.saveDataFile(experimentName, "label-some-word-coverage.tsv", someWordLabelCoverageTSV)
 
     val allWordsLabelCoverage = for {
       (_, aggInfo) <- infoAggregatedByHIT.values
@@ -242,12 +242,12 @@ object OpenFormExperiment {
     val allWordsLabelCoverageTSV = "IsCovered\tLabel\n" + (allWordsLabelCoverage ++ someWordLabelUncoverage)
       .map(p => s"${p._1}\t${p._2}")
       .mkString("\n")
-    FileManager.saveDataFile(name, "label-all-words-coverage.tsv", allWordsLabelCoverageTSV)
+    FileManager.saveDataFile(experimentName, "label-all-words-coverage.tsv", allWordsLabelCoverageTSV)
 
     val allArcMatches = infoAggregatedByHIT.values.flatMap(_._2.arcMatchesForSome)
     val arcMatchesTSV = "DepLabel\tQuestionLabel\n" + allArcMatches
       .map { case (depLabel, qLabel) => s"$depLabel\t$qLabel" }
       .mkString("\n")
-    FileManager.saveDataFile(name, "arc-matches.tsv", arcMatchesTSV)
+    FileManager.saveDataFile(experimentName, "arc-matches.tsv", arcMatchesTSV)
   }
 }

@@ -84,7 +84,7 @@ trait MTurkTask {
         autoApprovalDelay,
         lifetime,
         numAssignmentsPerHIT,
-        question.annotation,
+        "", // question.annotation, // don't even bother---we don't get it back anyway! and it causes errors if too long.
         qualRequirements,
         Array("Minimal", "HITQuestion", "HITDetail"), // response groups --- these don't actually do anything
         uniqueRequestToken,

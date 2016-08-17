@@ -8,7 +8,6 @@ trait QASpec {
 
   def createQuestion(qData: QuestionData): Question
   def extractQuestionData(q: Question): QuestionData
-
   def extractAnswerData(answerXML: String): AnswerData
 
   final def getQAPair(annotation: Annotation): Option[(QuestionData, AnswerData)] = for {
