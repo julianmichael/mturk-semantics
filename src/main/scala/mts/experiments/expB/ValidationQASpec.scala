@@ -11,19 +11,19 @@ import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
 object ValidationQASpec extends QASpec {
 
-  type QuestionData = (CoNLLSentencePath, List[String]) // path to sentence, questions
-  type AnswerData = (List[ValidationAnswer], String) // answers (+ invalid question flag), feedback
+  type QuestionData = ValidationPrompt
+  type AnswerData = ValidationResponse
 
   final val pageFont = "14px Helvetica"
 
-  final def makeQAElement(questionNum: Int, question: String) = {
+  final def makeQAElement(questionNum: Int, vQuestion: ValidationQuestion) = {
     import scalatags.Text.all._
     p(
       margin := 0,
       padding := 0
     )(
       label(
-        question,
+        vQuestion.question,
         `class` := "questionLabel",
         `for` := s"answer-$questionNum",
         float.left,
@@ -62,7 +62,7 @@ object ValidationQASpec extends QASpec {
   }
 
   final def createQuestion(qData: QuestionData): Question = {
-    val (path, questions) = qData
+    val ValidationPrompt(path, vQuestions) = qData
     val sentence = FileManager.getCoNLLSentence(path).toOptionPrinting.get
     val sentenceString = TextRendering.renderSentence(sentence)
 
@@ -132,7 +132,7 @@ object ValidationQASpec extends QASpec {
             value := "",
             name := "assignmentId",
             id := "assignmentId"),
-          questions.zipWithIndex.map { case (q, i) => makeQAElement(i, q) },
+          vQuestions.zipWithIndex.map { case (q, i) => makeQAElement(i, q) },
           p(
             input(
               `type` := "text",
@@ -207,6 +207,6 @@ object ValidationQASpec extends QASpec {
       .map(ansString => if (ansString.equals("N/A")) InvalidQuestion else Answer(ansString))
       .toList
     val comment = answers.find(a => a.getQuestionIdentifier.equals("comments")).get.getFreeText
-    (validationAnswers, comment)
+    ValidationResponse(validationAnswers, comment)
   }
 }
