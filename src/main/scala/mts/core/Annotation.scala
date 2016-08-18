@@ -1,5 +1,7 @@
 package mts.core
 
+import mts.analysis.AnnotationStat
+
 case class Annotation(
   assignmentId: String,
   hitType: String,

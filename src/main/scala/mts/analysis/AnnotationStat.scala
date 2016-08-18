@@ -1,4 +1,6 @@
-package mts.core
+package mts.analysis
+
+import mts.core.Annotation
 
 case class AnnotationStat(
   label: String,

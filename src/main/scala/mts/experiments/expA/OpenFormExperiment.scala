@@ -53,7 +53,6 @@ object OpenFormExperiment {
   )
 
   val protoTaskSpec = OpenFormTask(0.0, 0, 0)
-  val protoQASpec = protoTaskSpec.qaSpec
 
   def start() = tasks.foreach(p => p._2 ! p._1.Message.Start)
   def stop() = tasks.foreach(p => p._2 ! p._1.Message.Stop)
@@ -77,7 +76,7 @@ object OpenFormExperiment {
   def annotationToInfo(a: Annotation) = {
     import mts.language._
     val question = a.question.get
-    val ((path, _), (qaPairs, _)) = (protoQASpec.extractQuestionData(question), protoQASpec.extractAnswerData(a))
+    val ((path, _), (qaPairs, _)) = (protoTaskSpec.extractQuestionData(question), protoTaskSpec.extractAnswerData(a))
     val infos = for {
       sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
       (q, a) <- qaPairs
@@ -102,7 +101,7 @@ object OpenFormExperiment {
       _ = for {
         annotation <- annos
         worker = annotation.workerId
-        (_, (qaPairs, feedback)) <- protoQASpec.getQAPair(annotation).toList
+        (_, (qaPairs, feedback)) <- protoTaskSpec.getQAPair(annotation).toList
         _ = if(!feedback.isEmpty) sb.append(s"$worker\tFeedback: $feedback\n") else ()
         (q, a) <- qaPairs
         _ = sb.append(s"$worker\t$q\t$a\n")

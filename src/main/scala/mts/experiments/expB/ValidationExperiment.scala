@@ -1,12 +1,12 @@
 package mts.experiments.expB
 
+import mts.analysis._
 import mts.experiments._
 import mts.experiments.expA._
 import mts.core._
 import mts.util._
 import mts.tasks._
 import mts.conll._
-import mts.qa._
 import mts.language.tokenize
 
 import akka.actor._
@@ -23,8 +23,8 @@ object ValidationExperiment {
     // it has to be consistent so that after restarts the set of questions will be the same.
     val validationQuestions = for {
       annotation <- OpenFormExperiment.getAllAnnotations()
-      (path, _) = OpenFormExperiment.protoQASpec.extractQuestionData(annotation.question.get)
-      (qaPairs, _) = OpenFormExperiment.protoQASpec.extractAnswerData(annotation)
+      (path, _) = OpenFormExperiment.protoTaskSpec.extractQuestionData(annotation.question.get)
+      (qaPairs, _) = OpenFormExperiment.protoTaskSpec.extractAnswerData(annotation)
       (q, a) <- qaPairs
     } yield ValidationQuestion(path, annotation.workerId, q, a)
     val validationPrompts = validationQuestions.groupBy(_.path).toList.flatMap {
@@ -60,7 +60,7 @@ object ValidationExperiment {
     val annotations = getAllAnnotations().filter(!_.question.isEmpty)
     val instances = for {
       anno <- annotations
-      (ValidationPrompt(path, qs), ValidationResponse(as, _)) <- taskSpec.qaSpec.getQAPair(anno).toList
+      (ValidationPrompt(path, qs), ValidationResponse(as, _)) <- taskSpec.getQAPair(anno).toList
       (q, a) <- qs.zip(as)
     } yield (q, a)
     val qaValidations = instances.groupBy(_._1).map {

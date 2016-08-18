@@ -2,7 +2,6 @@ package mts.tasks
 
 import mts.core._
 import mts.util._
-import mts.qa.QASpec
 
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.service.exception.ServiceException
@@ -35,7 +34,6 @@ import scala.language.postfixOps
 
 // TODO: add a facility for sending completed HITs to another actor for further processing (and perhaps turking)
 trait MTurkTask[Prompt, Response] {
-
   import Config._
 
   // final members and methods
@@ -198,13 +196,19 @@ trait MTurkTask[Prompt, Response] {
   val numAssignmentsPerHIT: Int
   val lifetime = 2592000L // seconds (30 days)
 
-  val qaSpec: QASpec[Prompt, Response]
-  import qaSpec._
+  def createQuestion(qData: Prompt): Question
+  def extractQuestionData(q: Question): Prompt
+  def extractAnswerData(annotation: Annotation): Response
+
+  final def getQAPair(annotation: Annotation): Option[(Prompt, Response)] = for {
+    question <- annotation.question
+  } yield (extractQuestionData(question), extractAnswerData(annotation))
+
 
   def annotatedQAPairs() = FileManager.loadAnnotationsForHITType(hitType)
     .groupBy(_.hitId)
     .flatMap { case (hitId, annos) =>
-      annos.flatMap(qaSpec.getQAPair) match {
+      annos.flatMap(getQAPair) match {
         case Nil => None
         case (q, a) :: qaPairs =>
           Some(hitId -> (q, a :: qaPairs.map(_._2)))
@@ -255,8 +259,8 @@ trait MTurkTask[Prompt, Response] {
     val finishedOrCurrentQuestions = {
       val savedAnnotations = FileManager.loadAnnotationsForHITType(hitType)
       val set = mutable.HashSet[Prompt]()
-      set ++= savedAnnotations.flatMap(_.question.map(qaSpec.extractQuestionData))
-      set ++= questionStore.values.map(qaSpec.extractQuestionData)
+      set ++= savedAnnotations.flatMap(_.question.map(extractQuestionData))
+      set ++= questionStore.values.map(extractQuestionData)
       set
     }
 
@@ -336,7 +340,7 @@ trait MTurkTask[Prompt, Response] {
       println(s"Updating ($hitType)...")
 
       val newAnnotations = reviewHITs
-      finishedOrCurrentQuestions ++= newAnnotations.flatMap(_.question.map(qaSpec.extractQuestionData))
+      finishedOrCurrentQuestions ++= newAnnotations.flatMap(_.question.map(extractQuestionData))
 
       val hitsOfThisType = service.searchAllHITs()
         .filter(hit => hit.getHITTypeId().equals(hitType))

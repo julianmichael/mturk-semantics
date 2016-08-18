@@ -12,6 +12,7 @@ libraryDependencies ++= Seq(
   "com.lihaoyi" %% "scalatags" % "0.4.6",
   // java deps:
   "log4j" % "log4j" % "1.2.17",
+  "net.sf.trove4j" % "trove4j" % "3.0.1",
   "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
   "net.ettinsmoor" % "java-aws-mturk" % "1.6.2"
     exclude("org.apache.commons","not-yet-commons-ssl")
