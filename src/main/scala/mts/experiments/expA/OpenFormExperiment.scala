@@ -6,6 +6,7 @@ import mts.core._
 import mts.util._
 import mts.tasks._
 import mts.conll._
+import mts.language._
 import akka.actor._
 
 import scala.util.Try
@@ -33,6 +34,16 @@ object OpenFormExperiment {
       if sentence.words.size > 6 // don't do the super short sentences
     } yield (CoNLLSentencePath(path, sentence.sentenceNum), sentence)
     allSentences.take(100).toList
+  }
+
+  lazy val inflectionDictionary = {
+    val tokens = for {
+      path <- annotationFilepaths.iterator
+      file <- FileManager.getCoNLLFile(path).toOptionPrinting.iterator
+      sentence <- file.sentences
+      word <- sentence.words
+    } yield word.token
+    getInflectionDictionaryForTokens(tokens)
   }
 
   // bucket sentences and create a task for each bucket

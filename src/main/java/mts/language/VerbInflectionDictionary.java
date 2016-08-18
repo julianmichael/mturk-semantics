@@ -7,8 +7,6 @@ import mts.util.CountDictionary;
 
 // TODO: we might need to handle the A-B case ...
 public class VerbInflectionDictionary {
-    String wiktionaryFilepath = "resources/wiktionary";
-
     CountDictionary wordDict;
     public ArrayList<String[]> inflections;
     public int[] inflCount;

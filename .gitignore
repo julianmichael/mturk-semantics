@@ -22,5 +22,6 @@ ontonotes-url.txt
 mturk.properties
 resources/ontonotes-release-5.0
 resources/conll-2012
+resources/wiktionary
 experiments/*/data/*
 experiments/*/out/*

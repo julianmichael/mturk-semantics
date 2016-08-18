@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Setup script for MTurk Semantics project.
-# Downloads OntoNotes 5.0 and CoNLL 2012 data,
+# Downloads Wiktionary, OntoNotes 5.0 and CoNLL 2012 data,
 # and runs the CoNLL script to format the data so it's ready to be parsed.
 # Also makes sure a file with your Mechanical Turk access keys is present.
 
@@ -11,6 +11,26 @@
 
 # NOTE: If you already have this data somewhere, go ahead and just symlink
 # resources/conll-2012/(and resources/ontonotes-release-5.0/ if necessary) to it, and this script should accommodate you.
+
+if [ ! -e "resources/wiktionary/" ]
+then
+    read -p $'Download the Wiktionary data? [y/N]\n' answer
+    case ${answer:0:1} in
+        y|Y )
+            wget \
+                --no-check-cert https://www.dropbox.com/s/60hbl3py7g3tx12/wiktionary.tar.gz?dl=1 \
+                -O wiktionary.tar.gz
+            wget \
+            tar zxvf wiktionary.tar.gz
+            rm wiktionary.tar.gz
+            mv wiktionary resources/wiktionary
+            ;;
+        * )
+            echo "Terminating. Get the data yourself."
+            exit 0
+            ;;
+    esac
+fi
 
 if [ ! -e "resources/conll-2012/" ]
 then

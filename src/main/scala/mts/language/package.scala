@@ -11,7 +11,11 @@ import mts.util._
 
 package object language {
 
-  private[this] val stopwordFilePath = FileManager.resourcePath.resolve("english.stop.txt")
+  private[this] val stopwordFilePath = FileManager.resourcePath
+    .resolve("english.stop.txt")
+  private[this] val wiktionaryFilepath = FileManager.resourcePath
+    .resolve("wiktionary")
+    .resolve("en_verb_inflections.txt");
 
   lazy val stopwords: Set[String] = {
     import scala.collection.JavaConverters._
@@ -19,6 +23,14 @@ package object language {
     val result = fileStream.iterator.asScala.toSet ++ Set("hm", "uh", "um")
     fileStream.close()
     result
+  }
+
+  def getInflectionDictionaryForTokens(tokens: Iterator[String]): VerbInflectionDictionary = {
+    val wordDict = new CountDictionary()
+    tokens.foreach(wordDict.addString)
+    val inflDict = new VerbInflectionDictionary(wordDict)
+    inflDict.loadDictionaryFromFile(wiktionaryFilepath.toString) // TODO does this work
+    inflDict
   }
 
   def tokenize(s: String): List[String] = {
