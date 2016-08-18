@@ -36,14 +36,14 @@ object OpenFormExperiment {
     allSentences.take(100).toList
   }
 
-  lazy val inflectionDictionary = {
+  lazy val inflections = {
     val tokens = for {
       path <- annotationFilepaths.iterator
       file <- FileManager.getCoNLLFile(path).toOptionPrinting.iterator
       sentence <- file.sentences
       word <- sentence.words
     } yield word.token
-    getInflectionDictionaryForTokens(tokens)
+    getInflectionsForTokens(tokens)
   }
 
   // bucket sentences and create a task for each bucket

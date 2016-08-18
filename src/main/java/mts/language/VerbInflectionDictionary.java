@@ -6,7 +6,8 @@ import java.util.*;
 import mts.util.CountDictionary;
 
 // TODO: we might need to handle the A-B case ...
-public class VerbInflectionDictionary {
+// ^what does this mean? -Julian
+class VerbInflectionDictionary {
     CountDictionary wordDict;
     public ArrayList<String[]> inflections;
     public int[] inflCount;

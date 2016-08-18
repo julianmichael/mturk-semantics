@@ -25,12 +25,12 @@ package object language {
     result
   }
 
-  def getInflectionDictionaryForTokens(tokens: Iterator[String]): VerbInflectionDictionary = {
+  def getInflectionsForTokens(tokens: Iterator[String]): Inflections = {
     val wordDict = new CountDictionary()
     tokens.foreach(wordDict.addString)
     val inflDict = new VerbInflectionDictionary(wordDict)
     inflDict.loadDictionaryFromFile(wiktionaryFilepath.toString) // TODO does this work
-    inflDict
+    new Inflections(inflDict)
   }
 
   def tokenize(s: String): List[String] = {
