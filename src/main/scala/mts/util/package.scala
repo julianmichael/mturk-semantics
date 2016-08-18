@@ -16,6 +16,7 @@ package object util {
         Some(a)
       case Failure(e) =>
         System.err.println(e.getLocalizedMessage)
+        e.printStackTrace()
         None
     }
   }

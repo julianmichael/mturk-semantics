@@ -37,7 +37,7 @@ object ValidationExperiment {
 
   lazy val system = ActorSystem("system")
 
-  lazy val actor = taskSpec.createMonitor(system, questionData.iterator, 150)
+  lazy val actor = system.actorOf(Props(TaskMonitor(taskSpec, questionData.iterator, 250)))
 
   def start() = actor ! taskSpec.Message.Start
   def stop() = actor ! taskSpec.Message.Stop

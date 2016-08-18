@@ -36,6 +36,53 @@ import scala.language.postfixOps
 trait MTurkTask[Prompt, Response] {
   import Config._
 
+  // HIT type fields
+
+  val title: String
+  val description: String
+  val keywords: String
+  val reward: Double
+  val autoApprovalDelay = 3600L // seconds (1 hour)
+  val assignmentDuration = 600L // seconds (10 minutes)
+  val qualRequirements = Array.empty[QualificationRequirement]
+
+  // other fields
+
+  val numAssignmentsPerHIT: Int
+  val lifetime = 2592000L // seconds (30 days)
+
+  // QA specification methods
+
+  def createQuestion(qData: Prompt): Question
+  def extractQuestionData(q: Question): Prompt
+  def extractAnswerData(annotation: Annotation): Response
+
+  final def getQAPair(annotation: Annotation): Option[(Prompt, Response)] = for {
+    question <- annotation.question
+  } yield (extractQuestionData(question), extractAnswerData(annotation))
+
+  final def annotatedQAPairs() = FileManager.loadAnnotationsForHITType(hitType)
+    .groupBy(_.hitId)
+    .flatMap { case (hitId, annos) =>
+      annos.flatMap(getQAPair) match {
+        case Nil => None
+        case (q, a) :: qaPairs =>
+          Some(hitId -> (q, a :: qaPairs.map(_._2)))
+      }
+  }
+
+  // for sending messages to a task monitor for this task
+  // kinda weird design to have it here but it helps the types work out...
+  sealed trait Message
+  object Message {
+    case object Start extends Message
+    case object Stop extends Message
+    case object Update extends Message
+    case object Expire extends Message
+    case object Disable extends Message
+    case class AddQuestion(q: Prompt) extends Message
+  }
+
   // final members and methods
 
   final val assignmentReviewPolicy = null
@@ -50,19 +97,13 @@ trait MTurkTask[Prompt, Response] {
     description,
     qualRequirements)
 
+  // TODO: make thread-safe
   final lazy val questionStore: mutable.Map[String, Question] = FileManager.loadQuestionStore(hitType) match {
     case None => mutable.Map.empty[String, Question]
     case Some(map) =>
       val result = mutable.Map.empty[String, Question]
       result ++= map.iterator
       result
-  }
-
-
-  final def hasEnoughFunds: Boolean = {
-    val balance = service.getAccountBalance()
-    // println("Got account balance: " + RequesterService.formatCurrency(balance))
-    balance > reward
   }
 
   final def createHIT(question: Question): Try[HIT] = {
@@ -154,13 +195,9 @@ trait MTurkTask[Prompt, Response] {
     approvedAnnotations
   }
 
-  /* Overridable or abstract fields */
-
   // Contract: returns Some(Annotation) if and only if we approve the assignment.
   // Otherwise returns None.
-  // Override to do more interesting things if we don't want to auto-approve.
-  def reviewAssignment(hit: HIT, assignment: Assignment): Option[Annotation] = {
-    // TODO: do something clever to save the approval time as well, maybe.
+  final def reviewAssignment(hit: HIT, assignment: Assignment): Option[Annotation] = {
     val annotation = Annotation(assignmentId = assignment.getAssignmentId(),
                                 hitType = hitType, hitId = hit.getHITId(),
                                 question = questionStore.get(hit.getHITId()),
@@ -168,204 +205,13 @@ trait MTurkTask[Prompt, Response] {
                                 answer = assignment.getAnswer(),
                                 acceptTime = assignment.getAcceptTime().getTime().getTime(),
                                 submitTime = assignment.getSubmitTime().getTime().getTime())
-    FileManager.saveAnnotation(annotation) match {
-      case Success(_) => // don't approve the assignment until we can successfully save the results
-        service.approveAssignment(assignment.getAssignmentId(), "")
-        println
-        println(s"Approved assignment: ${assignment.getAssignmentId()}")
-        println(s"HIT for approved assignment: ${hit.getHITId()}")
-        println(s"HIT type for approved assignment: $hitType")
-        Some(annotation)
-      case Failure(e) =>
-        println
-        System.err.println(e.getLocalizedMessage())
-        None
-    }
-  }
-
-  // HIT type fields
-  val title: String
-  val description: String
-  val keywords: String
-  val reward: Double
-  val autoApprovalDelay = 3600L // seconds (1 hour)
-  val assignmentDuration = 600L // seconds (10 minutes)
-  val qualRequirements = Array.empty[QualificationRequirement]
-
-  // other fields
-  val numAssignmentsPerHIT: Int
-  val lifetime = 2592000L // seconds (30 days)
-
-  def createQuestion(qData: Prompt): Question
-  def extractQuestionData(q: Question): Prompt
-  def extractAnswerData(annotation: Annotation): Response
-
-  final def getQAPair(annotation: Annotation): Option[(Prompt, Response)] = for {
-    question <- annotation.question
-  } yield (extractQuestionData(question), extractAnswerData(annotation))
-
-
-  def annotatedQAPairs() = FileManager.loadAnnotationsForHITType(hitType)
-    .groupBy(_.hitId)
-    .flatMap { case (hitId, annos) =>
-      annos.flatMap(getQAPair) match {
-        case Nil => None
-        case (q, a) :: qaPairs =>
-          Some(hitId -> (q, a :: qaPairs.map(_._2)))
-      }
-  }
-
-  def createMonitor(system: ActorSystem,
-                    questions: Iterator[Prompt],
-                    numHITsToKeepActive: Int,
-                    interval: FiniteDuration = 30 seconds
-                    ): ActorRef = {
-    system.actorOf(Props(Monitor(questions, numHITsToKeepActive, interval)))
-  }
-
-  sealed trait Message
-  object Message {
-    case object Start extends Message
-    case object Stop extends Message
-    case object Update extends Message
-    case object Expire extends Message
-    case object Disable extends Message
-    case class AddQuestion(q: Prompt) extends Message
-  }
-
-  // runs this MTurk task for the given data.
-  // (the "given data" consists of the abstract fields)
-  case class Monitor(
-    val questionSource: Iterator[Prompt],
-    val numHITsToKeepActive: Int = 100,
-    val interval: FiniteDuration = 10 seconds
-  ) extends Actor {
-
-    import Message._
-
-    override def receive = {
-      case Start => start()
-      case Stop => stop()
-      case Update => update()
-      case Expire => expire()
-      case Disable => disable()
-      case AddQuestion(q) => addQuestion(q)
-    }
-
-    override def postStop(): Unit = {
-      FileManager.saveQuestionStore(hitType, questionStore.toMap)
-    }
-
-    val finishedOrCurrentQuestions = {
-      val savedAnnotations = FileManager.loadAnnotationsForHITType(hitType)
-      val set = mutable.HashSet[Prompt]()
-      set ++= savedAnnotations.flatMap(_.question.map(extractQuestionData))
-      set ++= questionStore.values.map(extractQuestionData)
-      set
-    }
-
-    final val stackedQuestions: mutable.Stack[Prompt] = mutable.Stack.empty[Prompt]
-    // questionSource (class param)
-    final val failedQuestions: mutable.Queue[Prompt] = mutable.Queue.empty[Prompt]
-
-    def getNextQuestion(): Option[Prompt] = {
-      val allQuestions = stackedQuestions.iterator ++ questionSource ++ failedQuestions.iterator
-      val validQuestions = allQuestions.filter(q => !finishedOrCurrentQuestions.contains(q))
-      validQuestions.nextOption
-    }
-
-    def getNextNQuestions(n: Int): Seq[Prompt] = {
-      val questions = mutable.Buffer.empty[Prompt]
-      var nRemaining = n
-      while(nRemaining > 0) {
-        getNextQuestion() match {
-          case Some(q) =>
-            questions += q
-            nRemaining = nRemaining - 1
-          case None =>
-            nRemaining = 0
-        }
-      }
-      questions.toVector
-    }
-
-    var schedule: Option[Cancellable] = None
-
-    def start(): Unit = {
-      if(schedule.isEmpty || schedule.get.isCancelled) {
-        stop()
-        schedule = Some(context.system.scheduler.schedule(
-                          0 seconds,
-                          interval,
-                          self,
-                          Update)(context.system.dispatcher, self))
-      }
-    }
-
-    def stop(): Unit = {
-      schedule.foreach(_.cancel())
-    }
-
-
-    // used to temporarily withdraw HITs from the system; an Update will re-extend them
-    def expire(): Unit = {
-      stop()
-      service.searchAllHITs()
-        .filter(hit => hit.getHITTypeId().equals(hitType))
-        .foreach(hit => {
-                   service.forceExpireHIT(hit.getHITId())
-                   println
-                   println(s"Expired HIT: ${hit.getHITId()}")
-                   println(s"HIT type for expired HIT: $hitType")
-                 })
-    }
-
-    // delete all HITs from the system and forget about the results
-    def disable(): Unit = {
-      reviewHITs // approve of finished tasks and collect the results first, just to prevent waste
-      service.searchAllHITs()
-        .filter(hit => hit.getHITTypeId().equals(hitType))
-        .foreach(hit => {
-                   service.disableHIT(hit.getHITId())
-                   println
-                   println(s"Disabled HIT: ${hit.getHITId()}")
-                   println(s"HIT type for disabled HIT: $hitType")
-                 })
-      questionStore.clear()
-      stop()
-    }
-
-    def update(): Unit = {
+    FileManager.saveAnnotation(annotation).toOptionPrinting.map { _ =>
+      service.approveAssignment(assignment.getAssignmentId(), "")
       println
-      println(s"Updating ($hitType)...")
-
-      val newAnnotations = reviewHITs
-      finishedOrCurrentQuestions ++= newAnnotations.flatMap(_.question.map(extractQuestionData))
-
-      val hitsOfThisType = service.searchAllHITs()
-        .filter(hit => hit.getHITTypeId().equals(hitType))
-
-      if(hitsOfThisType.size < numHITsToKeepActive) {
-        val questionsToTry = getNextNQuestions(numHITsToKeepActive - hitsOfThisType.size)
-        val hitTries = questionsToTry.zip(questionsToTry.map(qData => createHIT(createQuestion(qData))))
-        hitTries.foreach (hitTry =>
-          hitTry match {
-            case (question, Success(hit)) =>
-              println
-              println("Created HIT: " + hit.getHITId());
-              println("You may see your HIT with HITTypeId '" + hit.getHITTypeId() + "' here: ");
-              println(service.getWebsiteURL() + "/mturk/preview?groupId=" + hit.getHITTypeId());
-            case (question, Failure(e)) =>
-              println
-              System.err.println(e.getLocalizedMessage())
-              failedQuestions += question
-          })
-      }
+      println(s"Approved assignment: ${assignment.getAssignmentId()}")
+      println(s"HIT for approved assignment: ${hit.getHITId()}")
+      println(s"HIT type for approved assignment: $hitType")
+      annotation
     }
-
-    def addQuestion(q: Prompt): Unit = {
-      stackedQuestions.push(q)
-    }
-
   }
 }

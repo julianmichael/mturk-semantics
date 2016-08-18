@@ -41,7 +41,8 @@ object OpenFormExperiment {
     val filteredSentences = sentences.iterator
       .filter { case (_, sentence) => sentence.words.size >= minTokens && sentence.words.size <= maxTokens }
       .map { case (path, sentence) => (path, TextRendering.renderSentence(sentence)) }
-    val actor = taskSpec.createMonitor(system, filteredSentences, 100)
+    // val actor = taskSpec.createMonitor(system, filteredSentences, 100)
+    val actor = system.actorOf(Props(TaskMonitor(taskSpec, filteredSentences, 100)))
     (taskSpec, actor)
   }
 
