@@ -80,7 +80,7 @@ object OpenFormExperiment {
   def annotationToInfo(a: Annotation) = {
     import mts.language._
     val question = a.question.get
-    val ((path, _), (qaPairs, _)) = (protoQASpec.extractQuestionData(question), protoQASpec.extractAnswerData(a.answer))
+    val ((path, _), (qaPairs, _)) = (protoQASpec.extractQuestionData(question), protoQASpec.extractAnswerData(a))
     val infos = for {
       sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
       (q, a) <- qaPairs

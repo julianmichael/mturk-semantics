@@ -8,7 +8,10 @@ case class CoNLLPath(get: String)
 case class CoNLLSentencePath(
   filePath: CoNLLPath,
   sentenceNum: Int
-)
+) {
+  // TODO make sure this doesn't mess with serialization...I'd be real mad if it did
+  override def toString = s"${filePath.get}:$sentenceNum"
+}
 
 case class CoNLLFile(
   id: String,

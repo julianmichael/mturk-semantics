@@ -13,7 +13,7 @@ import scala.util.Try
   * via implicit conversions, to interface with files in ways appropriate to that package.
   * You can see these extension methods in each package's `package.scala`.
   * This way file managing functionality is logically separated, but narrowly namespaced.
-  * I'm not totally confident that this is the best way of doing things... but I like it! -J
+  * I'm not totally confident that this is the best way of doing things... but I kind of like it. -J
   */
 object FileManager {
   private[this] val mTurkAnnotationPath = Paths.get("annotations").resolve(Config.label)
@@ -50,9 +50,11 @@ object FileManager {
   }
 
   def loadAnnotation(path: Path): Try[Annotation] = Try {
-      import scala.collection.JavaConverters._
-      val fileStr = Files.lines(path).iterator.asScala.mkString("\n")
-      upickle.read[Annotation](fileStr)
+    import scala.collection.JavaConverters._
+    val fileStream = Files.lines(path)
+    val fileStr = fileStream.iterator.asScala.mkString("\n")
+    fileStream.close()
+    upickle.read[Annotation](fileStr)
   }
 
   def loadAnnotationsForHITType(hitType: String): List[Annotation] = {
@@ -76,7 +78,9 @@ object FileManager {
     val qStorePath = getQuestionStorePath(hitType)
     if(Files.exists(qStorePath)) {
       import scala.collection.JavaConverters._
-      val fileStr = Files.lines(qStorePath).iterator.asScala.mkString("\n")
+      val fileStream = Files.lines(qStorePath)
+      val fileStr = fileStream.iterator.asScala.mkString("\n")
+      fileStream.close()
       Some(upickle.read[Map[String, Question]](fileStr))
     } else {
       None

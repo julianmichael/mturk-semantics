@@ -27,8 +27,10 @@ package object conll {
       } else {
         val fullPath = conllAnnotationPath.resolve(path.get)
         import scala.collection.JavaConverters._
-        val lines = Files.lines(fullPath).iterator.asScala
+        val fileStream = Files.lines(fullPath)
+        val lines = fileStream.iterator.asScala
         val file = CoNLLFile.readFromLines(lines)
+        fileStream.close()
         conllCache.put(path, file)
         file
       }

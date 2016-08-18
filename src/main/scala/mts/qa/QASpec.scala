@@ -8,9 +8,9 @@ trait QASpec {
 
   def createQuestion(qData: QuestionData): Question
   def extractQuestionData(q: Question): QuestionData
-  def extractAnswerData(answerXML: String): AnswerData
+  def extractAnswerData(annotation: Annotation): AnswerData
 
   final def getQAPair(annotation: Annotation): Option[(QuestionData, AnswerData)] = for {
     question <- annotation.question
-  } yield (extractQuestionData(question), extractAnswerData(annotation.answer))
+  } yield (extractQuestionData(question), extractAnswerData(annotation))
 }

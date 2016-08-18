@@ -7,6 +7,7 @@ import mts.util._
 import mts.tasks._
 import mts.conll._
 import mts.qa._
+import mts.language.tokenize
 
 import akka.actor._
 
@@ -26,7 +27,7 @@ object ValidationExperiment {
     val validationQuestions = for {
       annotation <- OpenFormExperiment.getAllAnnotations()
       (path, _) = OpenFormExperiment.protoQASpec.extractQuestionData(annotation.question.get)
-      (qaPairs, _) = OpenFormExperiment.protoQASpec.extractAnswerData(annotation.answer)
+      (qaPairs, _) = OpenFormExperiment.protoQASpec.extractAnswerData(annotation)
       (q, a) <- qaPairs
     } yield ValidationQuestion(path, annotation.workerId, q, a)
     val validationPrompts = validationQuestions.groupBy(_.path).toList.flatMap {
@@ -58,21 +59,13 @@ object ValidationExperiment {
     .flatMap(_._2.map(_.feedback))
     .filterNot(_.isEmpty)
 
-  case class Validation(
-    workerId: String,
-    validationAnswer: ValidationAnswer)
-
-  case class QAValidation(
-    vQuestion: ValidationQuestion,
-    vAnswers: List[Validation])
-
   def qaValidationsFromAnnotations(annotations: List[Annotation]) = {
     val annotations = getAllAnnotations().filter(!_.question.isEmpty)
     val instances = for {
       anno <- annotations
       (ValidationPrompt(path, qs), ValidationResponse(as, _)) <- taskSpec.qaSpec.getQAPair(anno).toList
       (q, a) <- qs.zip(as)
-    } yield (q, Validation(anno.workerId, a))
+    } yield (q, a)
     val qaValidations = instances.groupBy(_._1).map {
       case (vQuestion, pairList) => QAValidation(vQuestion, pairList.map(_._2))
     }
@@ -89,11 +82,30 @@ object ValidationExperiment {
       sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
       _ = sb.append(s"\n${TextRendering.renderSentence(sentence)}\n")
       QAValidation(vQuestion, validations) <- qaValidations
-      validationString = validations.map {
-        case Validation(workerId, vAnswer) => s"\t$vAnswer\t$workerId\n"
-      }.mkString
+      validationString = validations.map(a => s"\t$a\t${a.workerId}\n").mkString
       _ = sb.append(s"${vQuestion.question}\t${vQuestion.answer}\t${vQuestion.workerId}\n$validationString")
     } yield ()
     sb.toString
+  }
+
+  def saveData(): Unit = {
+    val assignmentFileContents = Annotation.toTSV(getAllAnnotations(),
+                                                  List(AnnotationStat.workerAssignmentNum))
+    FileManager.saveDataFile(experimentName, "workers.tsv", assignmentFileContents)
+
+    val qaValidations = qaValidationsFromAnnotations(getAllAnnotations())
+
+    // one row for each QUESTION in the TSV I'm about to construct...
+    val answerStatsBuilder = new java.lang.StringBuilder()
+    answerStatsBuilder.append(s"path\tmaxExactAgreement\tmaxLooseAgreement\tnumInvalidAnswers\n")
+    val _ = for {
+      QAValidation(ValidationQuestion(path, originalWorkerId, question, origAnswer), vAnswers) <- qaValidations
+      sentence = FileManager.getCoNLLSentence(path)
+      maxExactAgreement = vAnswers.map(vAnswer => vAnswers.filter(vAnswer.agreesExactlyWith).size).max
+      maxLooseAgreement = vAnswers.map(vAnswer => vAnswers.filter(vAnswer.overlapsWith).size).max
+      numInvalidAnswers = vAnswers.filterNot(_.isValid).size
+      // qaInfo = QAInfo(sentence, tokenize(question), tokenize(origAnswer))
+    } yield answerStatsBuilder.append(s"$path\t$maxExactAgreement\t$maxLooseAgreement\t$numInvalidAnswers\n")
+    FileManager.saveDataFile(experimentName, "answers.tsv", answerStatsBuilder.toString)
   }
 }

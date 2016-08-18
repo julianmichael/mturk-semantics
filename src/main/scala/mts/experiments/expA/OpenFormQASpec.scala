@@ -139,14 +139,15 @@ case class OpenFormQASpec(numQAs: Int) extends QASpec {
     Question(question, upickle.write(qData._1))
   }
 
-  final def extractQuestionData(q: Question): QuestionData = {
+  override final def extractQuestionData(q: Question): QuestionData = {
     val path = upickle.read[CoNLLSentencePath](q.annotation)
     val sentence = FileManager.getCoNLLSentence(path).toOptionPrinting.get
     val sentenceString = TextRendering.renderSentence(sentence)
     (path, sentenceString)
   }
 
-  final def extractAnswerData(answerXML: String): AnswerData = {
+  override final def extractAnswerData(annotation: Annotation): AnswerData = {
+    val answerXML = annotation.answer
     import scala.collection.JavaConverters._
     val answers = RequesterService.parseAnswers(answerXML).getAnswer
       .asScala.toList.asInstanceOf[List[QuestionFormAnswersType.AnswerType]]

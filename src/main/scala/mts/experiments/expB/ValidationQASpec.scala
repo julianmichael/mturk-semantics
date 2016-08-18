@@ -197,14 +197,16 @@ object ValidationQASpec extends QASpec {
     upickle.read[QuestionData](q.annotation)
   }
 
-  final def extractAnswerData(answerXML: String): AnswerData = {
+  final def extractAnswerData(annotation: Annotation): AnswerData = {
+    val answerXML = annotation.answer
+    val workerId = annotation.workerId
     import scala.collection.JavaConverters._
     val answers = RequesterService.parseAnswers(answerXML).getAnswer
       .asScala.toList.asInstanceOf[List[QuestionFormAnswersType.AnswerType]]
     val numAnswers = answers.filter(_.getQuestionIdentifier.startsWith("answer")).size
     val validationAnswers = (0 until numAnswers)
       .map(i => answers.find(a => a.getQuestionIdentifier.equals(s"answer-$i")).get.getFreeText)
-      .map(ansString => if (ansString.equals("N/A")) InvalidQuestion else Answer(ansString))
+      .map(ansString => if (ansString.equals("N/A")) InvalidQuestion(workerId) else Answer(ansString, workerId))
       .toList
     val comment = answers.find(a => a.getQuestionIdentifier.equals("comments")).get.getFreeText
     ValidationResponse(validationAnswers, comment)

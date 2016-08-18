@@ -15,7 +15,10 @@ package object language {
 
   lazy val stopwords: Set[String] = {
     import scala.collection.JavaConverters._
-    Files.lines(stopwordFilePath).iterator.asScala.toSet ++ Set("hm", "uh", "um")
+    val fileStream = Files.lines(stopwordFilePath)
+    val result = fileStream.iterator.asScala.toSet ++ Set("hm", "uh", "um")
+    fileStream.close()
+    result
   }
 
   def tokenize(s: String): List[String] = {

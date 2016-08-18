@@ -22,22 +22,6 @@ newAWords <- read.csv("data/new-awords.tsv", sep="\t")
 
 pdf("out/word_stats.pdf")
 
-## ggplot(subset(firstQWord, Count > 1), aes(x = reorder(Word, -Count), y = Count, label = Count)) +
-##   geom_bar(stat = "identity") +
-##   scale_y_log10(breaks = base_breaks()) +
-##   theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
-##   ggtitle("First question word") +
-##   labs(x = "Word at beginning of question", y = "Number of occurrences")
-
-## total = sum(firstQWord$Count)
-## firstQWord <- within(firstQWord, acc_proportion <- (cumsum(Count) / total))
-## ggplot(subset(firstQWord, Count > 1), aes(x = reorder(Word, acc_proportion), y = acc_proportion, group = 1)) +
-##   geom_step() +
-##   ## geom_line(stat = "identity") +
-##   theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
-##   ggtitle("First question word (Cumulative)") +
-##   labs(x = "Word at beginning of question", y = "Number of occurrences")
-
 ## first question words not appearing in sentence
 
 total = sum(firstQWordNew$Count)
