@@ -2,10 +2,7 @@ package mts.qa
 
 import mts.core._
 
-trait QASpec {
-  type QuestionData
-  type AnswerData
-
+trait QASpec[QuestionData, AnswerData] {
   def createQuestion(qData: QuestionData): Question
   def extractQuestionData(q: Question): QuestionData
   def extractAnswerData(annotation: Annotation): AnswerData

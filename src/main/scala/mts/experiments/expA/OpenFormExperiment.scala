@@ -61,16 +61,13 @@ object OpenFormExperiment {
   def expire() = tasks.foreach(p => p._2 ! p._1.Message.Expire)
   def update() = tasks.foreach(p => p._2 ! p._1.Message.Update)
 
-  type QuestionData = (CoNLLSentencePath, String)
-  type AnswerData = (List[(String, String)], String)
-
   // TODO save HIT types and access them here and such
   def getAllAnnotations(): List[Annotation] =
     // tasks.flatMap(p => FileManager.loadAnnotationsForHITType(p._1.hitType))
     List("3NWM3X0LA7LBIGM2QP1Y4BFHQN9XPC", "3JH21YRKZ6B7ZFDTS077Y16U7HJ0JL")
       .flatMap(FileManager.loadAnnotationsForHITType)
 
-  def getAllQAPairs(): Iterable[(QuestionData, List[AnswerData])] =
+  def getAllQAPairs(): Iterable[(OpenFormPrompt, List[OpenFormResponse])] =
     tasks.flatMap(_._1.annotatedQAPairs).toMap.values
 
   def getAllFeedback(): Iterable[String] = getAllQAPairs().flatMap(_._2.map(_._2))

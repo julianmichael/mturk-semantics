@@ -8,7 +8,7 @@ case class OpenFormTask(
   final override val reward: Double,
   final val numQAsPerHIT: Int,
   final override val numAssignmentsPerHIT: Int = 5
-) extends MTurkTask {
+) extends MTurkTask[OpenFormPrompt, OpenFormResponse] {
 
   final override val title = s"Write $numQAsPerHIT questions and answers about a sentence"
   final override val description = s"""

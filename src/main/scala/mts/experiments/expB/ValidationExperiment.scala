@@ -18,10 +18,7 @@ object ValidationExperiment {
   // file names should have b_ prepended so experiments have an obvious order
   val experimentName = "b_validation"
 
-  type QuestionData = ValidationPrompt // path to sentence, original question
-  type AnswerData = ValidationResponse // answers (+ invalid question flag), feedback
-
-  lazy val questionData: List[QuestionData] = {
+  lazy val questionData: List[ValidationPrompt] = {
     val rand = new Random(42) // DO NOT CHANGE THE SEED
     // it has to be consistent so that after restarts the set of questions will be the same.
     val validationQuestions = for {
@@ -52,7 +49,7 @@ object ValidationExperiment {
   def getAllAnnotations(): List[Annotation] =
     FileManager.loadAnnotationsForHITType(taskSpec.hitType)
 
-  def getAllQAPairs(): Iterable[(QuestionData, List[AnswerData])] =
+  def getAllQAPairs(): Iterable[(ValidationPrompt, List[ValidationResponse])] =
     taskSpec.annotatedQAPairs.toMap.values
 
   def getAllFeedback(): Iterable[String] = getAllQAPairs()

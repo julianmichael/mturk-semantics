@@ -9,10 +9,7 @@ import mts.tasks.Config
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
-object ValidationQASpec extends QASpec {
-
-  type QuestionData = ValidationPrompt
-  type AnswerData = ValidationResponse
+object ValidationQASpec extends QASpec[ValidationPrompt, ValidationResponse] {
 
   final val pageFont = "14px Helvetica"
 
@@ -61,7 +58,7 @@ object ValidationQASpec extends QASpec {
     )
   }
 
-  final def createQuestion(qData: QuestionData): Question = {
+  final def createQuestion(qData: ValidationPrompt): Question = {
     val ValidationPrompt(path, vQuestions) = qData
     val sentence = FileManager.getCoNLLSentence(path).toOptionPrinting.get
     val sentenceString = TextRendering.renderSentence(sentence)
@@ -193,11 +190,11 @@ object ValidationQASpec extends QASpec {
     Question(questionXML, upickle.write(qData))
   }
 
-  final def extractQuestionData(q: Question): QuestionData = {
-    upickle.read[QuestionData](q.annotation)
+  final def extractQuestionData(q: Question): ValidationPrompt = {
+    upickle.read[ValidationPrompt](q.annotation)
   }
 
-  final def extractAnswerData(annotation: Annotation): AnswerData = {
+  final def extractAnswerData(annotation: Annotation): ValidationResponse = {
     val answerXML = annotation.answer
     val workerId = annotation.workerId
     import scala.collection.JavaConverters._

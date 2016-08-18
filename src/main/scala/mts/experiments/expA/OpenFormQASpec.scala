@@ -9,9 +9,7 @@ import mts.tasks.Config
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
-case class OpenFormQASpec(numQAs: Int) extends QASpec {
-  type QuestionData = (CoNLLSentencePath, String) // path to sentence, sentence
-  type AnswerData = (List[(String, String)], String) // QA pairs, comment
+case class OpenFormQASpec(numQAs: Int) extends QASpec[OpenFormPrompt, OpenFormResponse] {
 
   final val pageFont = "14px Helvetica"
 
@@ -44,7 +42,7 @@ case class OpenFormQASpec(numQAs: Int) extends QASpec {
     )
   }
 
-  final def createQuestion(qData: QuestionData): Question = {
+  final def createQuestion(qData: OpenFormPrompt): Question = {
     import scalatags.Text.all._
     val page = html(
       head(
@@ -139,14 +137,14 @@ case class OpenFormQASpec(numQAs: Int) extends QASpec {
     Question(question, upickle.write(qData._1))
   }
 
-  override final def extractQuestionData(q: Question): QuestionData = {
+  override final def extractQuestionData(q: Question): OpenFormPrompt = {
     val path = upickle.read[CoNLLSentencePath](q.annotation)
     val sentence = FileManager.getCoNLLSentence(path).toOptionPrinting.get
     val sentenceString = TextRendering.renderSentence(sentence)
     (path, sentenceString)
   }
 
-  override final def extractAnswerData(annotation: Annotation): AnswerData = {
+  override final def extractAnswerData(annotation: Annotation): OpenFormResponse = {
     val answerXML = annotation.answer
     import scala.collection.JavaConverters._
     val answers = RequesterService.parseAnswers(answerXML).getAnswer

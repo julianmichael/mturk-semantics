@@ -6,7 +6,7 @@ import scala.util.{Try, Success, Failure}
 
 case class ValidationTask(
   final override val numAssignmentsPerHIT: Int = 5
-) extends MTurkTask {
+) extends MTurkTask[ValidationPrompt, ValidationResponse] {
 
   final override val reward = 0.10
   final override val title = s"Answer questions about a sentence"

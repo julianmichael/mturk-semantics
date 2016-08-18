@@ -34,7 +34,7 @@ import scala.language.postfixOps
 // TODO: add a facility for evaluating the quality of workers and banning them appropriately.
 
 // TODO: add a facility for sending completed HITs to another actor for further processing (and perhaps turking)
-trait MTurkTask {
+trait MTurkTask[Prompt, Response] {
 
   import Config._
 
@@ -198,7 +198,7 @@ trait MTurkTask {
   val numAssignmentsPerHIT: Int
   val lifetime = 2592000L // seconds (30 days)
 
-  val qaSpec: QASpec
+  val qaSpec: QASpec[Prompt, Response]
   import qaSpec._
 
   def annotatedQAPairs() = FileManager.loadAnnotationsForHITType(hitType)
@@ -212,7 +212,7 @@ trait MTurkTask {
   }
 
   def createMonitor(system: ActorSystem,
-                    questions: Iterator[QuestionData],
+                    questions: Iterator[Prompt],
                     numHITsToKeepActive: Int,
                     interval: FiniteDuration = 30 seconds
                     ): ActorRef = {
@@ -226,13 +226,13 @@ trait MTurkTask {
     case object Update extends Message
     case object Expire extends Message
     case object Disable extends Message
-    case class AddQuestion(q: QuestionData) extends Message
+    case class AddQuestion(q: Prompt) extends Message
   }
 
   // runs this MTurk task for the given data.
   // (the "given data" consists of the abstract fields)
   case class Monitor(
-    val questionSource: Iterator[QuestionData],
+    val questionSource: Iterator[Prompt],
     val numHITsToKeepActive: Int = 100,
     val interval: FiniteDuration = 10 seconds
   ) extends Actor {
@@ -254,24 +254,24 @@ trait MTurkTask {
 
     val finishedOrCurrentQuestions = {
       val savedAnnotations = FileManager.loadAnnotationsForHITType(hitType)
-      val set = mutable.HashSet[QuestionData]()
+      val set = mutable.HashSet[Prompt]()
       set ++= savedAnnotations.flatMap(_.question.map(qaSpec.extractQuestionData))
       set ++= questionStore.values.map(qaSpec.extractQuestionData)
       set
     }
 
-    final val stackedQuestions: mutable.Stack[QuestionData] = mutable.Stack.empty[QuestionData]
+    final val stackedQuestions: mutable.Stack[Prompt] = mutable.Stack.empty[Prompt]
     // questionSource (class param)
-    final val failedQuestions: mutable.Queue[QuestionData] = mutable.Queue.empty[QuestionData]
+    final val failedQuestions: mutable.Queue[Prompt] = mutable.Queue.empty[Prompt]
 
-    def getNextQuestion(): Option[QuestionData] = {
+    def getNextQuestion(): Option[Prompt] = {
       val allQuestions = stackedQuestions.iterator ++ questionSource ++ failedQuestions.iterator
       val validQuestions = allQuestions.filter(q => !finishedOrCurrentQuestions.contains(q))
       validQuestions.nextOption
     }
 
-    def getNextNQuestions(n: Int): Seq[QuestionData] = {
-      val questions = mutable.Buffer.empty[QuestionData]
+    def getNextNQuestions(n: Int): Seq[Prompt] = {
+      val questions = mutable.Buffer.empty[Prompt]
       var nRemaining = n
       while(nRemaining > 0) {
         getNextQuestion() match {
@@ -359,7 +359,7 @@ trait MTurkTask {
       }
     }
 
-    def addQuestion(q: QuestionData): Unit = {
+    def addQuestion(q: Prompt): Unit = {
       stackedQuestions.push(q)
     }
 
