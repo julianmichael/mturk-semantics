@@ -26,8 +26,7 @@ then
             mv wiktionary resources/wiktionary
             ;;
         * )
-            echo "Terminating. Get the data yourself."
-            exit 0
+            echo "Skipping Wiktionary. Run `setup.sh` again if you change your mind."
             ;;
     esac
 fi

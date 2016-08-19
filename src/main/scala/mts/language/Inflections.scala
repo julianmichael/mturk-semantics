@@ -13,11 +13,12 @@ class Inflections(
 
   def getAllForms(word: String): List[String] = {
     val w = word.toLowerCase
+    val extras = extraForms.get(getUninflected(w).getOrElse(w)).getOrElse(Nil)
     def beIfHasWord(wordSet: Set[String]) = wordSet.onlyIf(_.contains(w))
     List(doVerbs, beVerbs, willVerbs, haveVerbs, wouldVerbs, negationWords)
       .map(beIfHasWord).flatten.headOption.map(_.toList)
       .orElse(Option(inflDict.getBestInflections(w)).map(_.toList))
-      .getOrElse(List(word))
+      .getOrElse(List(word)) ++ extras
   }
 
   def hasInflectedForms(word: String) = !getInflectedForms(word).isEmpty
@@ -66,4 +67,10 @@ object Inflections {
     doVerbs ++ beVerbs ++ willVerbs ++ haveVerbs ++ modalVerbs
   val negationWords = Set(
     "no", "not", "'nt")
+
+  // maps an uninflected verb to extra forms of it that aren't in wiktionary
+  val extraForms = Map(
+    "dream" -> List("dreamt"),
+    "leap" -> List("leapt")
+  )
 }
