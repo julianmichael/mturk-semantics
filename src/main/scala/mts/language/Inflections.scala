@@ -11,14 +11,14 @@ class Inflections(
   def getInflectedForms(word: String): Option[List[String]] =
     Option(inflDict.getBestInflections(word.toLowerCase())).map(_.toList)
 
-  def getAllForms(word: String): List[String] = {
+  def getAllForms(word: String): Set[String] = {
     val w = word.toLowerCase
-    val extras = extraForms.get(getUninflected(w).getOrElse(w)).getOrElse(Nil)
+    val extras = extraForms.get(getUninflected(w).getOrElse(w)).getOrElse(Set.empty[String])
     def beIfHasWord(wordSet: Set[String]) = wordSet.onlyIf(_.contains(w))
     List(doVerbs, beVerbs, willVerbs, haveVerbs, wouldVerbs, negationWords)
-      .map(beIfHasWord).flatten.headOption.map(_.toList)
-      .orElse(Option(inflDict.getBestInflections(w)).map(_.toList))
-      .getOrElse(List(word)) ++ extras
+      .map(beIfHasWord).flatten.headOption.map(_.toSet)
+      .orElse(Option(inflDict.getBestInflections(w)).map(_.toSet))
+      .getOrElse(Set(w)) ++ extras
   }
 
   def hasInflectedForms(word: String) = !getInflectedForms(word).isEmpty
@@ -70,7 +70,7 @@ object Inflections {
 
   // maps an uninflected verb to extra forms of it that aren't in wiktionary
   val extraForms = Map(
-    "dream" -> List("dreamt"),
-    "leap" -> List("leapt")
+    "dream" -> Set("dreamt"),
+    "leap" -> Set("leapt")
   )
 }

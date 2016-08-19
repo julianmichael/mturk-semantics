@@ -1,4 +1,4 @@
-package mts.analysis
+package mts.experiments.expA
 
 import mts.conll._
 import mts.core._
