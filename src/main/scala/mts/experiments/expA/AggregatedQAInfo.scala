@@ -6,6 +6,8 @@ import mts.core._
 // infos must be for the same sentence
 // this can be used both for per-assignment stats and per-sentence stats
 case class AggregatedQAInfo(
+  val tagNames: List[String],
+  val tags: List[String],
   val qas: List[QAInfo]
 ) {
   val sentence = qas.head.sentence
@@ -99,4 +101,41 @@ case class AggregatedQAInfo(
     if argWords.forall(word =>
       qaInfo.arcs.contains(pred.head.index, word.index) || qaInfo.arcs.contains(word.index, pred.head.index))
   } yield (depLabel, questionLabel)
+
+  val validQuestionNum = qas.filter(_.questionIsValid).size
+  val invalidQuestionNum = qas.filterNot(_.questionIsValid).size
+  val validQuestionProportion = validQuestionNum.toDouble / qas.size
+  val validAnswerNum = qas.filter(_.answerIsValid).size
+  val invalidAnswerNum = qas.filterNot(_.answerIsValid).size
+  val validAnswerProportion = validAnswerNum.toDouble / qas.size
+  val validQAPairNum = qas.filter(_.qaPairIsValid).size
+  val invalidQAPairNum = qas.filterNot(_.qaPairIsValid).size
+  val validQAPairProportion = validQAPairNum.toDouble / qas.size
+}
+
+object AggregatedQAInfo {
+  // could be assignment ID, HIT ID, HIT type ID...
+  def aggregateBy(
+    factorNames: List[String],
+    extractFactors: (QAInfo => List[String]),
+    infos: Iterable[QAInfo]
+  ): List[AggregatedQAInfo] = {
+    infos.groupBy(extractFactors).map {
+      case (factors, infos) => AggregatedQAInfo(factorNames, factors, infos.toList)
+    }.toList
+  }
+
+  def makeTSV(aggInfos: List[AggregatedQAInfo]) = {
+    val factorHeaders = aggInfos.head.tagNames.mkString("\t")
+    val header = s"$factorHeaders\tquestionOverlapCount\tquestionOverlapProportion\tquestionOverlapPerQA\t" +
+      "answerOverlapCount\tanswerOverlapProportion\tanswerOverlapPerQA\t" +
+      "coveredLabelProportion\tsomeWordCoveredLabelProportion\tallWordsCoveredLabelProportion\n"
+    header + aggInfos.map { case aggInfo@AggregatedQAInfo(_, factors, infos) =>
+      import aggInfo._
+      val factorValues = factors.mkString("\t")
+      s"$factorValues\t$questionOverlapCount\t$questionOverlapProportion\t$questionOverlapPerQA\t" +
+        s"$answerOverlapCount\t$answerOverlapProportion\t$answerOverlapPerQA\t" +
+        s"$coveredLabelProportion\t$someWordCoveredLabelProportion\t$allWordsCoveredLabelProportion"
+    }.mkString("\n")
+  }
 }

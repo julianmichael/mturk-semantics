@@ -7,7 +7,9 @@ import mts.util._
 import mts.tasks._
 import mts.conll._
 import mts.language._
+import mts.validation._
 import akka.actor._
+import mts.util.LowerCaseStrings._
 
 import scala.util.Try
 
@@ -45,6 +47,9 @@ object OpenFormExperiment {
     } yield word.token
     getInflectionsForTokens(tokens)
   }
+
+  lazy val questionValidator = new SomeWordValidator(inflections)
+  lazy val answerValidator = new AllWordsValidator(inflections)
 
   // bucket sentences and create a task for each bucket
   private[this] def makeTask(system: ActorSystem)(minTokens: Int, maxTokens: Int, numQAs: Int, reward: Double) = {
@@ -85,24 +90,22 @@ object OpenFormExperiment {
     .filterNot(_.isEmpty)
 
   // assume we have the question for everything ugh
-  def annotationToInfo(a: Annotation) = {
+  def annotationToInfo(anno: Annotation) = {
     import mts.language._
-    val question = a.question.get
-    val ((path, _), (qaPairs, _)) = (protoTaskSpec.extractQuestionData(question), protoTaskSpec.extractAnswerData(a))
+    val question = anno.question.get
+    val ((path, _), (qaPairs, _)) = (protoTaskSpec.extractQuestionData(question), protoTaskSpec.extractAnswerData(anno))
     val infos = for {
       sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
       (q, a) <- qaPairs
-      qTokens = tokenize(q).map(_.toLowerCase)
-      aTokens = tokenize(a).map(_.toLowerCase)
-    } yield QAInfo(sentence, qTokens, aTokens)
-    AggregatedQAInfo(infos.toList)
+    } yield QAInfo(sentence, q, a, anno, 0)
+    AggregatedQAInfo(List("assignmentId"), List(anno.assignmentId), infos.toList)
   }
 
   def readableQATSV(): String = {
     val annotations = getAllAnnotations().filter(!_.question.isEmpty)
     val annotationsToInfos = annotations.map(a => a -> annotationToInfo(a)).toMap
     val infoAggregatedByHIT = annotations.groupBy(_.hitId).map {
-      case (hitId, annos) => hitId -> (annos, AggregatedQAInfo(annos.flatMap(a => annotationToInfo(a).qas)))
+      case (hitId, annos) => hitId -> (annos, AggregatedQAInfo(List("hitId"), List(hitId), annos.flatMap(a => annotationToInfo(a).qas)))
     }
 
     val sb = new java.lang.StringBuilder()
@@ -116,7 +119,11 @@ object OpenFormExperiment {
         (_, (qaPairs, feedback)) <- protoTaskSpec.getQAPair(annotation).toList
         _ = if(!feedback.isEmpty) sb.append(s"$worker\tFeedback: $feedback\n") else ()
         (q, a) <- qaPairs
-        _ = sb.append(s"$worker\t$q\t$a\n")
+        qValid = questionValidator.isValid(aggInfo.sentence.words.map(_.token.lowerCase), tokenize(q).map(_.lowerCase))
+        qValidFlag = if(qValid) " " else "Q!"
+        aValid = answerValidator.isValid(aggInfo.sentence.words.map(_.token.lowerCase), tokenize(a).map(_.lowerCase))
+        aValidFlag = if(aValid) " " else "A!"
+        _ = sb.append(s"$qValidFlag$aValidFlag\t$q\t$a\t$worker\n")
       } yield ()
       _ = for { // print dependencies with any formatting
         PredicateArgumentStructure(Predicate(head, _, _), args) <- aggInfo.sentence.predicateArgumentStructures
@@ -134,70 +141,37 @@ object OpenFormExperiment {
 
   def saveData(): Try[Unit] = Try {
     val annotations = getAllAnnotations().filter(!_.question.isEmpty)
-    val annotationsToInfos = annotations.map(a => a -> annotationToInfo(a)).toMap
+    val qaInfos = QAInfo.fromAnnotations(annotations)
 
-    // now calculate some stats
-    val questionOverlapCountStat = AnnotationStat("questionOverlapCount", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).questionOverlapCount}%.4f"))
+    val aggByAssignment = AggregatedQAInfo.aggregateBy(
+      List("hitType", "hitId", "assignmentId", "workerId", "acceptTime", "submitTime", "workerAssignmentNum"),
+      qaInfo => List(qaInfo.annotation.hitType, qaInfo.annotation.hitId,
+                     qaInfo.annotation.assignmentId, qaInfo.annotation.workerId,
+                     qaInfo.annotation.acceptTime.toString, qaInfo.annotation.submitTime.toString,
+                     qaInfo.assignmentNum.toString),
+      qaInfos)
+    val assignmentTSV = AggregatedQAInfo.makeTSV(aggByAssignment)
+    FileManager.saveDataFile(experimentName, "assignments.tsv", assignmentTSV)
 
-    val questionOverlapProportionStat = AnnotationStat("questionOverlapProportion", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).questionOverlapProportion}%.4f"))
-
-    val questionOverlapPerQAStat = AnnotationStat("questionOverlapPerQA", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).questionOverlapPerQA}%.4f"))
-
-    val answerOverlapCountStat = AnnotationStat("answerOverlapCount", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).answerOverlapCount}%.4f"))
-
-    val answerOverlapProportionStat = AnnotationStat("answerOverlapProportion", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).answerOverlapProportion}%.4f"))
-
-    val answerOverlapPerQAStat = AnnotationStat("answerOverlapPerQA", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).answerOverlapPerQA}%.4f"))
-
-    val coveredLabelProportionStat = AnnotationStat("coveredLabelProportion", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).coveredLabelProportion}%.4f"))
-
-    val someWordCoveredLabelProportionStat = AnnotationStat("someWordCoveredLabelProportion", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).someWordCoveredLabelProportion}%.4f"))
-
-    val allWordsCoveredLabelProportionStat = AnnotationStat("allWordsCoveredLabelProportion", (annos: List[Annotation]) =>
-      annos.map(a => f"${annotationsToInfos(a).allWordsCoveredLabelProportion}%.4f"))
-
-    val assignmentFileContents = Annotation.toTSV(annotations,
-                                                  List(AnnotationStat.workerAssignmentNum,
-                                                       questionOverlapCountStat,
-                                                       questionOverlapProportionStat,
-                                                       questionOverlapPerQAStat,
-                                                       answerOverlapCountStat,
-                                                       answerOverlapPerQAStat,
-                                                       answerOverlapProportionStat,
-                                                       coveredLabelProportionStat,
-                                                       someWordCoveredLabelProportionStat,
-                                                       allWordsCoveredLabelProportionStat
-                                                  ))
-    FileManager.saveDataFile(experimentName, "assignments.tsv", assignmentFileContents)
-
-    // now let's compute these stats by HIT instead of just assignment
-
-    val infoAggregatedByHIT = annotations.groupBy(_.hitId).map {
-      case (hitId, annos) => hitId -> (annos.head.hitType, AggregatedQAInfo(annos.flatMap(a => annotationToInfo(a).qas)))
-    }
-    val hitTSV = "hitId\thitType\tquestionOverlapCount\tquestionOverlapProportion\tquestionOverlapPerQA\t" +
-      "answerOverlapCount\tanswerOverlapProportion\tanswerOverlapPerQA\tcoveredLabelProportion\tsomeWordCoveredLabelProportion\tallWordsCoveredLabelProportion\n" +
-      infoAggregatedByHIT.toList.map { case (hitId, (hitType, aggInfo)) =>
-        import aggInfo._
-        s"$hitId\t$hitType\t$questionOverlapCount\t$questionOverlapProportion\t$questionOverlapPerQA\t" +
-          s"$answerOverlapCount\t$answerOverlapProportion\t$answerOverlapPerQA\t$coveredLabelProportion\t$someWordCoveredLabelProportion\t$allWordsCoveredLabelProportion"
-      }.mkString("\n")
+    val aggByHIT = AggregatedQAInfo.aggregateBy(
+      List("hitType", "hitId"),
+      qaInfo => List(qaInfo.annotation.hitType, qaInfo.annotation.hitId),
+      qaInfos)
+    val hitTSV = AggregatedQAInfo.makeTSV(aggByHIT)
     FileManager.saveDataFile(experimentName, "hits.tsv", hitTSV)
+
+    val aggByWorker = AggregatedQAInfo.aggregateBy(
+      List("hitType", "workerId"),
+      qaInfo => List(qaInfo.annotation.hitType, qaInfo.annotation.workerId),
+      qaInfos)
+    val workerTSV = AggregatedQAInfo.makeTSV(aggByWorker)
+    FileManager.saveDataFile(experimentName, "workers.tsv", workerTSV)
 
     // now for recording the most common words:
 
-    def saveWordCounts(filename: String, getWords: QAInfo => Iterable[String]) = {
+    def saveWordCounts[A <% String](filename: String, getWords: QAInfo => Iterable[A]) = {
       val allWords = for {
-        aggInfo <- annotationsToInfos.values
-        qaInfo <- aggInfo.qas
+        qaInfo <- qaInfos
         word <- getWords(qaInfo)
       } yield word
       val wordCounts = counts(allWords)
@@ -215,11 +189,11 @@ object OpenFormExperiment {
 
     // all below is stats by HIT
     val proportionalLabelCoverage = for {
-      (_, aggInfo) <- infoAggregatedByHIT.values
+      aggInfo <- aggByHIT
       coveredLabel <- aggInfo.coveredArgLabels
     } yield ("Covered", coveredLabel)
     val proportionalLabelUncoverage = for {
-      (_, aggInfo) <- infoAggregatedByHIT.values
+      aggInfo <- aggByHIT
       uncoveredLabel <- aggInfo.uncoveredArgLabels
     } yield ("Uncovered", uncoveredLabel)
     val labelCoverageTSV = "IsCovered\tLabel\n" + (proportionalLabelCoverage ++ proportionalLabelUncoverage)
@@ -228,11 +202,11 @@ object OpenFormExperiment {
     FileManager.saveDataFile(experimentName, "label-agg-coverage.tsv", labelCoverageTSV)
 
     val someWordLabelCoverage = for {
-      (_, aggInfo) <- infoAggregatedByHIT.values
+      aggInfo <- aggByHIT
       coveredLabel <- aggInfo.someWordCoveredLabels
     } yield ("Covered", coveredLabel)
     val noWordLabelCoverage = for {
-      (_, aggInfo) <- infoAggregatedByHIT.values
+      aggInfo <- aggByHIT
       uncoveredLabel <- aggInfo.noWordCoveredLabels
     } yield ("Uncovered", uncoveredLabel)
     val someWordLabelCoverageTSV = "IsCovered\tLabel\n" + (someWordLabelCoverage ++ noWordLabelCoverage)
@@ -241,11 +215,11 @@ object OpenFormExperiment {
     FileManager.saveDataFile(experimentName, "label-some-word-coverage.tsv", someWordLabelCoverageTSV)
 
     val allWordsLabelCoverage = for {
-      (_, aggInfo) <- infoAggregatedByHIT.values
+      aggInfo <- aggByHIT
       coveredLabel <- aggInfo.allWordsCoveredLabels
     } yield ("Covered", coveredLabel)
     val someWordLabelUncoverage = for {
-      (_, aggInfo) <- infoAggregatedByHIT.values
+      aggInfo <- aggByHIT
       uncoveredLabel <- aggInfo.someWordUncoveredLabels
     } yield ("Uncovered", uncoveredLabel)
     val allWordsLabelCoverageTSV = "IsCovered\tLabel\n" + (allWordsLabelCoverage ++ someWordLabelUncoverage)
@@ -253,7 +227,7 @@ object OpenFormExperiment {
       .mkString("\n")
     FileManager.saveDataFile(experimentName, "label-all-words-coverage.tsv", allWordsLabelCoverageTSV)
 
-    val allArcMatches = infoAggregatedByHIT.values.flatMap(_._2.arcMatchesForSome)
+    val allArcMatches = aggByHIT.flatMap(_.arcMatchesForSome)
     val arcMatchesTSV = "DepLabel\tQuestionLabel\n" + allArcMatches
       .map { case (depLabel, qLabel) => s"$depLabel\t$qLabel" }
       .mkString("\n")

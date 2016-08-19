@@ -17,20 +17,20 @@ allWordsCoverageData <- within(allWordsCoverageData, Label <- factor(Label, leve
 
 pdf("out/label-stats.pdf")
 
-ggplot(data = aggCoverageData, aes(x = Label, colour = IsCovered, fill = IsCovered, label = (aggCoverageTable["Covered", Label]/ (aggCoverageTable["Covered", Label] + aggCoverageTable["Uncovered", Label])))) +
-  geom_bar() +
-  coord_flip() +
-  ggtitle("Aggregate coverage of argument span words, by dep label")
+## ggplot(data = aggCoverageData, aes(x = Label, colour = IsCovered, fill = IsCovered, label = (aggCoverageTable["Covered", Label]/ (aggCoverageTable["Covered", Label] + aggCoverageTable["Uncovered", Label])))) +
+##   geom_bar() +
+##   coord_flip() +
+##   ggtitle("Aggregate coverage of argument span words, by dep label")
 
 ggplot(data = someWordCoverageData, aes(x = Label, colour = IsCovered, fill = IsCovered)) +
   geom_bar() +
   coord_flip() +
   ggtitle("Coverage of some argument span word, by dep label")
 
-ggplot(data = allWordsCoverageData, aes(x = Label, colour = IsCovered, fill = IsCovered)) +
-  geom_bar() +
-  coord_flip() +
-  ggtitle("Coverage of all argument span words, by dep label")
+## ggplot(data = allWordsCoverageData, aes(x = Label, colour = IsCovered, fill = IsCovered)) +
+##   geom_bar() +
+##   coord_flip() +
+##   ggtitle("Coverage of all argument span words, by dep label")
 
 arcMatchingData <- read.csv("data/arc-matches.tsv", sep = "\t")
 arcMatchingData <- within(arcMatchingData, QuestionLabel <- factor(QuestionLabel, levels = names(sort(table(QuestionLabel), decreasing = TRUE))))

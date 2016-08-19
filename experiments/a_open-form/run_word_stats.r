@@ -47,12 +47,12 @@ ggplot(subset(firstQPhrase, Count > 1), aes(x = reorder(Word, -Count), y = Count
   theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
   ggtitle("First question phrase") +
   labs(x = "Phrase at beginning of question", y = "Number of occurrences")
-ggplot(subset(firstQPhrase, Count > 1), aes(x = reorder(Word, acc_proportion), y = acc_proportion, group = 1)) +
-  geom_step() +
-  ## geom_line(stat = "identity") +
-  theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
-  ggtitle("First question phrase (Cumulative)") +
-  labs(x = "Phrase at beginning of question", y = "Number of occurrences")
+## ggplot(subset(firstQPhrase, Count > 1), aes(x = reorder(Word, acc_proportion), y = acc_proportion, group = 1)) +
+##   geom_step() +
+##   ## geom_line(stat = "identity") +
+##   theme(axis.text.x = element_text(angle=45, hjust = 1, margin = margin(t = 2))) +
+##   ggtitle("First question phrase (Cumulative)") +
+##   labs(x = "Phrase at beginning of question", y = "Number of occurrences")
 
 ggplot(subset(newQWords, Count > 10), aes(x = reorder(Word, -Count), y = Count, label = Count)) +
   geom_bar(stat = "identity") +

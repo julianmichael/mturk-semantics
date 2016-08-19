@@ -47,13 +47,10 @@ printStats <- function(vec, label) {
   print(quantile(vec, c(0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0)))
 }
 
-# TODO group by HIT type as well
 workerAssignments <- as.data.frame(table(workerIds))
 workerAssignmentCounts <- workerAssignments$Freq
 printStats(workerAssignmentCounts, "assignments per worker")
 
-## TODO group by HIT type
-## completionTimes <- data[,c("hitType", "submitTime", "acceptTime")]
 data$timeTaken <- data$submitTime - data$acceptTime
 printStats(data$timeTaken, "HIT completion time")
 
@@ -164,18 +161,18 @@ ggplot(data = uptakeStatsLong6, aes(x = reorder(workerId, -min),
   labs(y = "Time (minutes)", x = "Worker") +
   coord_flip()
 
-ggplot(data = uptakeStatsBothTypes, aes(x = reorder(workerId, -min), colour = hitType,
-                        ymin = min, ymax = max,
-                        lower = min, upper = max,
-                        middle = max, # arbitrary
-                        )) +
-  geom_hline(data = dataMed4, aes(yintercept = max(acceptTime), colour = hitType), linetype = "dashed") +
-  geom_hline(data = dataLong6, aes(yintercept = max(acceptTime), colour = hitType), linetype = "dashed") +
-  theme(axis.ticks = element_blank(), axis.text.y = element_blank()) +
-  geom_boxplot(stat = "identity", position = "identity", aes(alpha = .1)) +
-  guides(alpha = FALSE) +
-  ggtitle("Worker participation timeframes (workers doing both HIT types)") + 
-  labs(y = "Time (minutes)", x = "Worker") +
-  coord_flip()
+## ggplot(data = uptakeStatsBothTypes, aes(x = reorder(workerId, -min), colour = hitType,
+##                         ymin = min, ymax = max,
+##                         lower = min, upper = max,
+##                         middle = max, # arbitrary
+##                         )) +
+##   geom_hline(data = dataMed4, aes(yintercept = max(acceptTime), colour = hitType), linetype = "dashed") +
+##   geom_hline(data = dataLong6, aes(yintercept = max(acceptTime), colour = hitType), linetype = "dashed") +
+##   theme(axis.ticks = element_blank(), axis.text.y = element_blank()) +
+##   geom_boxplot(stat = "identity", position = "identity", aes(alpha = .1)) +
+##   guides(alpha = FALSE) +
+##   ggtitle("Worker participation timeframes (workers doing both HIT types)") + 
+##   labs(y = "Time (minutes)", x = "Worker") +
+##   coord_flip()
 
 dev.off()

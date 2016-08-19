@@ -176,24 +176,24 @@ make_graphs_for_stat <- function(variable, statLabel, binwidth = 1) {
             layout = matrix(c(1, 2, 3, 4, 5, 6, 7, 8), ncol=2, byrow=TRUE))
 }
 
-make_graphs_for_stat("questionOverlapCount", "Number of sentence words covered by questions")
+## make_graphs_for_stat("questionOverlapCount", "Number of sentence words covered by questions")
 make_graphs_for_stat("questionOverlapProportion", "Proportion of sentence words covered by questions",
                      binwidth = .05)
 make_graphs_for_stat("questionOverlapPerQA", "Number unique sentence words covered per question",
                      binwidth = .25)
 
-make_graphs_for_stat("answerOverlapCount", "Number of sentence words covered by answers")
+## make_graphs_for_stat("answerOverlapCount", "Number of sentence words covered by answers")
 make_graphs_for_stat("answerOverlapProportion", "Proportion of sentence words covered by answers",
                      binwidth = .05)
 make_graphs_for_stat("answerOverlapPerQA", "Number unique sentence words covered per answer",
                      binwidth = .25)
 
-make_graphs_for_stat("coveredLabelProportion", "Aggregate proportion of SRL dep arg spans coverage",
-                     binwidth = .05)
+## make_graphs_for_stat("coveredLabelProportion", "Aggregate proportion of SRL dep arg spans coverage",
+##                      binwidth = .05)
 make_graphs_for_stat("someWordCoveredLabelProportion", "Proportion of SRL dep arg spans with some word covered",
                      binwidth = .05)
-make_graphs_for_stat("allWordsCoveredLabelProportion", "Proportion of SRL dep arg spans with all words covered",
-                     binwidth = .05)
+## make_graphs_for_stat("allWordsCoveredLabelProportion", "Proportion of SRL dep arg spans with all words covered",
+##                      binwidth = .05)
 
 
 dev.off()

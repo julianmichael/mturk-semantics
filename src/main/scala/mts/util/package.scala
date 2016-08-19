@@ -7,6 +7,7 @@ import scala.collection.TraversableOnce
 import scala.language.implicitConversions
 
 package object util {
+
   // Welcome to the new world.
   // The world of ad-hoc refinement types requiring nothing more from the user than a single method call.
   // NO MORE WILL YOU BE UNCERTAIN, ON THE FIRST LINE OF YOUR METHOD,
@@ -14,7 +15,16 @@ package object util {
   // FOR YOU HAVE GUARANTEED IT ALREADY IN THE TYPE SYSTEM.
   // This is your weapon. This is your LowerCaseString.
   // Wield it with pride.
-  // NOTE: there are other projects doing refinement typing...but they seem heavier weight for the user
+  // NOTE: there are projects to help you do refinement typing...but they seem a bit heavier weight for the user..
+
+  // Anyway, don't try to read the code just below. The point is:
+  // import mts.util.LowerCaseStrings._
+  // and then you get the _.lowerCase method on strings, which yields a LowerCaseString,
+  // as well as an implicit conversion from LowerCaseString back to String.
+  // In addition, certain uses of existing methods on String will preserve LowerCaseString;
+  // if you want there to be more, feel free to let me (Julian) know and I can add them here.
+  // I know it seems like weird extra complication, but honestly I was already having bugs from not lowercasing strings,
+  // despite sprinkling calls to .toLowerCase around so much that the code had gotten noticeably harder to read.
   protected sealed trait LowerCaseStringCapsule0 {
     type LowerCaseString
     protected[util] sealed trait LowerCaseStringOps {
@@ -49,6 +59,8 @@ package object util {
     def lowerCase = LowerCaseStrings.LowerCaseStringOpsImpl.lowerCase(s)
   }
 
+  // Methods I wish were there on existing types. Now they are!
+
   implicit class RichValForOptions[A](val a: A) extends AnyVal {
     def onlyIf(p: (A => Boolean)): Option[A] = Some(a).filter(p)
     def ifNot(p: (A => Boolean)): Option[A] = Some(a).filterNot(p)
@@ -68,6 +80,8 @@ package object util {
   implicit class RichIterator[A](val t: Iterator[A]) extends AnyVal {
     def nextOption: Option[A] = if(t.hasNext) Some(t.next) else None
   }
+
+  // Random utility methods.
 
   def sendToClipboard(s: String): Unit = {
     import java.awt._;
