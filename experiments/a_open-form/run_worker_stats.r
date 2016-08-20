@@ -4,11 +4,14 @@ require(plyr)
 
 system("mkdir -p out")
 
+## data loading
+
 data <- read.csv("data/assignments.tsv", sep="\t")
 # convert times to minutes since beginning
 startTime <- min(data$acceptTime)
 data$submitTime <- (data$submitTime - startTime) / 60000.0
 data$acceptTime <- (data$acceptTime - startTime) / 60000.0
+data$timeTaken <- data$submitTime - data$acceptTime
 
 levels(data$hitType) <- c(levels(data$hitType), "med/4", "long/6")
 data$hitType[data$hitType == "3NWM3X0LA7LBIGM2QP1Y4BFHQN9XPC"] <- "med/4"
@@ -16,7 +19,16 @@ data$hitType[data$hitType == "3JH21YRKZ6B7ZFDTS077Y16U7HJ0JL"] <- "long/6"
 data <- droplevels(data)
 dataMed4 <- subset(data, hitType == "med/4")
 dataLong6 <- subset(data, hitType == "long/6")
-dataBothTypes <- subset(data, workerId %in% dataLong6$workerId & workerId %in% dataMed4$workerId)
+
+## worker summary data
+
+workerSummaryData <- read.csv("data/workers.tsv", sep = "\t")
+levels(workerSummaryData$hitType) <- c(levels(workerSummaryData$hitType), "med/4", "long/6")
+workerSummaryData$hitType[workerSummaryData$hitType == "3NWM3X0LA7LBIGM2QP1Y4BFHQN9XPC"] <- "med/4"
+workerSummaryData$hitType[workerSummaryData$hitType == "3JH21YRKZ6B7ZFDTS077Y16U7HJ0JL"] <- "long/6"
+workerSummaryData <- droplevels(workerSummaryData)
+
+## stat summaries
 
 numAssignments <- dim(data)[1]
 cat(sprintf("Assignments: %d\n", numAssignments))
@@ -47,12 +59,11 @@ printStats <- function(vec, label) {
   print(quantile(vec, c(0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0)))
 }
 
-workerAssignments <- as.data.frame(table(workerIds))
-workerAssignmentCounts <- workerAssignments$Freq
-printStats(workerAssignmentCounts, "assignments per worker")
+printStats(as.data.frame(table(workerIds))$Freq, "assignments per worker")
 
-data$timeTaken <- data$submitTime - data$acceptTime
 printStats(data$timeTaken, "HIT completion time")
+
+## graphs
 
 pdf("out/worker_stats.pdf")
 
@@ -94,6 +105,32 @@ ggplot(data=data, aes(data$submitTime, colour = hitType)) +
   ggtitle("assignments by submission time") +
   labs(x = "submission time (minutes)", y = "proportion of assignments")
 
+## worker QA validity rates
+means <- ddply(workerSummaryData, "hitType", summarise, grp.mean=mean(validQAPairProportion))
+ggplot(data = workerSummaryData, aes(validQAPairProportion, colour = hitType, fill = hitType)) +
+  geom_histogram(binwidth = 0.05, alpha = .3, position = "identity") +
+  geom_vline(data = means, aes(xintercept = grp.mean, colour = hitType), linetype="dashed", size=1) +
+  scale_x_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
+  scale_y_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
+  ggtitle("Workers by QA pair validity rate") +
+  labs(x = "Proportion of valid QA pairs", y = "Number of workers")
+
+ggplot(data = workerSummaryData, aes(validQAPairProportion, colour = hitType)) +
+  stat_ecdf() +
+  ggtitle("Workers by QA pair validity rate") +
+  scale_x_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
+  scale_y_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
+  labs(x = "Proportion of valid QA pairs", y = "Proportion of workers")
+
+## number of assignments completed versus validity rate
+
+ggplot(data = workerSummaryData, aes(x = numInGroup, y = validQAPairProportion, colour = hitType, fill = hitType)) +
+  geom_point() +
+  scale_x_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
+  scale_y_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
+  ggtitle("Worker validity rate versus number of QA pairs written") +
+  labs(x = "Number of QA Pairs", y = "QA pair validity rate")
+
 ## Time to complete successive assignments
 ggplot(data=subset(data, hitType == "med/4"),
        aes(x = workerAssignmentNum, y = timeTaken, colour = workerId)) +
@@ -117,7 +154,6 @@ ggplot(data=subset(data, hitType == "long/6"),
 
 # Worker timelines
 uptakeStats <- ddply(data, .(workerId, hitType, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
-uptakeStatsBothTypes <- ddply(dataBothTypes, .(workerId, hitType, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
 uptakeStatsMed4 <- ddply(dataMed4, .(workerId, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
 uptakeStatsLong6 <- ddply(dataLong6, .(workerId, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
 
@@ -160,19 +196,5 @@ ggplot(data = uptakeStatsLong6, aes(x = reorder(workerId, -min),
   ggtitle("Worker participation timeframes (long/6)") + 
   labs(y = "Time (minutes)", x = "Worker") +
   coord_flip()
-
-## ggplot(data = uptakeStatsBothTypes, aes(x = reorder(workerId, -min), colour = hitType,
-##                         ymin = min, ymax = max,
-##                         lower = min, upper = max,
-##                         middle = max, # arbitrary
-##                         )) +
-##   geom_hline(data = dataMed4, aes(yintercept = max(acceptTime), colour = hitType), linetype = "dashed") +
-##   geom_hline(data = dataLong6, aes(yintercept = max(acceptTime), colour = hitType), linetype = "dashed") +
-##   theme(axis.ticks = element_blank(), axis.text.y = element_blank()) +
-##   geom_boxplot(stat = "identity", position = "identity", aes(alpha = .1)) +
-##   guides(alpha = FALSE) +
-##   ggtitle("Worker participation timeframes (workers doing both HIT types)") + 
-##   labs(y = "Time (minutes)", x = "Worker") +
-##   coord_flip()
 
 dev.off()

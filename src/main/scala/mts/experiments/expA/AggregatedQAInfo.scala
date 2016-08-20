@@ -127,15 +127,18 @@ object AggregatedQAInfo {
 
   def makeTSV(aggInfos: List[AggregatedQAInfo]) = {
     val factorHeaders = aggInfos.head.tagNames.mkString("\t")
-    val header = s"$factorHeaders\tquestionOverlapCount\tquestionOverlapProportion\tquestionOverlapPerQA\t" +
+    val header = s"$factorHeaders\tnumInGroup\tquestionOverlapCount\tquestionOverlapProportion\tquestionOverlapPerQA\t" +
       "answerOverlapCount\tanswerOverlapProportion\tanswerOverlapPerQA\t" +
-      "coveredLabelProportion\tsomeWordCoveredLabelProportion\tallWordsCoveredLabelProportion\n"
+      "coveredLabelProportion\tsomeWordCoveredLabelProportion\tallWordsCoveredLabelProportion\t" +
+      "validQuestionProportion\tvalidAnswerProportion\tvalidQAPairProportion\n"
     header + aggInfos.map { case aggInfo@AggregatedQAInfo(_, factors, infos) =>
       import aggInfo._
       val factorValues = factors.mkString("\t")
-      s"$factorValues\t$questionOverlapCount\t$questionOverlapProportion\t$questionOverlapPerQA\t" +
+      val numInGroup = qas.size
+      s"$factorValues\t$numInGroup\t$questionOverlapCount\t$questionOverlapProportion\t$questionOverlapPerQA\t" +
         s"$answerOverlapCount\t$answerOverlapProportion\t$answerOverlapPerQA\t" +
-        s"$coveredLabelProportion\t$someWordCoveredLabelProportion\t$allWordsCoveredLabelProportion"
+        s"$coveredLabelProportion\t$someWordCoveredLabelProportion\t$allWordsCoveredLabelProportion\t" +
+        s"$validQuestionProportion\t$validAnswerProportion\t$validQAPairProportion"
     }.mkString("\n")
   }
 }

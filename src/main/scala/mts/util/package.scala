@@ -15,13 +15,12 @@ package object util {
   // FOR YOU HAVE GUARANTEED IT ALREADY IN THE TYPE SYSTEM.
   // This is your weapon. This is your LowerCaseString.
   // Wield it with pride.
-  // NOTE: there are projects to help you do refinement typing...but they seem a bit heavier weight for the user..
-
-  // Anyway, don't try to read the code just below. The point is:
+  // NOTE: there are projects to help you do refinement typing...but they seem a bit heavier weight for client code...idk
+  // Anyway, don't try to read the code just below. The point is that you can write:
   // import mts.util.LowerCaseStrings._
   // and then you get the _.lowerCase method on strings, which yields a LowerCaseString,
   // as well as an implicit conversion from LowerCaseString back to String.
-  // In addition, certain uses of existing methods on String will preserve LowerCaseString;
+  // In addition, certain uses of existing methods on String will preserve LowerCaseString (as of now, just +);
   // if you want there to be more, feel free to let me (Julian) know and I can add them here.
   // I know it seems like weird extra complication, but honestly I was already having bugs from not lowercasing strings,
   // despite sprinkling calls to .toLowerCase around so much that the code had gotten noticeably harder to read.
@@ -79,6 +78,14 @@ package object util {
 
   implicit class RichIterator[A](val t: Iterator[A]) extends AnyVal {
     def nextOption: Option[A] = if(t.hasNext) Some(t.next) else None
+  }
+
+  implicit class RichMutableStack[A](val s: mutable.Stack[A]) extends AnyVal {
+    def popOption: Option[A] = if(!s.isEmpty) Some(s.pop) else None
+  }
+
+  implicit class RichMutableQueue[A](val q: mutable.Queue[A]) extends AnyVal {
+    def dequeueOption: Option[A] = if(!q.isEmpty) Some(q.dequeue) else None
   }
 
   // Random utility methods.
