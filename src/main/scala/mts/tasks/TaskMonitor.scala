@@ -27,6 +27,11 @@ import akka.actor.ActorSystem
 import akka.actor.Props
 import akka.actor.Cancellable
 
+/**
+  * XXX: this is an old class used just for experiments A and B. Don't use it anymore.
+  * Instead use TaskManager with TaskSpecification.
+  */
+
 // runs this MTurk task for the given data.
 // (the "given data" consists of the abstract fields)
 case class TaskMonitor[Prompt, Response](
@@ -43,8 +48,8 @@ case class TaskMonitor[Prompt, Response](
   val finishedOrCurrentQuestions = {
     val savedAnnotations = FileManager.loadAnnotationsForHITType(hitType)
     val set = mutable.HashSet[Prompt]()
-    set ++= savedAnnotations.flatMap(_.question.map(extractQuestionData))
-    set ++= questionStore.values.map(extractQuestionData)
+    set ++= savedAnnotations.flatMap(_.question.map(extractPrompt))
+    set ++= questionStore.values.map(extractPrompt)
     set
   }
 
@@ -114,7 +119,7 @@ case class TaskMonitor[Prompt, Response](
     println(s"Updating ($hitType)...")
 
     val newAnnotations = reviewHITs
-    finishedOrCurrentQuestions ++= newAnnotations.flatMap(_.question.map(extractQuestionData))
+    finishedOrCurrentQuestions ++= newAnnotations.flatMap(_.question.map(extractPrompt))
 
     val hitsOfThisType = service.searchAllHITs()
       .filter(hit => hit.getHITTypeId().equals(hitType))

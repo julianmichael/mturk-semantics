@@ -33,6 +33,7 @@ import scala.language.postfixOps
 // TODO: add a facility for evaluating the quality of workers and banning them appropriately.
 
 // TODO: add a facility for sending completed HITs to another actor for further processing (and perhaps turking)
+@Deprecated
 trait MTurkTask[Prompt, Response] {
   import Config._
 
@@ -54,12 +55,12 @@ trait MTurkTask[Prompt, Response] {
   // QA specification methods
 
   def createQuestion(qData: Prompt): Question
-  def extractQuestionData(q: Question): Prompt
-  def extractAnswerData(annotation: Annotation): Response
+  def extractPrompt(q: Question): Prompt
+  def extractResponse(annotation: Annotation): Response
 
   final def getQAPair(annotation: Annotation): Option[(Prompt, Response)] = for {
     question <- annotation.question
-  } yield (extractQuestionData(question), extractAnswerData(annotation))
+  } yield (extractPrompt(question), extractResponse(annotation))
 
   final def annotatedQAPairs() = FileManager.loadAnnotationsForHITType(hitType)
     .groupBy(_.hitId)

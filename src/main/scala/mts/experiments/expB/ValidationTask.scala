@@ -200,11 +200,11 @@ case class ValidationTask(
     Question(questionXML, upickle.write(qData))
   }
 
-  final def extractQuestionData(q: Question): ValidationPrompt = {
+  final def extractPrompt(q: Question): ValidationPrompt = {
     upickle.read[ValidationPrompt](q.annotation)
   }
 
-  final def extractAnswerData(annotation: Annotation): ValidationResponse = {
+  final def extractResponse(annotation: Annotation): ValidationResponse = {
     val answerXML = annotation.answer
     val workerId = annotation.workerId
     import scala.collection.JavaConverters._

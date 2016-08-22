@@ -30,8 +30,8 @@ object ValidationInfo {
     for {
       anno <- annotations
       question <- anno.question.toList
-      (ValidationPrompt(path, qas), ValidationResponse(answers, _)) = (ValidationExperiment.taskSpec.extractQuestionData(question),
-                                                                       ValidationExperiment.taskSpec.extractAnswerData(anno))
+      (ValidationPrompt(path, qas), ValidationResponse(answers, _)) = (ValidationExperiment.taskSpec.extractPrompt(question),
+                                                                       ValidationExperiment.taskSpec.extractResponse(anno))
       (ValidationQuestion(_, origWorkerId, origQ, origA), vAnswer) <- qas.zip(answers)
       sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
       qaInfo = openFormQAInfosBySentence(sentence).find(info => info.annotation.workerId == origWorkerId &&

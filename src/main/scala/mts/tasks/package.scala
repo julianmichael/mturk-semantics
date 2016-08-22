@@ -37,5 +37,5 @@ package object tasks {
   }
 
   // change this value to switch between sandbox and production
-  val Config: TaskConfig = ProductionTaskConfig
+  val Config: TaskConfig = SandboxTaskConfig
 }

@@ -148,14 +148,14 @@ case class OpenFormTask(
     Question(question, upickle.write(qData._1))
   }
 
-  override final def extractQuestionData(q: Question): OpenFormPrompt = {
+  override final def extractPrompt(q: Question): OpenFormPrompt = {
     val path = upickle.read[CoNLLSentencePath](q.annotation)
     val sentence = FileManager.getCoNLLSentence(path).toOptionPrinting.get
     val sentenceString = TextRendering.renderSentence(sentence)
     (path, sentenceString)
   }
 
-  override final def extractAnswerData(annotation: Annotation): OpenFormResponse = {
+  override final def extractResponse(annotation: Annotation): OpenFormResponse = {
     val answerXML = annotation.answer
     import scala.collection.JavaConverters._
     val answers = RequesterService.parseAnswers(answerXML).getAnswer

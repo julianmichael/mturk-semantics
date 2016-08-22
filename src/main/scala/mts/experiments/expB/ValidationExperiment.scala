@@ -18,13 +18,13 @@ object ValidationExperiment {
   // file names should have b_ prepended so experiments have an obvious order
   val experimentName = "b_validation"
 
-  lazy val questionData: List[ValidationPrompt] = {
+  lazy val prompts: List[ValidationPrompt] = {
     val rand = new Random(42) // DO NOT CHANGE THE SEED
     // it has to be consistent so that after restarts the set of questions will be the same.
     val validationQuestions = for {
       annotation <- OpenFormExperiment.getAllAnnotations()
-      (path, _) = OpenFormExperiment.protoTaskSpec.extractQuestionData(annotation.question.get)
-      (qaPairs, _) = OpenFormExperiment.protoTaskSpec.extractAnswerData(annotation)
+      (path, _) = OpenFormExperiment.protoTaskSpec.extractPrompt(annotation.question.get)
+      (qaPairs, _) = OpenFormExperiment.protoTaskSpec.extractResponse(annotation)
       (q, a) <- qaPairs
     } yield ValidationQuestion(path, annotation.workerId, q, a)
     val validationPrompts = validationQuestions.groupBy(_.path).toList.flatMap {
@@ -37,7 +37,7 @@ object ValidationExperiment {
 
   lazy val system = ActorSystem("system")
 
-  lazy val actor = system.actorOf(Props(TaskMonitor(taskSpec, questionData.iterator, 250)))
+  lazy val actor = system.actorOf(Props(TaskMonitor(taskSpec, prompts.iterator, 250)))
 
   def start() = actor ! taskSpec.Message.Start
   def stop() = actor ! taskSpec.Message.Stop

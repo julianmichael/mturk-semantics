@@ -67,8 +67,8 @@ object QAInfo {
       sortedWorkerAnnos = workerAnnos.sortBy(_.acceptTime)
       (anno, assignmentNum) <- sortedWorkerAnnos.zipWithIndex
       question <- anno.question.toList
-      ((path, _), (qaPairs, _)) = (OpenFormExperiment.protoTaskSpec.extractQuestionData(question),
-                                       OpenFormExperiment.protoTaskSpec.extractAnswerData(anno))
+      ((path, _), (qaPairs, _)) = (OpenFormExperiment.protoTaskSpec.extractPrompt(question),
+                                   OpenFormExperiment.protoTaskSpec.extractResponse(anno))
       sentence <- FileManager.getCoNLLSentence(path).toOptionPrinting.toList
       (q, a) <- qaPairs
     } yield QAInfo(sentence, q, a, anno, assignmentNum)

@@ -9,7 +9,6 @@ case class CoNLLSentencePath(
   filePath: CoNLLPath,
   sentenceNum: Int
 ) {
-  // TODO make sure this doesn't mess with serialization...I'd be real mad if it did
   override def toString = s"${filePath.get}:$sentenceNum"
 }
 
@@ -37,8 +36,6 @@ object CoNLLFile {
     CoNLLFile(id, sentences.toVector.reverse)
   }
 }
-
-// TODO: speaker/author information
 
 case class CoNLLSentence(
   // partNum: Int,
