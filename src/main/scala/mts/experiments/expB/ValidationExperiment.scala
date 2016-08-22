@@ -90,19 +90,34 @@ object ValidationExperiment {
                                                   List(AnnotationStat.workerAssignmentNum))
     FileManager.saveDataFile(experimentName, "workers.tsv", assignmentFileContents)
 
-    val qaValidations = qaValidationsFromAnnotations(getAllAnnotations())
+    val annotations = getAllAnnotations().filter(!_.question.isEmpty)
+    val validationInfos = ValidationInfo.fromAnnotations(annotations)
 
-    // one row for each QUESTION in the TSV I'm about to construct...
-    val answerStatsBuilder = new java.lang.StringBuilder()
-    answerStatsBuilder.append(s"path\tmaxExactAgreement\tmaxLooseAgreement\tnumInvalidAnswers\n")
-    val _ = for {
-      QAValidation(ValidationQuestion(path, originalWorkerId, question, origAnswer), vAnswers) <- qaValidations
-      sentence = FileManager.getCoNLLSentence(path)
-      maxExactAgreement = vAnswers.map(vAnswer => vAnswers.filter(vAnswer.agreesExactlyWith).size).max
-      maxLooseAgreement = vAnswers.map(vAnswer => vAnswers.filter(vAnswer.overlapsWith).size).max
-      numInvalidAnswers = vAnswers.filterNot(_.isValid).size
-      // qaInfo = QAInfo(sentence, tokenize(question), tokenize(origAnswer))
-    } yield answerStatsBuilder.append(s"$path\t$maxExactAgreement\t$maxLooseAgreement\t$numInvalidAnswers\n")
-    FileManager.saveDataFile(experimentName, "answers.tsv", answerStatsBuilder.toString)
+    val aggByAssignment = AggregatedValidationInfo.aggregateBy(
+      List("hitId", "assignmentId", "workerId", "acceptTime", "submitTime"),
+      info => List(info.annotation.hitId,
+                   info.annotation.assignmentId, info.annotation.workerId,
+                   info.annotation.acceptTime.toString, info.annotation.submitTime.toString),
+      validationInfos)
+    val assignmentTSV = AggregatedValidationInfo.makeTSV(aggByAssignment)
+    FileManager.saveDataFile(experimentName, "assignments.tsv", assignmentTSV)
+
+    val aggByQuestion = AggregatedValidationInfo.aggregateBy(
+      List("hitId", "sentencePath", "origAssignment", "questionHash"),
+      info => List(info.annotation.hitId, info.path.toString, info.qaInfo.annotation.assignmentId,
+                   info.qaInfo.question.hashCode.toString),
+      validationInfos)
+    val questionTSV = AggregatedValidationInfo.makeTSV(aggByQuestion)
+    FileManager.saveDataFile(experimentName, "questions.tsv", questionTSV)
+
+    // val aggAll = AggregatedValidationInfo.aggregateBy(
+    //   List("none"),
+    //   info => List("none"),
+    //   validationInfos).head
+
+    // println(s"Precision: ${aggAll.precision}")
+    // println(s"Recall: ${aggAll.recall}")
+    // println(s"Accuracy: ${aggAll.accuracy}")
+    // println(s"F1: ${aggAll.f1}")
   }
 }

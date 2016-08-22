@@ -131,6 +131,15 @@ ggplot(data = workerSummaryData, aes(x = numInGroup, y = validQAPairProportion, 
   ggtitle("Worker validity rate versus number of QA pairs written") +
   labs(x = "Number of QA Pairs", y = "QA pair validity rate")
 
+## Worker's average time taken versus validity rate
+
+ggplot(data = workerSummaryData, aes(x = meanTimeTaken, y = validQAPairProportion, colour = hitType, fill = hitType)) +
+  geom_point() +
+  scale_x_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
+  scale_y_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
+  ggtitle("Worker validity rate versus average time to complete an assignment") +
+  labs(x = "Average assignment completion time (minutes)", y = "QA pair validity rate")
+
 ## Time to complete successive assignments
 ggplot(data=subset(data, hitType == "med/4"),
        aes(x = workerAssignmentNum, y = timeTaken, colour = workerId)) +
@@ -153,9 +162,12 @@ ggplot(data=subset(data, hitType == "long/6"),
   labs(x = "Number of assignment", y = "Time taken (minutes)")
 
 # Worker timelines
-uptakeStats <- ddply(data, .(workerId, hitType, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
-uptakeStatsMed4 <- ddply(dataMed4, .(workerId, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
-uptakeStatsLong6 <- ddply(dataLong6, .(workerId, assignmentId), summarise, min = min(acceptTime), max = max(submitTime))
+uptakeStats <- ddply(data, .(workerId, hitType, assignmentId), summarise,
+                     validProportion = mean(validQAPairProportion), min = min(acceptTime), max = max(submitTime))
+uptakeStatsMed4 <- ddply(dataMed4, .(workerId, assignmentId), summarise,
+                         validProportion = mean(validQAPairProportion), min = min(acceptTime), max = max(submitTime))
+uptakeStatsLong6 <- ddply(dataLong6, .(workerId, assignmentId), summarise,
+                          validProportion = mean(validQAPairProportion), min = min(acceptTime), max = max(submitTime))
 
 ggplot(data = uptakeStats, aes(x = reorder(workerId, -min), colour = hitType,
                         ymin = min, ymax = max,
@@ -165,26 +177,24 @@ ggplot(data = uptakeStats, aes(x = reorder(workerId, -min), colour = hitType,
   geom_hline(data = dataLong6, aes(yintercept = max(acceptTime), colour = hitType), linetype = "dashed") +
   geom_hline(data = dataMed4, aes(yintercept = max(acceptTime), colour = hitType), linetype = "dashed") +
   theme(axis.ticks = element_blank(), axis.text.y = element_blank()) +
-  geom_boxplot(stat = "identity", position = "identity", aes(alpha = .1)) +
-  guides(alpha = FALSE) +
+  geom_boxplot(stat = "identity", position = "identity") +
   ggtitle("Worker participation timeframes") + 
   labs(y = "Time (minutes)", x = "Worker") +
   coord_flip()
 
-ggplot(data = uptakeStatsMed4, aes(x = reorder(workerId, -min),
+ggplot(data = uptakeStatsMed4, aes(x = reorder(workerId, -min), fill = validProportion,
                                    ymin = min, ymax = max,
                                    lower = min, upper = max,
                                    middle = max, # arbitrary
                                    )) +
   geom_hline(data = dataMed4, aes(yintercept = max(acceptTime)), linetype = "dashed") +
   theme(axis.ticks = element_blank(), axis.text.y = element_blank()) +
-  geom_boxplot(stat = "identity", position = "identity", aes(alpha = .1)) +
-  guides(alpha = FALSE) +
+  geom_boxplot(stat = "identity", position = "identity") +
   ggtitle("Worker participation timeframes (med/4)") + 
   labs(y = "Time (minutes)", x = "Worker") +
   coord_flip()
 
-ggplot(data = uptakeStatsLong6, aes(x = reorder(workerId, -min),
+ggplot(data = uptakeStatsLong6, aes(x = reorder(workerId, -min), fill = validProportion,
                                    ymin = min, ymax = max,
                                    lower = min, upper = max,
                                    middle = max, # arbitrary

@@ -196,10 +196,10 @@ make_graphs_for_stat("someWordCoveredLabelProportion", "Proportion of SRL dep ar
 ## make_graphs_for_stat("allWordsCoveredLabelProportion", "Proportion of SRL dep arg spans with all words covered",
 ##                      binwidth = .05)
 
-## make_graphs_for_stat("validQuestionProportion", "Proportion of valid questions",
-##                      binwidth = .05)
-## make_graphs_for_stat("validAnswerProportion", "Proportion of valid answers",
-##                      binwidth = .05)
+make_graphs_for_stat("validQuestionProportion", "Proportion of valid questions",
+                     binwidth = .05)
+make_graphs_for_stat("validAnswerProportion", "Proportion of valid answers",
+                     binwidth = .05)
 make_graphs_for_stat("validQAPairProportion", "Proportion of valid QA pairs",
                      binwidth = .05)
 

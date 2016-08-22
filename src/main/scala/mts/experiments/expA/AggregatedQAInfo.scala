@@ -111,6 +111,10 @@ case class AggregatedQAInfo(
   val validQAPairNum = qas.filter(_.qaPairIsValid).size
   val invalidQAPairNum = qas.filterNot(_.qaPairIsValid).size
   val validQAPairProportion = validQAPairNum.toDouble / qas.size
+
+  // in minutes
+  val meanTimeTaken = qas.map(qaInfo => qaInfo.annotation.submitTime - qaInfo.annotation.acceptTime)
+    .sum.toDouble / (60000 * qas.size)
 }
 
 object AggregatedQAInfo {
@@ -127,7 +131,8 @@ object AggregatedQAInfo {
 
   def makeTSV(aggInfos: List[AggregatedQAInfo]) = {
     val factorHeaders = aggInfos.head.tagNames.mkString("\t")
-    val header = s"$factorHeaders\tnumInGroup\tquestionOverlapCount\tquestionOverlapProportion\tquestionOverlapPerQA\t" +
+    val header = s"$factorHeaders\tnumInGroup\tmeanTimeTaken\t" +
+      "questionOverlapCount\tquestionOverlapProportion\tquestionOverlapPerQA\t" +
       "answerOverlapCount\tanswerOverlapProportion\tanswerOverlapPerQA\t" +
       "coveredLabelProportion\tsomeWordCoveredLabelProportion\tallWordsCoveredLabelProportion\t" +
       "validQuestionProportion\tvalidAnswerProportion\tvalidQAPairProportion\n"
@@ -135,7 +140,8 @@ object AggregatedQAInfo {
       import aggInfo._
       val factorValues = factors.mkString("\t")
       val numInGroup = qas.size
-      s"$factorValues\t$numInGroup\t$questionOverlapCount\t$questionOverlapProportion\t$questionOverlapPerQA\t" +
+      s"$factorValues\t$numInGroup\t$meanTimeTaken\t" +
+        s"$questionOverlapCount\t$questionOverlapProportion\t$questionOverlapPerQA\t" +
         s"$answerOverlapCount\t$answerOverlapProportion\t$answerOverlapPerQA\t" +
         s"$coveredLabelProportion\t$someWordCoveredLabelProportion\t$allWordsCoveredLabelProportion\t" +
         s"$validQuestionProportion\t$validAnswerProportion\t$validQAPairProportion"
