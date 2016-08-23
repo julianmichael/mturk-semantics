@@ -54,6 +54,9 @@ object FileManager {
     upickle.read[HIT[Prompt]](fileStr)
   }
 
+  def getHIT[Prompt : upickle.Reader](hitType: String, hitId: String): Try[HIT[Prompt]] =
+    loadHIT(getHITPath(hitType, hitId))
+
   def saveAssignment[Response : upickle.Writer](assignment: Assignment[Response]): Try[Unit] = Try {
     val directory = getHITPath(assignment.hitType, assignment.hitId)
     val savePath = directory.resolve(s"${assignment.assignmentId}.txt")
