@@ -8,7 +8,7 @@ import mts.tasks._
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
-object TabooAnswersQATask extends TaskSpecification[TabooAnswersPrompt, TabooAnswersResponse] {
+object TabooAnswersTask extends TaskSpecification[TabooAnswersPrompt, TabooAnswersResponse] {
 
   override implicit val promptWriter = implicitly[upickle.Writer[TabooAnswersPrompt]]
   override implicit val responseWriter = implicitly[upickle.Writer[TabooAnswersResponse]]

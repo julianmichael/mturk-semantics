@@ -19,12 +19,15 @@ case class TaskManager[Prompt, Response](
 
   import Config._
   sealed trait Message
-  case object Start extends Message
-  case object Stop extends Message
-  case object Update extends Message
-  case object Expire extends Message
-  case object Disable extends Message
-  case class AddPrompt(p: Prompt) extends Message
+  object Message {
+    case object Start extends Message
+    case object Stop extends Message
+    case object Update extends Message
+    case object Expire extends Message
+    case object Disable extends Message
+    case class AddPrompt(p: Prompt) extends Message
+  }
+  import Message._
 
   override def receive = {
     case Start => start()
