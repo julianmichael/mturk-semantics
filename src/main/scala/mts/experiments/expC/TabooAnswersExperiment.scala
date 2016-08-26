@@ -2,7 +2,6 @@ package mts.experiments.expC
 
 import mts.analysis._
 import mts.experiments._
-import mts.experiments.expA._
 import mts.core._
 import mts.util._
 import mts.tasks._
@@ -23,7 +22,7 @@ object TabooAnswersExperiment {
 
   val sentencePaths = {
     val allSentences = for {
-      path <- mts.experiments.expA.OpenFormExperiment.annotationFilepaths.iterator
+      path <- mts.experiments.annotationFilepaths.iterator
       file <- FileManager.getCoNLLFile(path).toOptionPrinting.iterator
       sentence <- file.sentences
       if sentence.sentenceNum % 2 == 0 || sentence.sentenceNum % 5 == 0 // skip some of the sentences
