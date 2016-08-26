@@ -8,6 +8,9 @@ import mts.tasks._
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
+import upickle.default.read
+import upickle.default.write
+
 import scala.util.{Try, Success, Failure}
 
 case class OpenFormTask(
@@ -145,11 +148,11 @@ case class OpenFormTask(
         <FrameHeight>600</FrameHeight>
       </HTMLQuestion>
     """.trim
-    Question(question, upickle.write(qData._1))
+    Question(question, write(qData._1))
   }
 
   override final def extractPrompt(q: Question): OpenFormPrompt = {
-    val path = upickle.read[CoNLLSentencePath](q.annotation)
+    val path = read[CoNLLSentencePath](q.annotation)
     val sentence = FileManager.getCoNLLSentence(path).toOptionPrinting.get
     val sentenceString = TextRendering.renderSentence(sentence)
     (path, sentenceString)

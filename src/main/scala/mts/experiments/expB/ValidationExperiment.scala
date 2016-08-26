@@ -33,11 +33,14 @@ object ValidationExperiment {
     rand.shuffle(validationPrompts).toList
   }
 
-  lazy val taskSpec = ValidationTask(numAssignmentsPerHIT = 3)
+  val assignmentsPerHIT = if(Config.isProduction) 3 else 1
+  val hitsAtOnce = if(Config.isProduction) 250 else 4
+
+  lazy val taskSpec = ValidationTask(numAssignmentsPerHIT = assignmentsPerHIT)
 
   lazy val system = ActorSystem("system")
 
-  lazy val actor = system.actorOf(Props(TaskMonitor(taskSpec, prompts.iterator, 250)))
+  lazy val actor = system.actorOf(Props(TaskMonitor(taskSpec, prompts.iterator, hitsAtOnce)))
 
   def start() = actor ! taskSpec.Message.Start
   def stop() = actor ! taskSpec.Message.Stop

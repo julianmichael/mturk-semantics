@@ -51,14 +51,17 @@ object OpenFormExperiment {
   lazy val questionValidator = new SomeWordValidator(inflections)
   lazy val answerValidator = new AllWordsValidator(inflections)
 
+  val assignmentsPerHIT = if(Config.isProduction) 3 else 1
+  val hitsToKeepUp = if(Config.isProduction) 100 else 2
+
   // bucket sentences and create a task for each bucket
   private[this] def makeTask(system: ActorSystem)(minTokens: Int, maxTokens: Int, numQAs: Int, reward: Double) = {
-    val taskSpec = OpenFormTask(reward, numQAs, numAssignmentsPerHIT = 1)
+    val taskSpec = OpenFormTask(reward, numQAs, numAssignmentsPerHIT = assignmentsPerHIT)
     val filteredSentences = sentences.iterator
       .filter { case (_, sentence) => sentence.words.size >= minTokens && sentence.words.size <= maxTokens }
       .map { case (path, sentence) => (path, TextRendering.renderSentence(sentence)) }
     // val actor = taskSpec.createMonitor(system, filteredSentences, 100)
-    val actor = system.actorOf(Props(TaskMonitor(taskSpec, filteredSentences, 100)))
+    val actor = system.actorOf(Props(TaskMonitor(taskSpec, filteredSentences, hitsToKeepUp)))
     (taskSpec, actor)
   }
 
@@ -79,9 +82,9 @@ object OpenFormExperiment {
 
   // TODO save HIT types and access them here and such
   def getAllAnnotations(): List[Annotation] =
-    // tasks.flatMap(p => FileManager.loadAnnotationsForHITType(p._1.hitType))
-    List("3NWM3X0LA7LBIGM2QP1Y4BFHQN9XPC", "3JH21YRKZ6B7ZFDTS077Y16U7HJ0JL")
-      .flatMap(FileManager.loadAnnotationsForHITType)
+    tasks.flatMap(p => FileManager.loadAnnotationsForHITType(p._1.hitType))
+    // List("3NWM3X0LA7LBIGM2QP1Y4BFHQN9XPC", "3JH21YRKZ6B7ZFDTS077Y16U7HJ0JL")
+    //   .flatMap(FileManager.loadAnnotationsForHITType)
 
   def getAllQAPairs(): Iterable[(OpenFormPrompt, List[OpenFormResponse])] =
     tasks.flatMap(_._1.annotatedQAPairs).toMap.values

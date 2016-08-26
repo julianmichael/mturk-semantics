@@ -7,7 +7,7 @@ object TextRendering {
     "%", "-", "+",
     "-RRB-", "-RCB-", "-RSB-",
     ")", "]", "}",
-    "/."
+    "/.", "/?"
   )
 
   val noSpaceAfter = Set(

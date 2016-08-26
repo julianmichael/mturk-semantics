@@ -10,24 +10,16 @@ import scala.language.postfixOps
 import akka.actor.Actor
 import akka.actor.Cancellable
 
-case class TaskManager[Prompt, Response](
+import upickle.default.Writer
+
+case class TaskManager[Prompt : Writer, Response : Writer](
   val spec: TaskSpecification[Prompt, Response],
   val dataManager: DataManager[Prompt, Response],
   val numHITsToKeepActive: Int = 100,
-  val interval: FiniteDuration = 10 seconds
-) extends Actor {
+  val interval: FiniteDuration = 15 seconds) extends Actor {
 
   import Config._
-  sealed trait Message
-  object Message {
-    case object Start extends Message
-    case object Stop extends Message
-    case object Update extends Message
-    case object Expire extends Message
-    case object Disable extends Message
-    case class AddPrompt(p: Prompt) extends Message
-  }
-  import Message._
+  import spec.Message._
 
   override def receive = {
     case Start => start()

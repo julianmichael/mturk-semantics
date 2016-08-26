@@ -126,6 +126,7 @@ ggplot(data = workerSummaryData, aes(validQAPairProportion, colour = hitType)) +
 
 ggplot(data = workerSummaryData, aes(x = numInGroup, y = validQAPairProportion, colour = hitType, fill = hitType)) +
   geom_point() +
+  stat_sum() +
   scale_x_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
   scale_y_continuous(breaks = pretty_breaks(), limits = c(0, NA)) +
   ggtitle("Worker validity rate versus number of QA pairs written") +

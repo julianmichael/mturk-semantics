@@ -90,6 +90,9 @@ package object util {
 
   // Random utility methods.
 
+  implicit def pairwise[A, B, C](f: (A, B) => C): (((A, B)) => C) =
+    (p: (A, B)) => f(p._1, p._2)
+
   def sendToClipboard(s: String): Unit = {
     import java.awt._;
     import java.awt.datatransfer._;

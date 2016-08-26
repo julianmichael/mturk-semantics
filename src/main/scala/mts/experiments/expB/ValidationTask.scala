@@ -8,6 +8,9 @@ import mts.tasks._
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
+import upickle.default.read
+import upickle.default.write
+
 import scala.util.{Try, Success, Failure}
 
 case class ValidationTask(
@@ -197,11 +200,11 @@ case class ValidationTask(
         <FrameHeight>600</FrameHeight>
       </HTMLQuestion>
     """.trim
-    Question(questionXML, upickle.write(qData))
+    Question(questionXML, write(qData))
   }
 
   final def extractPrompt(q: Question): ValidationPrompt = {
-    upickle.read[ValidationPrompt](q.annotation)
+    read[ValidationPrompt](q.annotation)
   }
 
   final def extractResponse(annotation: Annotation): ValidationResponse = {

@@ -7,11 +7,13 @@ scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked")
 libraryDependencies ++= Seq(
   "org.scalaz" %% "scalaz-core" % "7.2.4",
   "com.lihaoyi" %% "fastparse" % "0.3.7",
-  "com.lihaoyi" %% "upickle" % "0.2.7",
+  "com.lihaoyi" %% "upickle" % "0.4.1",
   "com.typesafe.akka" %% "akka-actor" % "2.4.8",
   "com.lihaoyi" %% "scalatags" % "0.4.6",
   // java deps:
   "log4j" % "log4j" % "1.2.17",
+  // only need this to escape strings for JS. won't be necessary after the switch to scala.js
+  "org.apache.commons" % "commons-lang3" % "3.4",
   "net.sf.trove4j" % "trove4j" % "3.0.1",
   "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
   "net.ettinsmoor" % "java-aws-mturk" % "1.6.2"

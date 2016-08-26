@@ -8,8 +8,31 @@ import scala.collection.mutable
   */
 class Counter[A] private (private[this] val map: mutable.Map[A, Int]) {
   def get(a: A): Int = map.get(a).getOrElse(0)
-  def add(a: A): Unit = map.put(a, get(a) + 1)
+  def add(a: A): Unit = addN(a, 1)
+  def addN(a: A, n: Int): Unit = map.put(a, get(a) + n)
+  def size: Int = map.size
+
+  def addAll(other: Iterator[(A, Int)]): Unit =
+    other.foreach(pairwise(addN(_, _)))
+
   def iterator: Iterator[(A, Int)] = map.iterator
+  def keyIterator: Iterator[A] = map.keys.iterator
+
+  def median: Double = {
+    if(map.isEmpty) {
+      0.0
+    } else {
+      val sorted = iterator.map(_._2).toVector.sorted
+      if(sorted.size % 2 == 0) {
+        (sorted(sorted.size / 2 - 1) + sorted(sorted.size / 2)).toDouble / 2.0
+      } else {
+        sorted(sorted.size / 2)
+      }
+    }
+  }
+  def max: Int = if(map.isEmpty) 0 else map.values.max
+  def min: Int = if(map.isEmpty) 0 else map.values.min
+  def sum: Int = map.values.sum
 }
 
 object Counter {

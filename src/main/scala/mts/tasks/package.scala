@@ -9,6 +9,7 @@ package object tasks {
     val service: RequesterService
     val externalSubmitURL: String
     val label: String
+    val isProduction: Boolean
   }
 
   private[this] def loadGlobalConfig(): ClientConfig = {
@@ -26,6 +27,7 @@ package object tasks {
     override val service = new RequesterService(config)
     override val externalSubmitURL = "https://www.mturk.com/mturk/externalSubmit"
     override val label = "production"
+    override val isProduction = true
   }
 
   private[this] object SandboxTaskConfig extends TaskConfig {
@@ -34,8 +36,9 @@ package object tasks {
     override val service = new RequesterService(config)
     override val externalSubmitURL = "https://workersandbox.mturk.com/mturk/externalSubmit"
     override val label = "sandbox"
+    override val isProduction = false
   }
 
   // change this value to switch between sandbox and production
-  val Config: TaskConfig = SandboxTaskConfig
+  val Config: TaskConfig = ProductionTaskConfig
 }

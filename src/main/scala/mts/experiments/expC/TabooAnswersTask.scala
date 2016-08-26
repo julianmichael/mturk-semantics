@@ -8,10 +8,9 @@ import mts.tasks._
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.dataschema.QuestionFormAnswersType
 
-object TabooAnswersTask extends TaskSpecification[TabooAnswersPrompt, TabooAnswersResponse] {
+import upickle.default.Writer
 
-  override implicit val promptWriter = implicitly[upickle.Writer[TabooAnswersPrompt]]
-  override implicit val responseWriter = implicitly[upickle.Writer[TabooAnswersResponse]]
+object TabooAnswersTask extends TaskSpecification[TabooAnswersPrompt, TabooAnswersResponse] {
 
   // HIT type fields
   final override val reward = 0.10
@@ -62,40 +61,48 @@ object TabooAnswersTask extends TaskSpecification[TabooAnswersPrompt, TabooAnswe
              and not, for example, the positions of the words."""),
           li("""The question must contain a content word (such as a name, descriptor, or verb other than "be" or "do"),
              or a derivative of such a word, from the selection."""),
-          li("""The answer must only contain words (or derivatives of words) that appear in the selection.""")),
+          li("""The answer must only contain words (or derivatives of words) that appear in the selection,
+             with the exception ONLY of pronouns (such as I, he, it, them) and the words "a", "an", and "the"."""),
+        li("""Both the question and answer should use as few specific words from the sentence as possible.
+             """),
+        li("""The question should be as short as possible while remaining answerable, and
+             the answer should be as short as possible while remaining correct.
+             """)),
         p("""Consider the sentence: "If the UK is unwilling to accept the free movement of labour,
           it is likely trade will fall by more, leading to a 2.6 per cent decrease in income per person."
           Acceptable questions and answers may include:"""),
         ul(
           li("""Who might be unwilling to do something? --- the UK"""),
           li("""How much of a decrease? --- 2.6 per cent"""),
-          li("""What would lead to a decrease in income? --- trade falling""")),
+          li("""What would lead to a decrease? --- trade falling""")),
         p("""
           Note that the answers only contain words (the, UK, trade, 2.6, per, cent) or derivatives of words (falling)
-          that already appear in the selection.
-          <b>Unacceptable</b> questions/answers may include:"""),
+          that already appear in the selection. """,
+          b("Unacceptable"), """ questions/answers may include:"""),
         ol(
           li("""What might happen? --- trade will fall"""),
           li("""Would income increase or decrease? --- decrease"""),
           li("""Would income decrease by more than 3 per cent? --- no""")),
         p("""Question 1 fails to include a content word from the sentence.
           Question 2 is not open-ended: it provides answer choices. This is not allowed.
-          Question 3 is also not open-ended. <b>Yes/no questions are not allowed,
-          even if the word "yes" or "no" appears in the sentence.</b>
+          Question 3 is also not open-ended. """,
+          b("""Yes/no questions are not allowed, even if the word "yes" or "no" appears in the sentence. """),
+          """Also, please phrase your question from the point of view of the speaker,
+          i.e., if the word "I" is used in the sentence, please use "I" or "me" in your questions and answers.
           """),
-        p("""Finally, there is one more twist: next to the text fields you will see the <b>Answer Blacklist</b>.
+        p("""Finally, there is one more twist: next to the text fields you will see the """, b("Answer Blacklist"), """.
           None of your answers may appear on the blacklist (ignoring case and punctuation),
           or your work will be rejected.
           To prevent accidents and help things go quickly,
           the text field will turn red and the submit button will be disabled
           if your answer appears on the blacklist.
+          (Note: other people's answers will appear in the blacklist,
+          including invalid answers that we haven't filtered out yet.)
           """),
-        p("""Please try to keep the questions and answers as short as possible while remaining correct.
-          Your goal should be that if someone else reads these instructions, the selection, and your question,
+        p("""Your goal should be that if someone else reads these instructions, the selection, and your question,
           they will write your answer word-for-word.
-          If your response has questions and answers that are identical, do not use words from the selection,
-          or are clearly not English, it will be rejected.
-          Otherwise, your work will be approved in at most one hour.
+          If your work satisfies all of the above criteria,
+          it will be approved in at most one hour.
           Each HIT should take less than 2 minutes to complete.
           If at any point you have complaints, questions, or concerns,
           please write them in the "Feedback" field so we may improve the task.
@@ -103,45 +110,50 @@ object TabooAnswersTask extends TaskSpecification[TabooAnswersPrompt, TabooAnswe
         hr(),
         p("""Please write 2 questions and answers about the following sentence:"""),
         blockquote(sentenceString),
-        form(
-          name := "mturk_form",
-          method := "post",
-          id := "mturk_form",
-          action := Config.externalSubmitURL)(
-          input(
-            `type` := "hidden",
-            value := "",
-            name := "assignmentId",
-            id := "assignmentId"),
-          answerBlacklist(prompt.tabooList),
-          (0 until 2).map(makeQAElement),
-          p(
+        div(
+          float.left,
+          form(
+            name := "mturk_form",
+            method := "post",
+            id := "mturk_form",
+            action := Config.externalSubmitURL)(
             input(
-              `type` := "text",
-              name := s"feedback",
-              placeholder := "Feedback? (Optional)",
-              margin := 1,
-              padding := 1,
-              width := 484,
-              font := pageFont
-            )
-          ),
-          input(
-            `type` := "submit",
-            id := "submitButton",
-            value := "submit")),
+              `type` := "hidden",
+              value := "",
+              name := "assignmentId",
+              id := "assignmentId"),
+            (0 until 2).map(makeQAElement),
+            p(
+              input(
+                `type` := "text",
+                name := s"feedback",
+                placeholder := "Feedback? (Optional)",
+                margin := 1,
+                padding := 1,
+                width := 484,
+                font := pageFont
+              )
+            ),
+            input(
+              `type` := "submit",
+              id := "submitButton",
+              value := "submit"))),
+        div(
+          float.left,
+          answerBlacklist(prompt.tabooList)
+        ),
         script(
           `type` := "text/javascript")(
-          javaScriptIndexOf + """
+          raw(javaScriptIndexOf + """
             turkSetAssignmentID();
             if($('#assignmentId').attr('value') === 'ASSIGNMENT_ID_NOT_AVAILABLE') {
               $('input').attr('readonly', true);
             }
             var tabooList = """ + tabooListJS + """;
-            $('.answerField').change(function() {
+            $('.answerField').on('input', function() {
               var textField = $(this);
               var normalizedAnswer = textField.val()
-                .replace(/[!\"#$%&\'()*+,-./:;<=>?@\[\\\]^_`{|}~]/g, '')
+                .replace(/[!\"#$%&\'()*+,-./:;<=>?@\[\\\]^_`{|}~ ]/g, '')
                 .toLowerCase();
               if(tabooList.indexOf(normalizedAnswer) >= 0) {
                 textField.css('background-color', '#FFAAAA');
@@ -151,7 +163,7 @@ object TabooAnswersTask extends TaskSpecification[TabooAnswersPrompt, TabooAnswe
                 $('#submitButton').attr('disabled', false);
               }
             })
-          """)
+          """))
       )
     )
     val question = s"""
@@ -192,7 +204,11 @@ object TabooAnswersTask extends TaskSpecification[TabooAnswersPrompt, TabooAnswe
   private[this] final def answerBlacklist(tabooAnswers: List[String]) = {
     import scalatags.Text.all._
     div(
-      p(b("Answer Blacklist")),
+      h3(
+        marginLeft := 5,
+        marginTop := 0,
+        marginBottom := 0,
+        "Answer Blacklist"),
       ul(tabooAnswers.map(ans => li(ans)))
     )
   }
