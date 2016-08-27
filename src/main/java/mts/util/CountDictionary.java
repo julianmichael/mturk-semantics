@@ -5,6 +5,10 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 
 import java.util.ArrayList;
 
+/**
+ * Used by VerbInflectionDictionary.
+ * Borrowed from EasySRL.
+ */
 public class CountDictionary {
 	TObjectIntHashMap<String> str2index;
 	ArrayList<String> index2str;

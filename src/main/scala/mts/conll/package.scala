@@ -5,6 +5,20 @@ import mts.util._
 import scala.util.{Try, Success, Failure}
 import scala.collection.mutable
 
+/** Provides logic for interfacing with the CoNLL-2012 data.
+  * Includes data types and methods for reading instances from the data files.
+  *
+  * The main entry points are the FileManager extension methods,
+  * used to read CoNLL files and sentences from paths.
+  *
+  * As of now, I don't have a programmatic store of all of the paths.
+  * If you wish to load a CoNLL file, you will have to create the path yourself,
+  * or find paths already in the code (for example, the sample paths in
+  * [[mts.experiments]]).
+  *
+  * The package object contains extension methods for conveniently rendering text
+  * from CoNLL data types and reading CoNLL data from the CoNLL-2012 files.
+  */
 package object conll {
 
   implicit class CoNLLTextRendering(val tr: TextRendering.type) extends AnyVal {

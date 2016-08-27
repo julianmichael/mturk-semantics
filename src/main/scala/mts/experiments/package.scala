@@ -7,6 +7,19 @@ import mts.language._
 
 import scala.util.Try
 
+/**
+  * Package `experiments`
+  * This is to hold subpackages for each of the individual turk experiments we're running,
+  * using the rest of the code in `mts` as a framework.
+  *
+  * If you're wondering where expA and expB are, go back in time until they appear.
+  * Since those experiments the framework has been considerably refactored,
+  * so they needed to be removed to get rid of the cruft.
+  * Translating them into the new framework would have been a huge pain,
+  * because the refactor changed the way that annotation data is stored.
+  *
+  * In the package object here is just some common data and common methods that are useful for any experiment.
+  */
 package object experiments {
 
   val annotationFilepaths = List(

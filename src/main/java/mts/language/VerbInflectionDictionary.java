@@ -5,8 +5,11 @@ import java.util.*;
 
 import mts.util.CountDictionary;
 
-// TODO: we might need to handle the A-B case ...
-// ^what does this mean? -Julian
+/**
+ * Used as a backend for the Inflections class,
+ * which provides easy access to verb inflections in Scala code.
+ * Borrowed from EasySRL.
+ */
 class VerbInflectionDictionary {
     CountDictionary wordDict;
     public ArrayList<String[]> inflections;

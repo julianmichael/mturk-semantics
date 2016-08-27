@@ -1,6 +1,5 @@
 package mts.experiments.expD
 
-import mts.analysis._
 import mts.experiments._
 import mts.core._
 import mts.util._
@@ -17,7 +16,6 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 object WordChoosingExperiment {
-  // file names should have b_ prepended so experiments have an obvious order
   val experimentName = "d_word-choosing"
 
   val sentencePaths = {
