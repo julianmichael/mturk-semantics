@@ -22,23 +22,6 @@ class TabooAnswersDataManager(
 
   import Config._
 
-  private[this] val hitCache: mutable.Map[String, HIT[TabooAnswersPrompt]] = {
-    val cache = mutable.Map.empty[String, HIT[TabooAnswersPrompt]]
-    for ((hit, _) <- initData) cache.put(hit.hitId, hit)
-    cache
-  }
-
-  // just to cache things and for convenience
-  private[this] def getHIT(hitId: String): HIT[TabooAnswersPrompt] = {
-    if(hitCache.contains(hitId)) {
-      hitCache(hitId)
-    } else {
-      val hit = FileManager.getHIT[TabooAnswersPrompt](hitType, hitId).toOptionPrinting.get
-      hitCache.put(hitId, hit)
-      hit
-    }
-  }
-
   // how we know when a hit has "converged" based on the distribution of answers
   private[this] def isFinished(counter: Counter[String]) =
     (counter.sum > 8 && counter.median > 1.0) || counter.sum >= 30
@@ -80,7 +63,7 @@ class TabooAnswersDataManager(
     val activePaths = for {
       mTurkHIT <- service.searchAllHITs
       if mTurkHIT.getHITTypeId.equals(hitType)
-      hit = getHIT(mTurkHIT.getHITId)
+      hit = FileManager.getHIT[TabooAnswersPrompt](hitType, mTurkHIT.getHITId).toOptionPrinting.get
     } yield hit.prompt.path
     for(path <- activePaths) {
       inactiveSentenceStore.remove(path) match {
@@ -94,7 +77,7 @@ class TabooAnswersDataManager(
   // for now we're assuming we'll only have one assignment per HIT, so we can move the entry out of activeSentenceStore
   final override def receiveAssignments(assignments: List[Assignment[TabooAnswersResponse]]): Unit = {
     for(assignment <- assignments) {
-      val hit = getHIT(assignment.hitId)
+      val hit = FileManager.getHIT[TabooAnswersPrompt](hitType, assignment.hitId).toOptionPrinting.get
       val path = hit.prompt.path
       val answerCounts = activeSentenceStore(path)
       activeSentenceStore.remove(path)
@@ -179,7 +162,6 @@ class TabooAnswersDataManager(
   }
 
   final override def promptSucceeded(hit: HIT[TabooAnswersPrompt]): Unit = {
-    hitCache.put(hit.hitId, hit) // just because we'll probably need it later anyway
     val path = hit.prompt.path
     inactiveSentenceStore.remove(path) match {
       case None => activeSentenceStore.put(path, Counter[String]()) // it was a new sentence

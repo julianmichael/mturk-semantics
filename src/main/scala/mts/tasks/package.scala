@@ -4,39 +4,50 @@ import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.util.PropertiesClientConfig
 import com.amazonaws.mturk.util.ClientConfig
 
+/** Provides classes for managing tasks on Mechanical Turk.
+  *
+  * In particular, [[mts.tasks.TaskSpecification]] defines the HIT type and questions/answers.
+  * [[mts.tasks.TaskManager]] handles coordinating API calls and gives an interface
+  * for interacting with tasks on the console while running an experiment.
+  * [[mts.tasks.DataManager]] coordinates which questions are uploaded to MTurk
+  * and handles pre/post-processing of the data.
+  *
+  * This object contains the global configuration of our usage of the MTurk API,
+  * including relevant values (URLs, API hooks) and deciding whether we run
+  * on production on in the sandbox.
+  */
 package object tasks {
-  /**
-    * TaskConfig contains the general configurable parameters of a Mechanical Turk project.
-    * See descriptions of fields within.
-    */
+
+  /** Contains the configurable parameters of a Mechanical Turk project. */
   sealed trait TaskConfig {
-    /**
-      * This RequesterService is the API hook with which we communicate with MTurk.
+
+    /** The API hook with which we communicate with MTurk.
       * We need a different hook depending on whether we're in sandbox or production,
       * because it uses a different URL.
       */
     val service: RequesterService
-    /**
-      * externalSubmitURL is used by HTMLQuestion and ExternalQuestion tasks to submit assignments.
-      * That is, if we want to provide our own HTML with which to render the task (as I do in all of my experiments),
+
+    /** The URL used by HTMLQuestion and ExternalQuestion question types to submit assignments.
+      * (See http://docs.aws.amazon.com/AWSMechTurk/latest/AWSMturkAPI/ApiReference_QuestionAnswerDataArticle.html
+      * for documentation on these question types.)
+      * In particular, if we want to provide our own HTML with which to render the task (which we usually do),
       * instead of using the default "Submit HIT" button, we must make our own HTML form and embed it in the HIT.
       * That form then needs to submit to this URL.
       */
     val externalSubmitURL: String
-    /**
-      * The label will be either "sandbox" or "production" and it is used to segregate the saved data for each task
+
+    /** Either "sandbox" or "production": used to segregate the saved data for each task
       * between sanbox and production runs.
       */
     val label: String
-    /**
-      * This boolean flag is just for convenience in cases where, for example, we don't want to upload 100 HITs to the sandbox
-      * if we just want to try it out; or, we want only 1 assignment per HIT in sandbox mode so we can test assignment approval.
+
+    /** Just for convenience in cases where, for example, we don't want to upload 100 HITs to the sandbox
+      * just for trying out a task; or, we want only 1 assignment per HIT in sandbox mode so we can test assignment approval.
       */
     val isProduction: Boolean
   }
 
-  /**
-    * Convenience method to load configuration that is common to sandbox and production.
+  /** Convenience method to load configuration that is common to sandbox and production.
     * In particular, this loads our API keys from the `mturk.properties` file.
     */
   private[this] def loadGlobalConfig(): ClientConfig = {
@@ -48,6 +59,7 @@ package object tasks {
     config
   }
 
+  /** Complete configuration for running on production. */
   private[this] object ProductionTaskConfig extends TaskConfig {
     private[this] val config = loadGlobalConfig()
     config.setServiceURL(ClientConfig.PRODUCTION_SERVICE_URL)
@@ -57,6 +69,7 @@ package object tasks {
     override val isProduction = true
   }
 
+  /** Complete configuration for running on the sandbox. */
   private[this] object SandboxTaskConfig extends TaskConfig {
     private[this] val config = loadGlobalConfig()
     config.setServiceURL(ClientConfig.SANDBOX_SERVICE_URL)
@@ -66,6 +79,6 @@ package object tasks {
     override val isProduction = false
   }
 
-  // change this value and recompile to switch between sandbox and production
+  /** The current configuration; decides whether we run on production or the sandbox. */
   val Config: TaskConfig = ProductionTaskConfig
 }

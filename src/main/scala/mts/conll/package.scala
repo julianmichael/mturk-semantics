@@ -4,6 +4,12 @@ import mts.util._
 
 import scala.util.{Try, Success, Failure}
 import scala.collection.mutable
+import scala.concurrent.duration._
+
+import scala.language.implicitConversions
+import scala.language.postfixOps
+
+import java.nio.file.{Paths, Path, Files}
 
 /** Provides logic for interfacing with the CoNLL-2012 data.
   * Includes data types and methods for reading instances from the data files.
@@ -27,27 +33,27 @@ package object conll {
     }
   }
 
-  // TODO bound the cache's memory use / number of files
-  private[this] val conllCache = mutable.Map.empty[CoNLLPath, CoNLLFile]
-  import java.nio.file.{Paths, Path, Files}
-  private[this] val conllRootPath = FileManager.resourcePath.resolve(Paths.get("conll-2012"))
-  private[this] val conllAnnotationPath = conllRootPath.resolve("v4/data/development/data/english/annotations")
+  /** Implicitly converts vanilla FileManager to the CoNLL one,
+    * so you don't have to remember how to prefix the term "FileManager" to call these methods.
+    */
+  implicit def fileManagerToCoNLL(fm: FileManager.type) = CoNLLFileManager
 
-  implicit class CoNLLFileManager(val fm: FileManager.type) extends AnyVal {
+  object CoNLLFileManager {
 
-    def getCoNLLFile(path: CoNLLPath): Try[CoNLLFile] = Try {
-      if(conllCache.contains(path)) {
-        conllCache(path)
-      } else {
-        val fullPath = conllAnnotationPath.resolve(path.get)
-        import scala.collection.JavaConverters._
-        val fileStream = Files.lines(fullPath)
-        val lines = fileStream.iterator.asScala
-        val file = CoNLLFile.readFromLines(lines)
-        fileStream.close()
-        conllCache.put(path, file)
-        file
-      }
+    import com.softwaremill.macmemo.memoize
+    import com.softwaremill.macmemo.MemoCacheBuilder
+    implicit val cacheProvider = MemoCacheBuilder.guavaMemoCacheBuilder
+
+    private[this] val conllAnnotationPath = Paths.get("conll-2012/v4/data/development/data/english/annotations")
+
+    @memoize(maxSize = 200, expiresAfter = 1 hour)
+    def getCoNLLFile(path: CoNLLPath): Try[CoNLLFile] = {
+      val fullPath = conllAnnotationPath.resolve(path.get)
+      val fileResource = for {
+        lines <- FileManager.loadResource(fullPath)
+        file = CoNLLFile.readFromLines(lines)
+      } yield file
+      fileResource.tried
     }
 
     def getCoNLLSentence(path: CoNLLSentencePath): Try[CoNLLSentence] = for {

@@ -6,6 +6,8 @@ import scala.collection.TraversableOnce
 
 import scala.language.implicitConversions
 
+import resource.ManagedResource
+
 package object util {
 
   // Welcome to the new world.

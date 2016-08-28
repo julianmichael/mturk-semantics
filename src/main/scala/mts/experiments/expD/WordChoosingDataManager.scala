@@ -23,23 +23,6 @@ class WordChoosingDataManager(
 
   import Config._
 
-  private[this] val hitCache: mutable.Map[String, HIT[WordChoosingPrompt]] = {
-    val cache = mutable.Map.empty[String, HIT[WordChoosingPrompt]]
-    for ((hit, _) <- _initData) cache.put(hit.hitId, hit)
-    cache
-  }
-
-  // just to cache things and for convenience
-  private[this] def getHIT(hitId: String): HIT[WordChoosingPrompt] = {
-    if(hitCache.contains(hitId)) {
-      hitCache(hitId)
-    } else {
-      val hit = FileManager.getHIT[WordChoosingPrompt](hitType, hitId).toOptionPrinting.get
-      hitCache.put(hitId, hit)
-      hit
-    }
-  }
-
   // consumes promptSource---don't use the iterator directly elsewhere
   private[this] val queuedPrompts = new LazyStackQueue[WordChoosingPrompt](_promptSource)
 
@@ -60,7 +43,7 @@ class WordChoosingDataManager(
     set ++= (for {
       mTurkHIT <- service.searchAllHITs
       if mTurkHIT.getHITTypeId.equals(hitType)
-      hit = getHIT(mTurkHIT.getHITId)
+      hit = FileManager.getHIT[WordChoosingPrompt](hitType, mTurkHIT.getHITId).toOptionPrinting.get
     } yield hit.prompt)
     set
   }
@@ -70,7 +53,7 @@ class WordChoosingDataManager(
   //   val activePaths = for {
   //     mTurkHIT <- service.searchAllHITs
   //     if mTurkHIT.getHITTypeId.equals(hitType)
-  //     hit = getHIT(mTurkHIT.getHITId)
+  //     hit = FileManager.getHIT[WordChoosingPrompt](hitType, mTurkHIT.getHITId).toOptionPrinting.get
   //   } yield hit.prompt
   //   set ++= activePaths
   //   set

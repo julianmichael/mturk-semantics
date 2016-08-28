@@ -4,12 +4,18 @@ scalaVersion := "2.11.8"
 
 scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked")
 
+addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+
+resolvers += Resolver.sonatypeRepo("snapshots")
+
 libraryDependencies ++= Seq(
   "org.scalaz" %% "scalaz-core" % "7.2.4",
   "com.lihaoyi" %% "fastparse" % "0.3.7",
   "com.lihaoyi" %% "upickle" % "0.4.1",
   "com.typesafe.akka" %% "akka-actor" % "2.4.8",
   "com.lihaoyi" %% "scalatags" % "0.4.6",
+  "com.jsuereth" % "scala-arm_2.11" % "2.0-RC1",
+  "com.softwaremill.macmemo" %% "macros" % "0.4-SNAPSHOT",
   // java deps:
   "log4j" % "log4j" % "1.2.17",
   // only need this to escape strings for JS. won't be necessary after the switch to scala.js

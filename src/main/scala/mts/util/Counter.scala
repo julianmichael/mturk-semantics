@@ -2,9 +2,11 @@ package mts.util
 
 import scala.collection.mutable
 
-/**
-  * Convenience class for counting things.
-  * Could definitely replace with a better implementation later on...
+/** Convenience class for counting things.
+  *
+  * Could definitely replace with a better implementation later on,
+  * maybe just use something from a library.
+  * Not writing scaladoc because it's pretty self-explanatory...
   */
 class Counter[A] private (private[this] val map: mutable.Map[A, Int]) {
   def get(a: A): Int = map.get(a).getOrElse(0)
