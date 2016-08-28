@@ -6,15 +6,16 @@ import com.amazonaws.mturk.util.ClientConfig
 
 /** Provides classes for managing tasks on Mechanical Turk.
   *
-  * In particular, [[mts.tasks.TaskSpecification]] defines the HIT type and questions/answers.
-  * [[mts.tasks.TaskManager]] handles coordinating API calls and gives an interface
+  * In particular, [[mts.tasks.TaskSpecification]] defines a HIT type,
+  * how to create questions, and how to interpret answers.
+  * [[mts.tasks.TaskManager]] coordinates API calls and gives an interface
   * for interacting with tasks on the console while running an experiment.
-  * [[mts.tasks.DataManager]] coordinates which questions are uploaded to MTurk
+  * [[mts.tasks.DataManager]] coordinates which data is uploaded to MTurk as questions
   * and handles pre/post-processing of the data.
   *
   * This object contains the global configuration of our usage of the MTurk API,
   * including relevant values (URLs, API hooks) and deciding whether we run
-  * on production on in the sandbox.
+  * on production or in the sandbox.
   */
 package object tasks {
 

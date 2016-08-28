@@ -2,7 +2,7 @@ package mts.util
 
 import scala.collection.mutable
 
-/** Convenience class for counting things.
+/** Convenience class for counting things. Mutable.
   *
   * Could definitely replace with a better implementation later on,
   * maybe just use something from a library.
@@ -15,7 +15,7 @@ class Counter[A] private (private[this] val map: mutable.Map[A, Int]) {
   def size: Int = map.size
 
   def addAll(other: Iterator[(A, Int)]): Unit =
-    other.foreach(pairwise(addN(_, _)))
+    other.foreach(pairwise(addN))
 
   def iterator: Iterator[(A, Int)] = map.iterator
   def keyIterator: Iterator[A] = map.keys.iterator

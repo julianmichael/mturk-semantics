@@ -1,5 +1,6 @@
 package mts.util
 
+/** Provides method(s) for rendering text from a list of tokens. */
 object TextRendering {
   val noSpaceBefore = Set(
     ".", ",", "!", "?", ";", ":", "''",
@@ -36,6 +37,7 @@ object TextRendering {
     case w => w.replaceAll("\\/", "/")
   }
 
+  /** Returns a best-effort string representation of a sequence of PTB-style tokens. */
   def renderSentence(sentence: Seq[String]): String = {
     val sentenceBits = sentence.foldLeft((List.empty[String], true)) {
       case ((strings, skipSpace), word) =>

@@ -2,6 +2,9 @@ package mts.util
 
 import scala.collection.mutable
 
+/** A queue with key-indexed access and removal.
+  * Skimping on documentation here, fairly straightforward.
+  */
 class QueueMap[K, V] private () {
   import QueueMap._
 
@@ -12,6 +15,7 @@ class QueueMap[K, V] private () {
   def size: Int = map.size
   def isEmpty: Boolean = map.isEmpty
 
+  /** Removes and returns the target element; returns None if not present. */
   def remove(k: K): Option[V] = map.get(k).map {
     case Node(key, value, prev, next) =>
       prev.next = next
@@ -20,6 +24,7 @@ class QueueMap[K, V] private () {
       value
   }
 
+  /** Removes and returns the first element in the queue; returns None if empty. */
   def pop: Option[V] = queue.next match {
     case Head() => None
     case Node(key, value, _, _) =>
@@ -27,6 +32,7 @@ class QueueMap[K, V] private () {
       Some(value)
   }
 
+  /** Adds an element to the back of the queue. */
   def add(k: K, v: V): Unit = {
     map.remove(k)
     val node = Node(k, v, queue.prev, queue)
@@ -35,6 +41,7 @@ class QueueMap[K, V] private () {
     queue.prev = node
   }
 
+  /** Iterates in pop-order over the elements of the queue. */
   def iterator: Iterator[(K, V)] = new Iterator[(K, V)] {
     var cur = queue.next
     override def hasNext: Boolean = cur match {
@@ -50,6 +57,7 @@ class QueueMap[K, V] private () {
   }
 }
 
+/** Holds data definitions and factory methods for QueueMap. */
 object QueueMap {
   def apply[K, V]() = new QueueMap[K, V]()
   def empty[K, V] = new QueueMap[K, V]()

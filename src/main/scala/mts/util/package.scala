@@ -8,24 +8,32 @@ import scala.language.implicitConversions
 
 import resource.ManagedResource
 
+/** Provides miscellaneous utility classes and methods.
+  *
+  * This includes mutable data structures (LazyStackQueue, QueueMap, Counter),
+  * file management (FileManager), text rendering (TextRendering),
+  * type-level lowercase strings, extension methods for Scala stdlib types,
+  * and some random stuff (the latter three on this object).
+  */
 package object util {
 
-  // Welcome to the new world.
-  // The world of ad-hoc refinement types requiring nothing more from the user than a single method call.
-  // NO MORE WILL YOU BE UNCERTAIN, ON THE FIRST LINE OF YOUR METHOD,
-  // WHETHER THE STRING WAS GUARANTEED TO BE LOWERCASE.
-  // FOR YOU HAVE GUARANTEED IT ALREADY IN THE TYPE SYSTEM.
-  // This is your weapon. This is your LowerCaseString.
-  // Wield it with pride.
-  // NOTE: there are projects to help you do refinement typing...but they seem a bit heavier weight for client code...idk
-  // Anyway, don't try to read the code just below. The point is that you can write:
-  // import mts.util.LowerCaseStrings._
-  // and then you get the _.lowerCase method on strings, which yields a LowerCaseString,
-  // as well as an implicit conversion from LowerCaseString back to String.
-  // In addition, certain uses of existing methods on String will preserve LowerCaseString (as of now, just +);
-  // if you want there to be more, feel free to let me (Julian) know and I can add them here.
-  // I know it seems like weird extra complication, but honestly I was already having bugs from not lowercasing strings,
-  // despite sprinkling calls to .toLowerCase around so much that the code had gotten noticeably harder to read.
+  /* Welcome to the new world.
+   * The world of ad-hoc refinement types requiring nothing more from the user than a single method call.
+   * NO MORE WILL YOU BE UNCERTAIN, ON THE FIRST LINE OF YOUR METHOD,
+   * WHETHER THE STRING WAS GUARANTEED TO BE LOWERCASE.
+   * FOR YOU HAVE GUARANTEED IT ALREADY IN THE TYPE SYSTEM.
+   * This is your weapon. This is your LowerCaseString.
+   * Wield it with pride.
+   * NOTE: there are projects to help you do refinement typing...but they seem a bit heavier weight for client code...idk
+   * Anyway, don't try to read the code just below. The point is that you can write:
+   * import mts.util.LowerCaseStrings._
+   * and then you get the _.lowerCase method on strings, which yields a LowerCaseString,
+   * as well as an implicit conversion from LowerCaseString back to String.
+   * In addition, certain uses of existing methods on String will preserve LowerCaseString (as of now, just +);
+   * if you want there to be more, feel free to let me (Julian) know and I can add them here.
+   * I know it seems like weird extra complication, but honestly I was already having bugs from not lowercasing strings,
+   * despite sprinkling calls to .toLowerCase around so much that the code had gotten noticeably harder to read.
+   */
   protected sealed trait LowerCaseStringCapsule0 {
     type LowerCaseString
     protected[util] sealed trait LowerCaseStringOps {
@@ -60,7 +68,7 @@ package object util {
     def lowerCase = LowerCaseStrings.LowerCaseStringOpsImpl.lowerCase(s)
   }
 
-  // Methods I wish were there on existing types. Now they are!
+  // == Extension methods ==
 
   implicit class RichValForOptions[A](val a: A) extends AnyVal {
     def onlyIf(p: (A => Boolean)): Option[A] = Some(a).filter(p)
@@ -90,7 +98,7 @@ package object util {
     def dequeueOption: Option[A] = if(!q.isEmpty) Some(q.dequeue) else None
   }
 
-  // Random utility methods.
+  // == Random utility methods ==
 
   implicit def pairwise[A, B, C](f: (A, B) => C): (((A, B)) => C) =
     (p: (A, B)) => f(p._1, p._2)
