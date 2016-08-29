@@ -6,8 +6,6 @@ import scala.collection.TraversableOnce
 
 import scala.language.implicitConversions
 
-import resource.ManagedResource
-
 /** Provides miscellaneous utility classes and methods.
   *
   * This includes mutable data structures (LazyStackQueue, QueueMap, Counter),
@@ -100,9 +98,6 @@ package object util {
 
   // == Random utility methods ==
 
-  implicit def pairwise[A, B, C](f: (A, B) => C): (((A, B)) => C) =
-    (p: (A, B)) => f(p._1, p._2)
-
   def sendToClipboard(s: String): Unit = {
     import java.awt._;
     import java.awt.datatransfer._;
@@ -112,12 +107,7 @@ package object util {
     clipboard.setContents(selection, selection)
   }
 
-  def counts[T](xs: TraversableOnce[T]): Map[T, Int] = {
-    val m = mutable.HashMap.empty[T, Int].withDefaultValue(0)
-    xs.foreach(m(_) += 1)
-    m.toMap
-  }
-
+  // mozilla implementation of indexOf in JS
   val javaScriptIndexOf = """
 // Production steps of ECMA-262, Edition 5, 15.4.4.14
 // Reference: http://es5.github.io/#x15.4.4.14
@@ -183,5 +173,6 @@ if (!Array.prototype.indexOf) {
     }
     return -1;
   };
-}"""
+}""".trim
+
 }

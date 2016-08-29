@@ -15,7 +15,7 @@ class Counter[A] private (private[this] val map: mutable.Map[A, Int]) {
   def size: Int = map.size
 
   def addAll(other: Iterator[(A, Int)]): Unit =
-    other.foreach(pairwise(addN))
+    other.foreach(Function.tupled(addN))
 
   def iterator: Iterator[(A, Int)] = map.iterator
   def keyIterator: Iterator[A] = map.keys.iterator
