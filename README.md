@@ -69,8 +69,8 @@ provides a few methods:
 You may interact with the results live on the console, retrieving them with, e.g.,
 ```mts.util.FileManager.loadAllData[Prompt, Response](hitType)```,
 where ```Prompt```, ```Response```, and ```hitType``` will be specific to the experiment.
-See the documentation of package ```mts.tasks``` for details,
-and see the subpackages of ```mts.experiments``` for example experiments.
+See the documentation of package [tasks/package.scala](src/main/scala/mts/tasks/package.scala) for details,
+and see the subpackages the [experiments](src/main/scala/mts/experiments/) package for example experiments.
 
 ## Making your own experiment
 
@@ -87,26 +87,26 @@ Very briefly, here are the steps you should take:
    A response may be, for example, a list of pairs of strings representing question/answer pairs.
    Since they are just data types, these should be defined as ```case class```es.
    This will also make them automatically serializable by ```upickle```.
-   See ```mts.experiments.expD.package.scala``` for an example.
+   See [expD/package.scala](src/main/scala/mts/experiments/expD/package.scala) for an example.
  * Write the ```TaskSpecification``` for your task.
    This is where you define the transformation from your ```Prompt```s into questions to upload as HITs
    (including the task instructions),
    and the transformation from an annotator's response to your ``Response``.
    This is also where you specify the general description for your task and other metadata like the payment.
-   See ```mts.tasks.TaskSpecification.scala``` for documentation,
-   and ```mts.experiments.expD.WordChoosingTask.scala``` for an example.
+   See [TaskSpecification.scala](src/main/scala/mts/tasks/TaskSpecification.scala) for documentation,
+   and [WordChoosingTask.scala](src/main/scala/mts/experiments/expD/WordChoosingTask.scala) for an example.
  * Write or choose a ```DataManager``` for your task.
    This is where you define how the task avoids redundancy between restarts and decides which prompts to upload.
-   See ```mts.tasks.DataManager``` for documentation
-   and ```mts.experiments.expD.WordChoosingDataManager.scala``` for an example.
+   See [DataManager.scala](src/main/scala/mts/tasks/DataManager.scala) for documentation
+   and [WordChoosingDataManager.scala](src/main/scala/mts/experiments/expD/WordChoosingDataManager.scala) for an example.
  * Write the ```Experiment``` object for your task.
    As of now there is no ```Experiment``` trait to inherit from,
    but this is the general pattern I've used that has worked well.
    You just need a single place to tie the task specification and data manager together with a ```TaskMonitor```,
    decide which data you wish to have annotated,
    and provide convenience methods of your choice for interacting on the console.
-   See ```mts.experiments.expC.TabooAnswersExperiment.scala``` or
-   ```mts.experiments.expD.WordChoosingExperiment.scala``` for examples.
+   See [TabooAnswersExperiment.scala](src/main/scala/mts/experiments/expC/TabooAnswersExperiment.scala) or
+   [WordChoosingExperiment.scala](src/main/scala/mts/experiments/expD/WordChoosingExperiment.scala) for examples.
 
 After this you should be ready to go!
 
