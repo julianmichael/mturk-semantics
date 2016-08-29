@@ -72,6 +72,24 @@ where ```Prompt```, ```Response```, and ```hitType``` will be specific to the ex
 See the documentation of package [tasks/package.scala](src/main/scala/mts/tasks/package.scala) for details,
 and see the subpackages the [experiments](src/main/scala/mts/experiments/) package for example experiments.
 
+## Overview
+
+There isn't too much code here, but it's broken into several packages.
+The purpose of each is documented in its package.scala file.
+Here is a brief road map:
+
+ * [conll](src/main/scala/mts/conll/) contains everything related to interfacing with and interpreting the CoNLL data.
+ * [core](src/main/scala/mts/core/) contains a few core abstractions for working with HITs on MTurk.
+ * [experiments](src/main/scala/mts/experiments/) is for subpackages specifying actual experiments to run on MTurk.
+ * [language](src/main/scala/mts/language/) is for utilities specific to processing natural language input.
+ * [tasks](src/main/scala/mts/tasks/) is for the core abstractions used to interact with the MTurk API and manage ongoing experiments.
+ * [util](src/main/scala/mts/util/) is for miscellaneous, non-specific helper functions and data structures.
+ * [validation](src/main/scala/mts/validation/) is for classes that provide ways to validate worker responses.
+ 
+The most relevant ones for the main ideas are core, tasks, and experiments.
+Most everything outside of the experiments package can be considered "framework" and is well-documented.
+The experiments are examples of how to use the framework.
+
 ## Making your own experiment
 
 So you want to try something out and run it on MTurk.

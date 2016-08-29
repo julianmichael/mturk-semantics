@@ -1,6 +1,8 @@
 package mts.util
 
-/** Provides method(s) for rendering text from a list of tokens. */
+/** Provides method(s) for rendering text from a list of tokens.
+  * TODO: this probably should go in the language package.
+  */
 object TextRendering {
   val noSpaceBefore = Set(
     ".", ",", "!", "?", ";", ":", "''",
