@@ -81,5 +81,5 @@ package object tasks {
   }
 
   /** The current configuration; decides whether we run on production or the sandbox. */
-  val Config: TaskConfig = ProductionTaskConfig
+  val Config: TaskConfig = SandboxTaskConfig
 }
