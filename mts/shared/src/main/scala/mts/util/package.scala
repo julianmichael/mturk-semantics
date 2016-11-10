@@ -96,17 +96,6 @@ package object util {
     def dequeueOption: Option[A] = if(!q.isEmpty) Some(q.dequeue) else None
   }
 
-  // == Random utility methods ==
-
-  def sendToClipboard(s: String): Unit = {
-    import java.awt._;
-    import java.awt.datatransfer._;
-    import java.io._;
-    val selection = new StringSelection(s)
-    val clipboard = Toolkit.getDefaultToolkit.getSystemClipboard
-    clipboard.setContents(selection, selection)
-  }
-
   // mozilla implementation of indexOf in JS
   val javaScriptIndexOf = """
 // Production steps of ECMA-262, Edition 5, 15.4.4.14

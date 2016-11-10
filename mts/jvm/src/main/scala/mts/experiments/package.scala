@@ -7,21 +7,7 @@ import mts.language._
 
 import scala.util.Try
 
-/**
-  * Package `experiments`
-  * This is to hold subpackages for each of the individual turk experiments we're running,
-  * using the rest of the code in `mts` as a framework.
-  *
-  * If you're wondering where expA and expB are, go back in time until they appear.
-  * Since those experiments the framework has been considerably refactored,
-  * so they needed to be removed to get rid of the cruft.
-  * Translating them into the new framework would have been a huge pain,
-  * because the refactor changed the way that annotation data is stored.
-  *
-  * In the package object here is just some common data and common methods that are useful for any experiment.
-  */
 package object experiments {
-
   val annotationFilepaths = List(
     "bn/abc/00/abc_0010.v4_gold_conll",
     "mz/sinorama/10/ectb_1010.v4_gold_conll",
@@ -32,14 +18,15 @@ package object experiments {
     "wb/eng/00/eng_0000.v4_gold_conll"
   ).map(CoNLLPath.apply)
 
+  def allSentences = for {
+    path <- annotationFilepaths.iterator
+    file <- FileManager.getCoNLLFile(path).toOptionPrinting.iterator
+    sentence <- file.sentences
+    if sentence.sentenceNum % 2 == 0 || sentence.sentenceNum % 5 == 0 // skip some of the sentences
+    if sentence.words.size > 6 // don't do the super short sentences
+  } yield (CoNLLSentencePath(path, sentence.sentenceNum), sentence)
+
   lazy val sentences: List[(CoNLLSentencePath, CoNLLSentence)] = {
-    val allSentences = for {
-      path <- annotationFilepaths.iterator
-      file <- FileManager.getCoNLLFile(path).toOptionPrinting.iterator
-      sentence <- file.sentences
-      if sentence.sentenceNum % 2 == 0 || sentence.sentenceNum % 5 == 0 // skip some of the sentences
-      if sentence.words.size > 6 // don't do the super short sentences
-    } yield (CoNLLSentencePath(path, sentence.sentenceNum), sentence)
     allSentences.take(100).toList
   }
 

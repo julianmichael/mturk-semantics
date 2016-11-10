@@ -90,6 +90,7 @@ object ArgumentSpan {
     P(spanAndWordsP.rep ~ wordsP).map {
       case (spanStates, finalWords) => for {
         spans <- spanStates.toList.sequence
+        // TODO return an informative error if finalWords aren't all used up by the end
         _ <- finalWords
       } yield spans
     }

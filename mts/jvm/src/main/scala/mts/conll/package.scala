@@ -1,6 +1,7 @@
 package mts
 
 import mts.util._
+import mts.language.TextRendering
 
 import scala.util.{Try, Success, Failure}
 import scala.collection.mutable

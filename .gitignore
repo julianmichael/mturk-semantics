@@ -25,3 +25,6 @@ resources/conll-2012
 resources/wiktionary
 experiments/*/data/*
 experiments/*/out/*
+
+mts/jvm/src/resources/*.jks
+mts/jvm/src/resources/*-password

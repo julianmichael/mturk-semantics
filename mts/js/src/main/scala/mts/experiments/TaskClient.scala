@@ -1,0 +1,31 @@
+package mts.experiments
+
+import mts.tasks._
+
+import scalajs.js
+import scalajs.js.JSApp
+import org.scalajs.jquery.jQuery
+
+import upickle.default._
+
+abstract class TaskClient[Prompt : Reader, Response : Writer] extends JSApp {
+  import scala.scalajs.js.Dynamic.global
+
+  lazy val assignmentId: String = {
+    global.turkSetAssignmentID()
+    jQuery("#assignmentId").attr("value").get
+  }
+
+  lazy val jsPrompt: Prompt = {
+    read[Prompt](jQuery(s"#$promptLabel").attr("value").get)
+  }
+
+  lazy val externalSubmitURL: String = {
+    jQuery(s"form#$mturkFormLabel").attr("action").get
+  }
+
+  def setResponse(response: Response): Unit = {
+    jQuery(s"#$responseLabel").attr("value", write(response))
+  }
+}
+

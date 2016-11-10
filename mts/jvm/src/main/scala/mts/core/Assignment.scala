@@ -23,7 +23,7 @@ package mts.core
   * @param any feedback provided by the worker
   */
 case class Assignment[Response](
-  hitType: String,
+  hitTypeId: String,
   hitId: String,
   assignmentId: String,
   workerId: String,

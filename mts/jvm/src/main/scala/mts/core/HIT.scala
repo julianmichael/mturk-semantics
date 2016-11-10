@@ -13,7 +13,7 @@ package mts.core
   * @param creationTime the time (millis from epoch) that the HIT was created
   */
 case class HIT[Prompt](
-  hitType: String,
+  hitTypeId: String,
   hitId: String,
   prompt: Prompt,
   creationTime: Long)
