@@ -78,7 +78,7 @@ case class ProductionTaskConfig(override val serverDomain: String) extends TaskC
   override val label = "production"
   override val isProduction = true
 
-  override val actorSystem = ActorSystem(s"$serverDomain-$label")
+  override val actorSystem = ActorSystem(label)
   private[this] val akkaConfig = actorSystem.settings.config
   override val interface = akkaConfig.getString("app.interface")
   override val httpPort = akkaConfig.getInt("app.httpPort")
@@ -94,7 +94,7 @@ case class SandboxTaskConfig(override val serverDomain: String) extends TaskConf
   override val label = "sandbox"
   override val isProduction = false
 
-  override val actorSystem = ActorSystem(s"$serverDomain-$label")
+  override val actorSystem = ActorSystem(label)
   private[this] val akkaConfig = actorSystem.settings.config
   override val interface = akkaConfig.getString("app.interface")
   override val httpPort = akkaConfig.getInt("app.httpPort")

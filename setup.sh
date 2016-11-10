@@ -12,6 +12,15 @@
 # NOTE: If you already have this data somewhere, go ahead and just symlink
 # resources/conll-2012/(and resources/ontonotes-release-5.0/ if necessary) to it, and this script should accommodate you.
 
+if [ ! -e "mturk.properties" ]
+then
+    echo "Missing file: mturk.properties"
+    echo "Please add a file named `mturk.properties`, consisting of two lines, of the form"
+    echo "access_key=XXXXXXXXXXXXXXXXXXXX"
+    echo "secret_key=YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
+    echo "where the keys are obtained from your AWS account."
+fi
+
 if [ ! -e "resources/wiktionary/" ]
 then
     read -p $'Download the Wiktionary data? [y/N]\n' answer
@@ -20,7 +29,6 @@ then
             wget \
                 --no-check-cert https://www.dropbox.com/s/60hbl3py7g3tx12/wiktionary.tar.gz?dl=1 \
                 -O wiktionary.tar.gz
-            wget \
             tar zxvf wiktionary.tar.gz
             rm wiktionary.tar.gz
             mv wiktionary resources/wiktionary
@@ -105,14 +113,4 @@ then
             exit 0
             ;;
     esac
-fi
-
-if [ ! -e "mturk.properties" ]
-then
-    echo "Missing file: mturk.properties"
-    echo "Please add a file named `mturk.properties`, consisting of two lines, of the form"
-    echo "access_key=XXXXXXXXXXXXXXXXXXXX"
-    echo "secret_key=YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
-    echo "where the keys are obtained from your AWS account."
-    exit 0
 fi

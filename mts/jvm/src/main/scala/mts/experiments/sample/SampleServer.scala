@@ -39,8 +39,9 @@ class SampleServer(implicit config: TaskConfig) {
   val tmf: TrustManagerFactory = TrustManagerFactory.getInstance("SunX509")
   tmf.init(ks)
 
-  val sslContext = SSLContext.getInstance("TLS")
+  val sslContext = SSLContext.getInstance("TLSv1.2")
   sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
+
   val https = ConnectionContext.https(sslContext)
 
   val service: SampleWebservice = new SampleWebservice
