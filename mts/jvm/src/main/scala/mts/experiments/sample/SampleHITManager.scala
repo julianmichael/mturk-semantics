@@ -68,6 +68,10 @@ class SampleHITManager[Prompt, Response](
   }
 
   def addPrompt(prompt: Prompt): Unit = {
-    taskSpec.createHIT(prompt, 1)
+    taskSpec.createHIT(prompt, 1).foreach { hit =>
+      println
+      println(s"Created HIT: ${hit.hitId}")
+      println(s"You can view it here: https://workersandbox.mturk.com/mturk/preview?groupId=${hit.hitTypeId}")
+    }
   }
 }

@@ -10,16 +10,16 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 import autowire._
 
-object Client extends TaskClient[CoNLLSentencePath, Boolean] {
+object Client extends TaskClient[SamplePrompt, SampleResponse] {
   def main(): Unit = jQuery { () =>
     println(assignmentId)
     println(jsPrompt)
     println(externalSubmitURL)
 
-    val sentence = AjaxClient[SampleApi].getCoNLLSentence(jsPrompt).call()
+    val sentence = AjaxClient[SampleApi].getCoNLLSentence(jsPrompt.path).call()
     sentence.onComplete(println)
 
-    setResponse(true)
+    setResponse(SampleResponse(true))
   }
 
   // QA specification methods
