@@ -27,8 +27,8 @@ class SampleServer(implicit config: TaskConfig) {
     getClass.getClassLoader.getResourceAsStream(s"$serverDomain-keystore-password")
   ).next.toCharArray
 
-  val ks: KeyStore = KeyStore.getInstance("JKS")
-  val keystore: InputStream = getClass.getClassLoader.getResourceAsStream(s"$serverDomain.jks")
+  val ks: KeyStore = KeyStore.getInstance("PKCS12")
+  val keystore: InputStream = getClass.getClassLoader.getResourceAsStream(s"$serverDomain.p12")
 
   require(keystore != null, "Keystore required!")
   ks.load(keystore, password)
