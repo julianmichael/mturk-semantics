@@ -4,20 +4,40 @@ import mts.experiments._
 import mts.conll._
 
 import scalajs.js
+import org.scalajs.dom
+import org.scalajs.dom.raw._
 import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
 import autowire._
+import upickle.default._
 
 object Client extends TaskClient[SamplePrompt, SampleResponse] {
   def main(): Unit = jQuery { () =>
     println(assignmentId)
-    println(jsPrompt)
+    println(prompt)
     println(externalSubmitURL)
 
-    val sentence = AjaxClient[SampleApi].getCoNLLSentence(jsPrompt.path).call()
-    sentence.onComplete(println)
+    val socket = new dom.WebSocket(websocketUri)
+    socket.onopen = { (event: Event) =>
+      ()
+    }
+    socket.onerror = { (event: ErrorEvent) =>
+      val msg = s"Failed to connect. Error code: ${event.colno}"
+      System.err.println(msg)
+    }
+    socket.onmessage = { (event: MessageEvent) ⇒
+      val response = read[ApiResponse](event.data.toString)
+      response match {
+        case SentenceResponse(path, sentence) =>
+          println(sentence)
+      }
+    }
+    socket.onclose = { (event: Event) =>
+      val msg = s"Connection lost."
+      System.err.println(msg)
+    }
 
     setResponse(SampleResponse(true))
   }

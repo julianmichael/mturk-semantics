@@ -181,6 +181,11 @@ case class TaskSpecification[Prompt : Writer, Response : Reader](
           value := write(prompt),
           name := promptLabel,
           id := promptLabel),
+        input(
+          `type` := "hidden",
+          value := write(config.serverDomain),
+          name := serverDomainLabel,
+          id := serverDomainLabel),
         form(
           name := mturkFormLabel,
           method := "post",

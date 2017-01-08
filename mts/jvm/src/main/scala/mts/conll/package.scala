@@ -48,14 +48,17 @@ package object conll {
     private[this] val conllAnnotationPath = Paths.get("conll-2012/v4/data/development/data/english/annotations")
 
     @memoize(maxSize = 200, expiresAfter = 1 hour)
-    def getCoNLLFile(path: CoNLLPath): Try[CoNLLFile] = {
+    private[this] def getCoNLLFileUnsafe(path: CoNLLPath): CoNLLFile = {
       val fullPath = conllAnnotationPath.resolve(path.get)
       val fileResource = for {
         lines <- FileManager.loadResource(fullPath)
         file = CoNLLFile.readFromLines(lines)
       } yield file
-      fileResource.tried
+      fileResource.tried.get
     }
+
+    def getCoNLLFile(path: CoNLLPath): Try[CoNLLFile] =
+      Try(getCoNLLFileUnsafe(path))
 
     def getCoNLLSentence(path: CoNLLSentencePath): Try[CoNLLSentence] = for {
       file <- getCoNLLFile(path.filePath)
