@@ -21,7 +21,8 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
 
     val socket = new dom.WebSocket(websocketUri)
     socket.onopen = { (event: Event) =>
-      println("Websocket opened.")
+      println(s"Websocket opened. Sending request for $prompt")
+      socket.send(write(SentenceRequest(prompt.path)))
     }
     socket.onerror = { (event: ErrorEvent) =>
       val msg = s"Failed to connect. Error code: ${event.colno}"
@@ -38,8 +39,6 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
       val msg = s"Connection lost."
       System.err.println(msg)
     }
-
-    socket.send(write(SentenceRequest(prompt.path)))
 
     setResponse(SampleResponse(true))
   }
