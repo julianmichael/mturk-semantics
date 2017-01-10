@@ -1,6 +1,7 @@
 package mts.experiments.sample
 
 import mts.core._
+import mts.util._
 import mts.tasks._
 
 import com.amazonaws.mturk.requester.AssignmentStatus
