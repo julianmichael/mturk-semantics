@@ -13,6 +13,7 @@ package object tasks {
   val responseLabel = "response"
   val promptLabel = "prompt"
   val serverDomainLabel = "serverDomain"
+  val httpsPortLabel = "serverDomain"
   val mturkFormLabel = "mturkForm"
   val rootClientDivLabel = "taskContent"
 }

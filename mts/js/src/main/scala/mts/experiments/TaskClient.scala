@@ -20,8 +20,12 @@ abstract class TaskClient[Prompt : Reader, Response : Writer] extends JSApp {
     read[String](jQuery(s"#$serverDomainLabel").attr("value").get)
   }
 
+  lazy val httpsPort: String = {
+    read[String](jQuery(s"#$httpsPortLabel").attr("value").get)
+  }
+
   lazy val websocketUri: String = {
-    s"wss://$serverDomain/websocket?assignmentId=$assignmentId"
+    s"wss://$serverDomain:$httpsPort/websocket?assignmentId=$assignmentId"
   }
 
   lazy val prompt: Prompt = {

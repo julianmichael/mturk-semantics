@@ -186,6 +186,11 @@ case class TaskSpecification[Prompt : Writer, Response : Reader](
           value := write(config.serverDomain),
           name := serverDomainLabel,
           id := serverDomainLabel),
+        input(
+          `type` := "hidden",
+          value := write(config.httpsPort),
+          name := httpsPortLabel,
+          id := httpsPortLabel),
         form(
           name := mturkFormLabel,
           method := "post",
