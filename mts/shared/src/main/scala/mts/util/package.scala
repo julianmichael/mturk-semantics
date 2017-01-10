@@ -13,7 +13,7 @@ import scala.language.implicitConversions
   * type-level lowercase strings, extension methods for Scala stdlib types,
   * and some random stuff (the latter three on this object).
   */
-package object util {
+package object util extends PackagePlatformExtensions {
 
   /* Welcome to the new world.
    * The world of ad-hoc refinement types requiring nothing more from the user than a single method call.

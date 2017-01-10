@@ -1,6 +1,6 @@
 package mts.util
 
-object jvm {
+trait PackagePlatformExtensions {
   def sendToClipboard(s: String): Unit = {
     import java.awt._;
     import java.awt.datatransfer._;

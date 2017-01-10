@@ -1,4 +1,4 @@
-package mts
+package mts.experiments
 
 import mts.core._
 import mts.conll._
@@ -7,7 +7,7 @@ import mts.language._
 
 import scala.util.Try
 
-package object experiments {
+trait PackagePlatformExtensions {
   val annotationFilepaths = List(
     "bn/abc/00/abc_0010.v4_gold_conll",
     "mz/sinorama/10/ectb_1010.v4_gold_conll",
@@ -44,7 +44,7 @@ package object experiments {
   private[this] val experimentRootPath = Paths.get("experiments")
   private[this] val dataPath = Paths.get("data")
 
-  implicit class ExperimentFileManager(val fm: FileManager.type) extends AnyVal {
+  implicit class ExperimentFileManager(val fm: FileManager.type) {
     def saveDataFile(
       experimentName: String,
       fileName: String,

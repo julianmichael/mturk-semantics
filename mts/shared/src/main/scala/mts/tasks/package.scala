@@ -9,7 +9,7 @@ package mts
   * [[mts.tasks.DataManager]] coordinates which data is uploaded to MTurk as questions
   * and handles pre/post-processing of the data.
   */
-package object tasks {
+package object tasks extends PackagePlatformExtensions {
   val responseLabel = "response"
   val promptLabel = "prompt"
   val serverDomainLabel = "serverDomain"

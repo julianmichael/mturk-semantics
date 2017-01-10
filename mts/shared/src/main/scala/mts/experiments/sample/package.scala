@@ -3,7 +3,7 @@ package mts.experiments
 import mts.conll.CoNLLSentencePath
 import mts.conll.CoNLLSentence
 
-package object sample {
+package object sample extends PackagePlatformExtensions {
   case class SamplePrompt(path: CoNLLSentencePath)
   case class SampleResponse(isGood: Boolean)
 
