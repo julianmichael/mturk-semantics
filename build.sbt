@@ -1,3 +1,6 @@
+val monocleVersion = "1.4.0-M2"
+val scalaJSReactVersion = "0.11.1"
+
 lazy val root = project.in(file("."))
   .aggregate(mtsJVM, mtsJS)
   .settings(
@@ -41,12 +44,17 @@ lazy val mts = crossProject.settings(
     "xerces" % "xercesImpl" % "2.9.1"
   )
 ).jsSettings(
+  addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full),
   libraryDependencies ++= Seq(
     "org.scala-js" %%% "scalajs-dom" % "0.9.0",
     "be.doeraene" %%% "scalajs-jquery" % "0.9.0",
-    "com.github.japgolly.scalajs-react" %%% "core" % "0.11.1",
+    "com.github.japgolly.scalajs-react" %%% "core" % scalaJSReactVersion,
+    "com.github.japgolly.scalajs-react" %%% "ext-monocle" % scalaJSReactVersion,
     "com.github.japgolly.scalacss" %%% "core" % "0.4.1",
-    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1"
+    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1",
+    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
+    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+    // "com.github.julien-truffaut" %%% "monocle-law"   % monocleVersion % "test"
   ),
   relativeSourceMaps := true,
   scalaJSStage in Global := FastOptStage,

@@ -1,7 +1,6 @@
-package mts
+package mts.conll
 
 import mts.util._
-import mts.language.TextRendering
 
 import scala.util.{Try, Success, Failure}
 import scala.collection.mutable
@@ -26,13 +25,7 @@ import java.nio.file.{Paths, Path, Files}
   * The package object contains extension methods for conveniently rendering text
   * from CoNLL data types and reading CoNLL data from the CoNLL-2012 files.
   */
-package object conll {
-
-  implicit class CoNLLTextRendering(val tr: TextRendering.type) extends AnyVal {
-    def renderSentence(sentence: CoNLLSentence) = {
-      tr.renderSentence(sentence.words.map(_.token))
-    }
-  }
+trait PackagePlatformExtensions {
 
   /** Implicitly converts vanilla FileManager to the CoNLL one,
     * so you don't have to remember how to prefix the term "FileManager" to call these methods.
