@@ -40,6 +40,8 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
     def loaded[A]: Prism[State, Loaded] = GenPrism[State, Loaded]
   }
 
+  val isGoodLens = State.loaded composeLens Loaded.isGood
+
   class FullUIBackend(scope: BackendScope[Unit, State]) {
     def load: Callback = scope.state map {
       case Loading(_) =>
@@ -57,7 +59,7 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
           val response = read[ApiResponse](event.data.toString)
           response match {
             case SentenceResponse(path, sentence) =>
-              scope.setState(Loaded(sentence, false))
+              scope.setState(Loaded(sentence, false)).runNow
           }
         }
         socket.onclose = { (event: Event) =>
@@ -69,12 +71,14 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
         System.err.println("Data already loaded.")
     }
 
+    def updateResponse: Callback = scope.state.map {
+      st => isGoodLens.getOption(st).map(SampleResponse.apply).foreach(setResponse)
+    }
+
     def render(s: State) = {
       <.div(
         Styles.mainContent,
         instructions,
-        <.hr(),
-        <.p("Is this sentence good?"),
         s match {
           case Loading(msg) =>
             <.p(s"Loading sentence ($msg)...")
@@ -86,7 +90,7 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
                   <.input(
                     ^.`type` := "checkbox",
                     ^.checked := isGood,
-                    ^.onChange --> scope.modState((State.loaded composeLens Loaded.isGood).modify(!_))
+                    ^.onChange --> (scope.modState(isGoodLens.modify(!_)) >> updateResponse)
                   ),
                   "Yes, it is a good sentence."
                 )
