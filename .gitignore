@@ -26,5 +26,6 @@ resources/wiktionary
 experiments/*/data/*
 experiments/*/out/*
 
-mts/jvm/src/resources/*.jks
-mts/jvm/src/resources/*-password
+mts/jvm/src/main/resources/*.jks
+mts/jvm/src/main/resources/*.p12
+mts/jvm/src/main/resources/*-password
