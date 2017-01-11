@@ -85,12 +85,12 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
           case Loaded(sentence, isGood) =>
             <.div(
               <.p(TextRendering.renderSentence(sentence)),
-              <.p(^.margin := 0, ^.padding := 0)(
+              <.p(
                 <.label(
                   <.input(
                     ^.`type` := "checkbox",
                     ^.checked := isGood,
-                    ^.onChange --> (scope.modState(isGoodLens.modify(!_)) >> updateResponse)
+                    ^.onChange --> scope.modState(isGoodLens.modify(!_))
                   ),
                   "Yes, it is a good sentence."
                 )
@@ -105,6 +105,7 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
     .initialState(Loading("Connecting to server"): State)
     .renderBackend[FullUIBackend]
     .componentDidMount(context => context.backend.load)
+    .componentDidUpdate(context => context.$.backend.updateResponse)
     .build
 
   def main(): Unit = jQuery { () =>
@@ -132,9 +133,4 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
     <.hr(),
     <.p(s"""Please indicate whether the following sentence is good:""")
   )
-
-  private[this] final val checkboxName = "isGood"
-  private[this] final val checkbox = {
-    import scalatags.Text.all._
-  }
 }
