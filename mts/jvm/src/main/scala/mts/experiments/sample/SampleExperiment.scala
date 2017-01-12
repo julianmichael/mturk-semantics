@@ -40,7 +40,7 @@ class SampleExperiment(implicit config: TaskConfig) {
   lazy val hitManager = new SampleHITManager[SamplePrompt, SampleResponse](taskSpec)
 
   import config.actorSystem
-  lazy val server = new SampleServer
+  lazy val server = new Server(List(taskSpec))
   lazy val actor = actorSystem.actorOf(Props(TaskManager(hitManager)))
 
   import hitManager.Message._

@@ -23,7 +23,7 @@ import akka.stream.scaladsl._
 
 import upickle.default._
 
-class SampleWebservice(
+class Webservice(
   tasks: List[TaskSpecification])(
   implicit fm: Materializer,
   config: TaskConfig) extends Directives {
