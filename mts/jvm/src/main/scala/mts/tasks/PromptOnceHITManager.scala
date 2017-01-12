@@ -23,16 +23,16 @@ import com.amazonaws.mturk.requester.AssignmentStatus
   * @param _promptSource iterator over the desired prompts to turn into questions
   * @param _finishedPrompts iterator over prompts that have already been completed and/or should be skipped
   */
-class PromptOnceHITManager[Prompt, Response](
-  taskSpec: TaskSpecification[Prompt, Response],
+class PromptOnceHITManager[P, R](
+  taskSpec: TaskSpecification{ type Prompt = P; type Response = R },
   numAssignmentsPerHIT: Int,
   numHITsActive: Int,
-  _promptSource: Iterator[Prompt],
-  _finishedPrompts: Iterator[Prompt]
+  _promptSource: Iterator[P],
+  _finishedPrompts: Iterator[P]
 )(
-  implicit pr: Reader[Prompt],
+  implicit pr: Reader[P],
   config: TaskConfig
-) extends HITManager[Prompt, Response](taskSpec) {
+) extends HITManager[P, R](taskSpec) {
 
   import config._
   import Message._

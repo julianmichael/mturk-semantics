@@ -12,10 +12,10 @@ import scala.language.postfixOps
 import akka.actor.Actor
 import akka.actor.ActorRef
 
-class SampleHITManager[Prompt, Response](
-  taskSpec: TaskSpecification[Prompt, Response])(
+class SampleHITManager[P, R](
+  taskSpec: TaskSpecification{ type Prompt = P; type Response = R})(
   implicit config: TaskConfig
-) extends HITManager[Prompt, Response](taskSpec) {
+) extends HITManager[P, R](taskSpec) {
 
   import Message._
   import config._
@@ -34,11 +34,11 @@ class SampleHITManager[Prompt, Response](
   // }
 
   /** Takes a reviewable HIT and does what must be done:
-    * - approve/reject assignments as necessary. // TODO consider factoring this out into another method.
     * - extend the hit if necessary.
     * - dispose of the hit if necessary.
     * - notify other tasks of results if necessary.
     * - upload new HITs if necessary.
+    * - pass on results for evaluation if necessary.
     */
   def reviewHIT(taskActor: ActorRef, hit: HIT[Prompt]): Unit = {
     val submittedAssignments = service.getAllAssignmentsForHIT(hit.hitId, Array(AssignmentStatus.Submitted))

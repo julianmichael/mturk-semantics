@@ -10,10 +10,12 @@ import scala.language.postfixOps
 import akka.actor.Actor
 import akka.actor.ActorRef
 
-abstract class HITManager[Prompt, Response](
-  val taskSpec: TaskSpecification[Prompt, Response])(
+abstract class HITManager[P, R](
+  val taskSpec: TaskSpecification { type Prompt = P; type Response = R})(
   implicit config: TaskConfig
 ) {
+  type Prompt = P
+  type Response = R
   object Message {
     sealed trait Message
     case class Start(interval: FiniteDuration) extends Message

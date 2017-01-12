@@ -23,16 +23,6 @@ import akka.stream.scaladsl._
 
 import upickle.default._
 
-// object Router extends autowire.Server[String, Reader, Writer] {
-//   def read[Result : Reader](p: String) = read[Result](p)
-//   def write[Result : Writer](r: Result) = write(r)
-// }
-
-// object SampleApiImpl extends SampleApi {
-//   override def getCoNLLSentence(path: CoNLLSentencePath): CoNLLSentence =
-//     FileManager.getCoNLLSentence(path).get
-// }
-
 class SampleWebservice(implicit fm: Materializer, config: TaskConfig) extends Directives {
   // TODO verify that we're getting a JS file. don't just serve anything they ask for
   def route = getFromResourceDirectory("") ~
@@ -42,18 +32,7 @@ class SampleWebservice(implicit fm: Materializer, config: TaskConfig) extends Di
           handleWebSocketMessages(websocketFlow(assignmentId))
         }
       }
-    }// ~
-    // post {
-    //   path("ajax" / Segments) { s =>
-    //     entity(as[String]) { e =>
-    //       complete {
-    //         Router.route[SampleApi](SampleAjaxApi)(
-    //           autowire.Core.Request(s, read[Map[String, String]](e))
-    //         )
-    //       }
-    //     }
-    //   }
-    // }
+    }
 
   def websocketFlow(assignmentId: String): Flow[Message, Message, Any] =
     Flow[Message].map {

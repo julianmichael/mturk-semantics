@@ -8,12 +8,16 @@ import org.scalajs.jquery.jQuery
 
 import upickle.default._
 
-abstract class TaskClient[Prompt : Reader, Response : Writer] extends JSApp {
+abstract class TaskClient[Prompt : Reader, Response : Writer] {
   import scala.scalajs.js.Dynamic.global
 
   lazy val assignmentId: String = {
     global.turkSetAssignmentID()
     jQuery("#assignmentId").attr("value").get
+  }
+
+  lazy val taskKey: String = {
+    read[String](jQuery(s"#$taskKeyLabel").attr("value").get)
   }
 
   lazy val serverDomain: String = {
@@ -25,7 +29,7 @@ abstract class TaskClient[Prompt : Reader, Response : Writer] extends JSApp {
   }
 
   lazy val websocketUri: String = {
-    s"wss://$serverDomain:$httpsPort/websocket?assignmentId=$assignmentId"
+    s"wss://$serverDomain:$httpsPort/websocket?taskKey=$taskKey"
   }
 
   lazy val prompt: Prompt = {
@@ -39,5 +43,6 @@ abstract class TaskClient[Prompt : Reader, Response : Writer] extends JSApp {
   def setResponse(response: Response): Unit = {
     jQuery(s"#$responseLabel").attr("value", write(response))
   }
-}
 
+  def main(): Unit
+}

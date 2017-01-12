@@ -17,6 +17,8 @@ import java.util.Calendar
 import scala.util.Try
 import scala.concurrent.duration._
 
+import akka.stream.scaladsl.Flow
+
 import upickle.default._
 
 /** Specifies a kind of task to run on MTurk.
@@ -38,9 +40,20 @@ import upickle.default._
   * @tparam Prompt
   * @tparam Response
   */
-case class TaskSpecification[Prompt : Writer, Response : Reader](
-  hitType: HITType)(
-  implicit config: TaskConfig) {
+sealed trait TaskSpecification {
+  type Prompt
+  implicit val promptWriter: Writer[Prompt]
+  type Response
+  implicit val responseReader: Reader[Response]
+  type ApiRequest
+  implicit val apiRequestReader: Reader[ApiRequest]
+  type ApiResponse
+  implicit val apiResponseWriter: Writer[ApiResponse]
+  implicit val config: TaskConfig
+
+  val taskKey: String
+  val hitType: HITType
+  val apiFlow: Flow[ApiRequest, ApiResponse, Any]
 
   import hitType._
   import config._
@@ -191,6 +204,11 @@ case class TaskSpecification[Prompt : Writer, Response : Reader](
           value := write(config.httpsPort),
           name := httpsPortLabel,
           id := httpsPortLabel),
+        input(
+          `type` := "hidden",
+          value := write(taskKey),
+          name := taskKeyLabel,
+          id := taskKeyLabel),
         form(
           name := mturkFormLabel,
           method := "post",
@@ -239,4 +257,32 @@ case class TaskSpecification[Prompt : Writer, Response : Reader](
       </HTMLQuestion>
     """.trim
   }
+}
+object TaskSpecification {
+  private[this] case class TaskSpecificationImpl[P, R, ApiReq, ApiResp](
+    override val taskKey: String,
+    override val hitType: HITType,
+    override val apiFlow: Flow[ApiReq, ApiResp, Any])(
+    implicit override val promptWriter: Writer[P],
+    val responseReader: Reader[R],
+    val apiRequestReader: Reader[ApiReq],
+    val apiResponseWriter: Writer[ApiResp],
+    val config: TaskConfig) extends TaskSpecification {
+
+    override type Prompt = P
+    override type Response = R
+    override type ApiRequest = ApiReq
+    override type ApiResponse = ApiResp
+  }
+  // TODO specify return type
+  def apply[P, R, ApiReq, ApiResp](
+    taskKey: String,
+    hitType: HITType,
+    apiFlow: Flow[ApiReq, ApiResp, Any])(
+    implicit promptWriter: Writer[P],
+    responseReader: Reader[R],
+    apiRequestReader: Reader[ApiReq],
+    apiResponseWriter: Writer[ApiResp],
+    config: TaskConfig): TaskSpecification { type Prompt = P; type Response = R; type ApiRequest = ApiReq; type ApiResponse = ApiResp } =
+    TaskSpecificationImpl[P, R, ApiReq, ApiResp](taskKey, hitType, apiFlow)
 }

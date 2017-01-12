@@ -16,4 +16,5 @@ package object tasks extends PackagePlatformExtensions {
   val httpsPortLabel = "httpsPort"
   val mturkFormLabel = "mturkForm"
   val rootClientDivLabel = "taskContent"
+  val taskKeyLabel = "taskKey"
 }
