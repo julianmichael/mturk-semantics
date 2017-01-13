@@ -4,12 +4,15 @@ import mts.core._
 import mts.util._
 
 import scala.collection.mutable
+import scala.util.{Try, Success, Failure}
 
 import upickle.default.Reader
 
 import akka.actor.ActorRef
 
 import com.amazonaws.mturk.requester.AssignmentStatus
+
+import java.util.concurrent.atomic.AtomicInteger
 
 /** Simple example DataManager.
   *
@@ -26,9 +29,9 @@ import com.amazonaws.mturk.requester.AssignmentStatus
 class PromptOnceHITManager[P, R](
   taskSpec: TaskSpecification{ type Prompt = P; type Response = R },
   numAssignmentsPerHIT: Int,
-  numHITsActive: Int,
+  numHITsToKeepActive: Int,
   _promptSource: Iterator[P],
-  _finishedPrompts: Iterator[P]
+  _promptsToSkip: Iterator[P]
 )(
   implicit pr: Reader[P],
   config: TaskConfig
@@ -41,41 +44,58 @@ class PromptOnceHITManager[P, R](
 
   private[this] val queuedPrompts = new LazyStackQueue[Prompt](_promptSource)
 
-  private[this] val finishedOrActivePrompts = {
+  // using atomic integer for now; later ideally would make this class into an actor and remove the need
+  private[this] val (finishedOrActivePrompts, numActiveHITs) = {
     val set = mutable.Set.empty[Prompt]
-    set ++= _finishedPrompts
-    set ++= (for {
+    set ++= _promptsToSkip
+    val activePrompts = for {
       mTurkHIT <- config.service.searchAllHITs
       if mTurkHIT.getHITTypeId.equals(hitTypeId)
       hit = FileManager.getHIT[Prompt](hitTypeId, mTurkHIT.getHITId).toOptionPrinting.get
-    } yield hit.prompt)
-    set
+    } yield hit.prompt
+    set ++= activePrompts
+    (set, new AtomicInteger(activePrompts.size))
   }
 
-  // final override def nextPrompts(n: Int): List[Prompt] =
-  //   queuedPrompts.filterPop(!finishedOrActivePrompts.contains(_), n)
-
-  // final override def promptSucceeded(hit: HIT[Prompt]): Unit =
-  //   finishedOrActivePrompts += hit.prompt
-
-  // final override def promptFailed(prompt: Prompt): Unit =
-  //   queuedPrompts.enqueue(prompt)
+  override def refreshHITs: Unit = {
+    val numToUpload = numHITsToKeepActive - numActiveHITs.get()
+    for(_ <- 1 to numToUpload) {
+      val nextPromptOpt = queuedPrompts.pop
+      nextPromptOpt match {
+        case None => numActiveHITs.decrementAndGet()
+        case Some(nextPrompt) =>
+          taskSpec.createHIT(nextPrompt, numAssignmentsPerHIT) match {
+            case Success(_) =>
+              numActiveHITs.incrementAndGet()
+              println(s"Created HIT: ${hit.hitId}")
+              println(s"You can view it here: https://workersandbox.mturk.com/mturk/preview?groupId=${hit.hitTypeId}")
+            case Failure(e) =>
+              System.err.println(e.getMessage)
+              e.printStackTrace
+              queuedPrompts.enqueue(nextPrompt) // put it back at the bottom to try later
+          }
+      }
+    }
+  }
 
   /** Takes a reviewable HIT and does what must be done:
-    * - approve/reject assignments as necessary. // TODO consider factoring this out into another method.
+    * - trigger assignments to be reviewed.
     * - extend the hit if necessary.
     * - dispose of the hit if necessary.
     * - notify other tasks of results if necessary.
     * - upload new HITs if necessary.
     */
-  // TODO actually implement this fully...
   final override def reviewHIT(taskActor: ActorRef, hit: HIT[Prompt]): Unit = {
     val submittedAssignments = service.getAllAssignmentsForHIT(hit.hitId, Array(AssignmentStatus.Submitted))
     if(submittedAssignments.isEmpty) {
-      // must either have all assignments done or have expired
+      // must either have all assignments done or have expired. assume not expired, none rejected.
+      // then we now have the desired number of assignments approved, and we can dispose of it.
       service.disposeHIT(hit.hitId)
+      numActiveHITs.decrementAndGet()
+      refreshHITs
     } else {
-      // TODO should I do this?
+      // so I don't repeatedly review in case reviewing takes a while (good practice I guess
+      // since that shouldn't actually happen in this class)
       service.setHITAsReviewing(hit.hitId)
 
       for(mTurkAssignment <- submittedAssignments) {
@@ -97,6 +117,8 @@ class PromptOnceHITManager[P, R](
     taskActor ! EvaluateAssignment(assignment, Approval(""))
   }
 
-  final override def addPrompt(prompt: Prompt): Unit =
+  final override def addPrompt(prompt: Prompt): Unit = {
     queuedPrompts.enqueue(prompt)
+    refreshHITs
+  }
 }

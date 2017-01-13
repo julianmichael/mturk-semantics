@@ -1,4 +1,4 @@
-package mts.experiments.sample
+package mts.experiments
 
 import scalacss.DevDefaults._
 import scala.language.postfixOps

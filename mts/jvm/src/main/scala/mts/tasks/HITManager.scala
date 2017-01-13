@@ -27,6 +27,8 @@ abstract class HITManager[P, R](
     case class AddPrompt(prompt: Prompt) extends Message
   }
 
+  def refreshHITs: Unit
+
   /** Takes a reviewable HIT and does what must be done:
     * - approve/reject assignments as necessary. // TODO consider factoring this out into another method.
     * - extend the hit if necessary.

@@ -21,17 +21,7 @@ class SampleHITManager[P, R](
   import config._
   import scala.collection.mutable
 
-  // TODO use this. should it even be here?
-  // final val (finishedPrompts, activePrompts): (mutable.Set[Prompt], mutable.Set[Prompt]) = {
-  //   val allData = ???
-  //   val activeHITs = service.searchAllHITs().filter(_.getHITTypeId == taskSpec.hitTypeId)
-  //   // TODO
-  //   val finished = mutable.Set.empty[Prompt]
-  //   finished ++= allData -- activePrompts
-  //   val active = mutable.Set.empty[Prompt]
-  //   active ++= activePrompts
-  //   (finished, active)
-  // }
+  override def refreshHITs: Unit = ()
 
   /** Takes a reviewable HIT and does what must be done:
     * - extend the hit if necessary.

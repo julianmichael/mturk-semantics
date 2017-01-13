@@ -102,6 +102,7 @@ case class TaskManager[Prompt : Reader, Response : Writer](
   private[this] def update: Unit = {
     println
     println(s"Updating (${hitTypeId})...")
+    hitManager.refreshHITs
     for(mTurkHIT <- service.getAllReviewableHITs(hitTypeId)) {
       FileManager.getHIT[Prompt](hitTypeId, mTurkHIT.getHITId).toOptionPrinting.map(reviewHIT _)
     }

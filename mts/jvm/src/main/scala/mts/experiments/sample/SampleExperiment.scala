@@ -17,12 +17,7 @@ import scala.language.postfixOps
 class SampleExperiment(implicit config: TaskConfig) {
   val experimentName = "sample"
 
-  // val hitsToKeepActive = if(config.isProduction) 25 else 3
-  // val numAssignmentsPerHIT = if(config.isProduction) 4 else 1
-
   // for now, must agree with a string specified on the client as well. TODO refactor this
-  val sampleTaskKey = "sample"
-
   val sampleHITType = HITType(
     title = s"Sample task: is this sentence good?",
     description = s"""
@@ -36,7 +31,7 @@ class SampleExperiment(implicit config: TaskConfig) {
   }
 
   lazy val taskSpec = TaskSpecification[SamplePrompt, SampleResponse, ApiRequest, ApiResponse](
-    sampleTaskKey, sampleHITType, sampleApiFlow)
+    TaskIndex.sampleTaskKey, sampleHITType, sampleApiFlow)
   lazy val hitManager = new SampleHITManager[SamplePrompt, SampleResponse](taskSpec)
 
   import config.actorSystem
