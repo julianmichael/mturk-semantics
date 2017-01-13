@@ -65,7 +65,7 @@ class PromptOnceHITManager[P, R](
         case None => numActiveHITs.decrementAndGet()
         case Some(nextPrompt) =>
           taskSpec.createHIT(nextPrompt, numAssignmentsPerHIT) match {
-            case Success(_) =>
+            case Success(hit) =>
               numActiveHITs.incrementAndGet()
               println(s"Created HIT: ${hit.hitId}")
               println(s"You can view it here: https://workersandbox.mturk.com/mturk/preview?groupId=${hit.hitTypeId}")
