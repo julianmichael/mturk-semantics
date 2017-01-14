@@ -70,7 +70,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
           val response = read[ApiResponse](event.data.toString)
           response match {
             case SentenceResponse(path, sentence) =>
-              scope.setState(Loaded(sentence, Nil, 0, DoingNothing)).runNow
+              scope.setState(Loaded(sentence, List(("", Set.empty[Int])), 0, DoingNothing)).runNow
           }
         }
         socket.onclose = { (event: Event) =>
