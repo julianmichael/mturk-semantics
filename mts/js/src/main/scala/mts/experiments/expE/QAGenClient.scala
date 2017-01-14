@@ -158,7 +158,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                               scope.modState(
                                 qaPairsLens.modify(
                                   qaPairs => {
-                                    val currentQA = qaPairs(word.index)
+                                    val currentQA = qaPairs(currentFocus)
                                     val newQA = currentQA.copy(_2 = currentQA._2 + word.index)
                                     qaPairs.updated(word.index, newQA)
                                   }))
