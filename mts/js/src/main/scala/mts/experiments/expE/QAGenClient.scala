@@ -134,16 +134,32 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
             val curAnswer = answerSpans(currentFocus)
             import scalaz.std.list._
             <.div(
-              <.p(TextRendering.renderSentence(
-                    sentence.words,
-                    (word: CoNLLWord) => word.token,
-                    List(<.span(" ")), // TODO give space highlighting
-                    (word: CoNLLWord) => List(<.span(
+              <.p(
+                Styles.unselectable,
+                TextRendering.renderSentence(
+                  sentence.words,
+                  (word: CoNLLWord) => word.token,
+                  (nextWord: CoNLLWord) => List(
+                    <.span(
+                      ^.backgroundColor := (
+                        if(curAnswer.contains(nextWord.index) && curAnswer.contains(nextWord.index - 1)) {
+                          "#00FF00"
+                        } else if(!curAnswer.contains(nextWord.index) &&
+                                    !curAnswer.contains(nextWord.index - 1) &&
+                                    answerSpans.flatten.contains(nextWord.index) &&
+                                    answerSpans.flatten.contains(nextWord.index - 1)) {
+                          "#888888"
+                        } else {
+                          "#00000000"
+                        }),
+                      " ")),
+                  (word: CoNLLWord) => List(
+                    <.span(
                       ^.backgroundColor := (
                         if(word.index == prompt.wordIndex) {
                           "#00FF00"
                         } else if(curAnswer.contains(word.index)) {
-                          "#FF8800"
+                          "#FFFF00"
                         } else if(answerSpans.flatten.contains(word.index)) {
                           "#888888"
                         } else {
@@ -168,9 +184,9 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                               scope.modState(
                                 qaPairsLens.modify(
                                   qaPairs => {
-                                    val currentQA = qaPairs(word.index)
+                                    val currentQA = qaPairs(currentFocus)
                                     val newQA = currentQA.copy(_2 = currentQA._2 - word.index)
-                                    qaPairs.updated(word.index, newQA)
+                                    qaPairs.updated(currentFocus, newQA)
                                   }))
                             } else Callback.empty
                         }),
@@ -184,7 +200,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                       ),
                       TextRendering.normalizeToken(word.token)
                     ))
-                  )),
+                )),
               <.ul(
                 (0 until qaPairs.size).map(i =>
                   <.li(qaField(ls, i))

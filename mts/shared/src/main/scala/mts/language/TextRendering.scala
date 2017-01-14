@@ -47,7 +47,7 @@ object TextRendering {
   def renderSentence[Word, M](
     words: Seq[Word],
     getToken: Word => String,
-    space: M,
+    spaceFromNextWord: Word => M,
     renderWord: Word => M)(
     implicit M: Monoid[M]): M = {
     words.foldLeft((M.zero, true)) {
@@ -56,12 +56,12 @@ object TextRendering {
         if(skipSpace || noSpaceBefore.contains(normalizeToken(getToken(word)))) {
           (acc |+| renderWord(word), skipNextSpace)
         } else {
-          (acc |+| space |+| renderWord(word), skipNextSpace)
+          (acc |+| spaceFromNextWord(word) |+| renderWord(word), skipNextSpace)
         }
     }._1
   }
 
   /** Convenience method for rendering a sequence of PTB tokens directly to a string. */
   def renderSentence(words: Seq[String]): String =
-    renderSentence[String, String](words, identity, " ", normalizeToken)
+    renderSentence[String, String](words, identity, _ => " ", normalizeToken)
 }

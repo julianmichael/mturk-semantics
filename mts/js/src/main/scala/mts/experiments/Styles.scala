@@ -10,4 +10,7 @@ object Styles extends StyleSheet.Inline {
     font := "Helvetica"
   )
 
+  val unselectable = style(
+    userSelect := "none"
+  )
 }
