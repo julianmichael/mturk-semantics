@@ -22,8 +22,6 @@ object TextRendering {
   //   "'", "\"", ".", ",", "!", "?", ";", ":"
   // )
 
-  val space = " "
-
   def normalizeToken(token: String) = token match {
     case "``" => "\""
     case "''" => "\""
@@ -38,17 +36,32 @@ object TextRendering {
     case w => w.replaceAll("\\/", "/")
   }
 
-  /** Returns a best-effort string representation of a sequence of PTB-style tokens. */
-  def renderSentence(sentence: Seq[String]): String = {
-    val sentenceBits = sentence.foldLeft((List.empty[String], true)) {
-      case ((strings, skipSpace), word) =>
-        val skipNextSpace = noSpaceAfter.contains(word)
-        if(skipSpace || noSpaceBefore.contains(word)) {
-          (normalizeToken(word) :: strings, skipNextSpace)
+  // TODO restrict to just monoid imports
+  import scalaz._
+  import Scalaz._
+
+  /**
+    * Returns a best-effort properly spaced representation of a sequence of tokens. (Bear in mind you need to normalize PTB tokens.)
+    * Allows you to specify how to render spaces and words so you can use this to create interactive DOM elements in JS.
+    */
+  def renderSentence[Word, M](
+    words: Seq[Word],
+    getToken: Word => String,
+    space: M,
+    renderWord: Word => M)(
+    implicit M: Monoid[M]): M = {
+    words.foldLeft((M.zero, true)) {
+      case ((acc, skipSpace), word) =>
+        val skipNextSpace = noSpaceAfter.contains(normalizeToken(getToken(word)))
+        if(skipSpace || noSpaceBefore.contains(normalizeToken(getToken(word)))) {
+          (acc |+| renderWord(word), skipNextSpace)
         } else {
-          (normalizeToken(word) :: space :: strings, skipNextSpace)
+          (acc |+| space |+| renderWord(word), skipNextSpace)
         }
-    }._1.reverse
-    sentenceBits.mkString("")
+    }._1
   }
+
+  /** Convenience method for rendering a sequence of PTB tokens directly to a string. */
+  def renderSentence(words: Seq[String]): String =
+    renderSentence[String, String](words, identity, " ", normalizeToken)
 }

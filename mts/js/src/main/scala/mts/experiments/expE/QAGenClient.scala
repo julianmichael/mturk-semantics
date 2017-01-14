@@ -40,15 +40,18 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     sentence: CoNLLSentence,
     qaPairs: List[(String, Set[Int])],
     currentFocus: Int,
-    currentSpan: Set[Int],
     highlightingState: HighlightingState
-  ) extends State
+  ) extends State {
+    def questionWord = sentence.words(prompt.wordIndex)
+  }
   object State {
     def loading[A]: Prism[State, Loading] = GenPrism[State, Loading]
     def loaded[A]: Prism[State, Loaded] = GenPrism[State, Loaded]
   }
 
-  val qaPairLens = State.loaded composeLens Loaded.qaPairs
+  val currentFocusLens = State.loaded composeLens Loaded.currentFocus
+  val qaPairsLens = State.loaded composeLens Loaded.qaPairs
+  val highlightingStateLens = State.loaded composeLens Loaded.highlightingState
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
     def load: Callback = scope.state map {
@@ -67,7 +70,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
           val response = read[ApiResponse](event.data.toString)
           response match {
             case SentenceResponse(path, sentence) =>
-              scope.setState(Loaded(sentence, Nil, 0, Set.empty[Int], DoingNothing)).runNow
+              scope.setState(Loaded(sentence, Nil, 0, DoingNothing)).runNow
           }
         }
         socket.onclose = { (event: Event) =>
@@ -75,26 +78,114 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
           System.err.println(msg)
           // TODO maybe retry or something
         }
-      case Loaded(_, _, _, _, _) =>
+      case Loaded(_, _, _, _) =>
         System.err.println("Data already loaded.")
     }
 
     def updateResponse: Callback = scope.state.map {
-      st => qaPairLens.getOption(st).map(QAGenResponse.apply).foreach(setResponse)
+      st => qaPairsLens.getOption(st).map(QAGenResponse.apply).foreach(setResponse)
+    }
+
+    def qaField(loadedState: Loaded, index: Int) = loadedState match {
+      case ls @ Loaded(sentence, qaPairs, currentFocus, _) =>
+        <.p(^.margin := 0, ^.padding := 0)(
+          <.input(
+            ^.`type` := "text",
+            ^.required := index == 0,
+            ^.placeholder := s"""Use "${ls.questionWord}" in a short question""",
+            ^.margin := 1,
+            ^.padding := 1,
+            ^.width := 240,
+            ^.value := qaPairs(index)._1,
+            ^.onChange ==> ((e: ReactEventI) =>
+              scope.modState(
+                qaPairsLens.modify(
+                  qaPairs => {
+                    val currentQA = qaPairs(index)
+                    val newQA = currentQA.copy(_1 = e.target.value)
+                    qaPairs.updated(index, newQA)
+                  }))),
+            ^.onFocus --> scope.modState(currentFocusLens.set(index))
+          ),
+          <.span(
+            ^.id := s"answer-$index",
+            ^.margin := 1,
+            ^.padding := 1,
+            TextRendering.renderSentence(sentence.words.filter(w => qaPairs(index)._2.contains(w.index)).map(_.token))
+          )
+        )
     }
 
     def render(s: State) = {
+
       <.div(
+        ^.onMouseUp --> scope.modState(highlightingStateLens.set(DoingNothing)),
+        ^.onMouseDown --> scope.modState(highlightingStateLens.set(Highlighting)),
         Styles.mainContent,
         instructions,
         s match {
           case Loading(msg) =>
             <.p(s"Loading sentence ($msg)...")
-          case Loaded(sentence, qaPairs, currentFocus, currentSpan, highlightingState) =>
+          case ls @ Loaded(sentence, qaPairs, currentFocus, highlightingState) =>
+            val answerSpans = qaPairs.map(_._2)
+            val curAnswer = answerSpans(currentFocus)
+            import scalaz.std.list._
             <.div(
-              <.p(TextRendering.renderSentence(sentence)),
+              <.p(TextRendering.renderSentence(
+                    sentence.words,
+                    (word: CoNLLWord) => word.token,
+                    List(<.span(" ")), // TODO give space highlighting
+                    (word: CoNLLWord) => List(<.span(
+                      ^.backgroundColor := (
+                        if(word.index == prompt.wordIndex) {
+                          "#00FF00"
+                        } else if(curAnswer.contains(word.index)) {
+                          "#FF8800"
+                        } else if(answerSpans.flatten.contains(word.index)) {
+                          "#888888"
+                        } else {
+                          "#00000000"
+                        }
+                      ),
+                      ^.onMouseMove --> (
+                        highlightingState match {
+                          case DoingNothing => Callback.empty
+                          case Highlighting =>
+                            if(!curAnswer.contains(word.index) && word.index != prompt.wordIndex) {
+                              scope.modState(
+                                qaPairsLens.modify(
+                                  qaPairs => {
+                                    val currentQA = qaPairs(word.index)
+                                    val newQA = currentQA.copy(_2 = currentQA._2 + word.index)
+                                    qaPairs.updated(word.index, newQA)
+                                  }))
+                            } else Callback.empty
+                          case Erasing =>
+                            if(curAnswer.contains(word.index)) {
+                              scope.modState(
+                                qaPairsLens.modify(
+                                  qaPairs => {
+                                    val currentQA = qaPairs(word.index)
+                                    val newQA = currentQA.copy(_2 = currentQA._2 - word.index)
+                                    qaPairs.updated(word.index, newQA)
+                                  }))
+                            } else Callback.empty
+                        }),
+                      ^.onMouseDown ==> (
+                        (e: ReactEventI) => if(curAnswer.contains(word.index)) {
+                          e.stopPropagation
+                          scope.modState(highlightingStateLens.set(Erasing))
+                        } else {
+                          scope.modState(highlightingStateLens.set(Highlighting))
+                        }
+                      ),
+                      TextRendering.normalizeToken(word.token)
+                    ))
+                  )),
               <.ul(
-                <.li("To do: Question fields and highlighting")
+                (0 to 2).map(i =>
+                  <.li(qaField(ls, i))
+                )
               )
             )
         }
@@ -105,7 +196,10 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
   val FullUI = ReactComponentB[Unit]("Full UI")
     .initialState(Loading("Connecting to server"): State)
     .renderBackend[FullUIBackend]
-    .componentDidMount(context => context.backend.load)
+    .componentDidMount(
+    context => {
+      context.backend.load
+    })
     .componentDidUpdate(context => context.$.backend.updateResponse)
     .build
 
@@ -114,39 +208,8 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
   }
 
-  // QA specification methods
-
   private[this] val instructions = <.div(
     <.h2("""Task Summary"""),
     <.p("""Instructions go here.
            """))
-
-  // private[this] final def makeQAElement = {
-  //   <.p(
-  //     ^.margin := 0,
-  //     ^.padding := 0
-  //   )(
-  //     <.input(
-  //       ^.`type` := "text",
-  //       ^.required,
-  //       ^.name := s"question-$questionNum",
-  //       ^.placeholder := "Question",
-  //       ^.margin := 1,
-  //       ^.padding := 1,
-  //       ^.width := 240,
-  //       ^.font := pageFont
-  //     ),
-  //     <.input(
-  //       ^.`type` := "text",
-  //       ^.required,
-  //       ^.name := s"answer-$questionNum",
-  //       ^.placeholder := "Answer",
-  //       ^.`class` := "answerField",
-  //       ^.margin := 1,
-  //       ^.padding := 1,
-  //       ^.width := 240,
-  //       ^.font := pageFont
-  //     )
-  //   )
-  // }
 }

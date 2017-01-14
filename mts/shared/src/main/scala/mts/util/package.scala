@@ -95,5 +95,4 @@ package object util extends PackagePlatformExtensions {
   implicit class RichMutableQueue[A](val q: mutable.Queue[A]) extends AnyVal {
     def dequeueOption: Option[A] = if(!q.isEmpty) Some(q.dequeue) else None
   }
-
 }
