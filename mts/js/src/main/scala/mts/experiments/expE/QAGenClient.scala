@@ -93,8 +93,8 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
             ^.`type` := "text",
             ^.required := index == 0,
             ^.placeholder := s"""Use "${ls.questionWord.token}" in a short question""",
-            ^.margin := 1,
-            ^.padding := 1,
+            ^.margin := "1 px",
+            ^.padding := "1 px",
             ^.width := 240,
             ^.value := qaPairs(index)._1,
             ^.onChange ==> (
@@ -112,8 +112,8 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
           ),
           <.span(
             ^.id := s"answer-$index",
-            ^.margin := 1,
-            ^.padding := 1,
+            ^.margin := "1 px",
+            ^.padding := "1 px",
             TextRendering.renderSentence(sentence.words.filter(w => qaPairs(index)._2.contains(w.index)).map(_.token))
           )
         )
@@ -143,14 +143,14 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                     <.span(
                       ^.backgroundColor := (
                         if(curAnswer.contains(nextWord.index) && curAnswer.contains(nextWord.index - 1)) {
-                          "#00FF00"
+                          "#FFFF00"
                         } else if(!curAnswer.contains(nextWord.index) &&
                                     !curAnswer.contains(nextWord.index - 1) &&
                                     answerSpans.flatten.contains(nextWord.index) &&
                                     answerSpans.flatten.contains(nextWord.index - 1)) {
                           "#888888"
                         } else {
-                          "#00000000"
+                          "transparent"
                         }),
                       " ")),
                   (word: CoNLLWord) => List(
@@ -163,7 +163,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                         } else if(answerSpans.flatten.contains(word.index)) {
                           "#888888"
                         } else {
-                          "#00000000"
+                          "transparent"
                         }
                       ),
                       ^.onMouseMove --> (
