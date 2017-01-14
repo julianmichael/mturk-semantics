@@ -160,7 +160,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                                   qaPairs => {
                                     val currentQA = qaPairs(currentFocus)
                                     val newQA = currentQA.copy(_2 = currentQA._2 + word.index)
-                                    qaPairs.updated(word.index, newQA)
+                                    qaPairs.updated(currentFocus, newQA)
                                   }))
                             } else Callback.empty
                           case Erasing =>
