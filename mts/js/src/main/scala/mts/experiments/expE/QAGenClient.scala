@@ -88,23 +88,26 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
 
     def qaField(loadedState: Loaded, index: Int) = loadedState match {
       case ls @ Loaded(sentence, qaPairs, currentFocus, _) =>
-        <.p(^.margin := 0, ^.padding := 0)(
+        <.p(
           <.input(
             ^.`type` := "text",
             ^.required := index == 0,
-            ^.placeholder := s"""Use "${ls.questionWord}" in a short question""",
+            ^.placeholder := s"""Use "${ls.questionWord.token}" in a short question""",
             ^.margin := 1,
             ^.padding := 1,
             ^.width := 240,
             ^.value := qaPairs(index)._1,
-            ^.onChange ==> ((e: ReactEventI) =>
-              scope.modState(
-                qaPairsLens.modify(
-                  qaPairs => {
-                    val currentQA = qaPairs(index)
-                    val newQA = currentQA.copy(_1 = e.target.value)
-                    qaPairs.updated(index, newQA)
-                  }))),
+            ^.onChange ==> (
+              (e: ReactEventI) => {
+                val newValue = e.target.value
+                scope.modState(
+                  qaPairsLens.modify(
+                    qaPairs => {
+                      val currentQA = qaPairs(index)
+                      val newQA = currentQA.copy(_1 = newValue)
+                      qaPairs.updated(index, newQA)
+                    }))
+              }),
             ^.onFocus --> scope.modState(currentFocusLens.set(index))
           ),
           <.span(
