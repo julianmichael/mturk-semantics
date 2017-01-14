@@ -183,7 +183,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                     ))
                   )),
               <.ul(
-                (0 to 2).map(i =>
+                (0 until qaPairs.size).map(i =>
                   <.li(qaField(ls, i))
                 )
               )
