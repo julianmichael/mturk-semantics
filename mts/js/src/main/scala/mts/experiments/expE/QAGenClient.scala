@@ -53,6 +53,8 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
   val qaPairsLens = State.loaded composeLens Loaded.qaPairs
   val highlightingStateLens = State.loaded composeLens Loaded.highlightingState
 
+  val emptyQA = ("", Set.empty[Int])
+
   class FullUIBackend(scope: BackendScope[Unit, State]) {
     def load: Callback = scope.state map {
       case Loading(_) =>
@@ -70,7 +72,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
           val response = read[ApiResponse](event.data.toString)
           response match {
             case SentenceResponse(path, sentence) =>
-              scope.setState(Loaded(sentence, List(("", Set.empty[Int])), 0, DoingNothing)).runNow
+              scope.setState(Loaded(sentence, List.fill(5)(emptyQA), 0, DoingNothing)).runNow
           }
         }
         socket.onclose = { (event: Event) =>
@@ -86,16 +88,24 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
       st => qaPairsLens.getOption(st).map(QAGenResponse.apply).foreach(setResponse)
     }
 
-    def qaField(loadedState: Loaded, index: Int) = loadedState match {
+    def qaField(loadedState: Loaded, index: Int, bonus: Option[Int]) = loadedState match {
       case ls @ Loaded(sentence, qaPairs, currentFocus, _) =>
         <.p(
+          <.span(
+            ^.width := "100 px",
+            (Some("X").filter(_ => loadedState.currentFocus == index).getOrElse(""): String)
+          ),
+          <.span(
+            ^.width := "100 px",
+            (bonus.map(b => s"+${b}c").getOrElse(""): String)
+          ),
           <.input(
             ^.`type` := "text",
             ^.required := index == 0,
             ^.placeholder := s"""Use "${ls.questionWord.token}" in a short question""",
             ^.margin := "1 px",
             ^.padding := "1 px",
-            ^.width := 240,
+            ^.width := "240 px",
             ^.value := qaPairs(index)._1,
             ^.onChange ==> (
               (e: ReactEventI) => {
@@ -117,6 +127,35 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
             TextRendering.renderSentence(sentence.words.filter(w => qaPairs(index)._2.contains(w.index)).map(_.token))
           )
         )
+    }
+
+    def touchWord(ls: Loaded, index: Int): Callback = ls match {
+      case Loaded(sentence, qaPairs, currentFocus, highlightingState) =>
+        val answerSpans = qaPairs.map(_._2)
+        val curAnswer = answerSpans(currentFocus)
+        highlightingState match {
+          case DoingNothing => Callback.empty
+          case Highlighting =>
+            if(!curAnswer.contains(index) && index != prompt.wordIndex) {
+              scope.modState(
+                qaPairsLens.modify(
+                  qaPairs => {
+                    val currentQA = qaPairs(currentFocus)
+                    val newQA = currentQA.copy(_2 = currentQA._2 + index)
+                    qaPairs.updated(currentFocus, newQA)
+                  }))
+            } else Callback.empty
+          case Erasing =>
+            if(curAnswer.contains(index)) {
+              scope.modState(
+                qaPairsLens.modify(
+                  qaPairs => {
+                    val currentQA = qaPairs(currentFocus)
+                    val newQA = currentQA.copy(_2 = currentQA._2 - index)
+                    qaPairs.updated(currentFocus, newQA)
+                  }))
+            } else Callback.empty
+        }
     }
 
     def render(s: State) = {
@@ -166,45 +205,20 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                           "transparent"
                         }
                       ),
-                      ^.onMouseMove --> (
-                        highlightingState match {
-                          case DoingNothing => Callback.empty
-                          case Highlighting =>
-                            if(!curAnswer.contains(word.index) && word.index != prompt.wordIndex) {
-                              scope.modState(
-                                qaPairsLens.modify(
-                                  qaPairs => {
-                                    val currentQA = qaPairs(currentFocus)
-                                    val newQA = currentQA.copy(_2 = currentQA._2 + word.index)
-                                    qaPairs.updated(currentFocus, newQA)
-                                  }))
-                            } else Callback.empty
-                          case Erasing =>
-                            if(curAnswer.contains(word.index)) {
-                              scope.modState(
-                                qaPairsLens.modify(
-                                  qaPairs => {
-                                    val currentQA = qaPairs(currentFocus)
-                                    val newQA = currentQA.copy(_2 = currentQA._2 - word.index)
-                                    qaPairs.updated(currentFocus, newQA)
-                                  }))
-                            } else Callback.empty
-                        }),
+                      ^.onMouseMove --> touchWord(ls, word.index),
                       ^.onMouseDown ==> (
                         (e: ReactEventI) => if(curAnswer.contains(word.index)) {
                           e.stopPropagation
                           scope.modState(highlightingStateLens.set(Erasing))
                         } else {
                           scope.modState(highlightingStateLens.set(Highlighting))
-                        }
+                        } >> touchWord(ls, word.index)
                       ),
                       TextRendering.normalizeToken(word.token)
                     ))
                 )),
-              <.ul(
-                (0 until qaPairs.size).map(i =>
-                  <.li(qaField(ls, i))
-                )
+              (0 until qaPairs.size).map(i =>
+                <.p(qaField(ls, i, Some(i * i).filter(_ != 0)))
               )
             )
         }
