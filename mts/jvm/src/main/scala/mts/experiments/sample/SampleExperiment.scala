@@ -31,7 +31,7 @@ class SampleExperiment(implicit config: TaskConfig) {
   }
 
   lazy val taskSpec = TaskSpecification[SamplePrompt, SampleResponse, ApiRequest, ApiResponse](
-    TaskIndex.sampleTaskKey, sampleHITType, sampleApiFlow)
+    TaskIndex.sampleTaskKey, sampleHITType, sampleApiFlow, SamplePrompt(sentences.head._1))
   lazy val hitManager = new SampleHITManager[SamplePrompt, SampleResponse](taskSpec)
 
   import config.actorSystem

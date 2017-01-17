@@ -28,17 +28,30 @@ class Webservice(
   implicit fm: Materializer,
   config: TaskConfig) extends Directives {
   // TODO verify that we're getting a JS file. don't just serve anything they ask for
-  def route = getFromResourceDirectory("") ~
-    get {
-      path("websocket") {
-        parameter('taskKey) { taskKey =>
-          handleWebSocketMessages(websocketFlow(taskKey))
-        }
-      }
-    }
 
   // assume keys are unique
   val taskIndex = tasks.map(t => (t.taskKey -> t)).toMap
+
+  def route = get {
+    pathSingleSlash {
+      parameter('taskKey) { taskKey =>
+        rejectEmptyResponse {
+          complete {
+            taskIndex.get(taskKey) map { taskSpec =>
+              HttpEntity(
+                ContentTypes.`text/html(UTF-8)`,
+                TaskPage.htmlPage(taskSpec.samplePrompt, taskSpec, useHttps = false)(taskSpec.promptWriter, config).render
+              )
+            }
+          }
+        }
+      }
+    } ~ path("websocket") {
+      parameter('taskKey) { taskKey =>
+        handleWebSocketMessages(websocketFlow(taskKey))
+      }
+    }
+  } ~ getFromResourceDirectory("")
 
   def websocketFlow(taskKey: String): Flow[Message, Message, Any] = {
     val taskOpt = taskIndex.get(taskKey)

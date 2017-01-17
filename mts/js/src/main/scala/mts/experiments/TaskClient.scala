@@ -5,6 +5,7 @@ import mts.tasks._
 import scalajs.js
 import scalajs.js.JSApp
 import org.scalajs.jquery.jQuery
+import org.scalajs.dom
 
 import upickle.default._
 
@@ -24,12 +25,24 @@ abstract class TaskClient[Prompt : Reader, Response : Writer] {
     read[String](jQuery(s"#$serverDomainLabel").attr("value").get)
   }
 
+  lazy val httpPort: Int = {
+    read[Int](jQuery(s"#$httpPortLabel").attr("value").get)
+  }
+
   lazy val httpsPort: Int = {
     read[Int](jQuery(s"#$httpsPortLabel").attr("value").get)
   }
 
+  def getWebsocketUri(document: dom.Document, nameOfChatParticipant: String): String = {
+    val wsProtocol = if (dom.document.location.protocol == "https:") "wss" else "ws"
+    s"$wsProtocol://${dom.document.location.host}/chat?name=$nameOfChatParticipant"
+  }
+
   lazy val websocketUri: String = {
-    s"wss://$serverDomain:$httpsPort/websocket?taskKey=$taskKey"
+    val isHttps = dom.document.location.protocol == "https:"
+    val wsProtocol = if (isHttps) "wss" else "ws"
+    val serverPort = if(isHttps) httpsPort else httpPort
+    s"$wsProtocol://$serverDomain:$serverPort/websocket?taskKey=$taskKey"
   }
 
   lazy val prompt: Prompt = {

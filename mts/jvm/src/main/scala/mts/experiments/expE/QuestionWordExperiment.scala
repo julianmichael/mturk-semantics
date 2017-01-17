@@ -32,8 +32,10 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
     case SentenceRequest(path) => SentenceResponse(path, FileManager.getCoNLLSentence(path).get)
   }
 
+  val sampleQAGenPrompt = QAGenPrompt(sentences.head._1, 0)
+
   lazy val qaGenTaskSpec = TaskSpecification[QAGenPrompt, QAGenResponse, ApiRequest, ApiResponse](
-    TaskIndex.expEQAGenTaskKey, qaGenHITType, qaGenApiFlow)
+    TaskIndex.expEQAGenTaskKey, qaGenHITType, qaGenApiFlow, sampleQAGenPrompt)
 
   // TODO reorder so it doesn't stick to same sentences
   lazy val sourceSentences = mts.experiments.sentences.iterator.flatMap(pair =>

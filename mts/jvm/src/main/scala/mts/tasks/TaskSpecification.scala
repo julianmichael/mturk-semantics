@@ -54,6 +54,7 @@ sealed trait TaskSpecification {
   val taskKey: String
   val hitType: HITType
   val apiFlow: Flow[ApiRequest, ApiResponse, Any]
+  val samplePrompt: Prompt
 
   import hitType._
   import config._
@@ -158,8 +159,6 @@ sealed trait TaskSpecification {
       .toMap
   }
 
-  private[this] val feedbackLabel = "feedback"
-
   /** Creates the "question" XML object to send to the MTurk API when creating a HIT.
     *
     * See http://docs.aws.amazon.com/AWSMechTurk/latest/AWSMturkAPI/ApiReference_QuestionAnswerDataArticle.html
@@ -171,87 +170,11 @@ sealed trait TaskSpecification {
     * @return the MTurk-ready XML representation of a question
     */
   private[this] final def createQuestionXML(prompt: Prompt): String = {
-    import scalatags.Text.all._
-    val page = html(
-      head(
-        script(
-          `type` := "text/javascript",
-          src := "https://s3.amazonaws.com/mturk-public/externalHIT_v1.js"
-        ),
-        script(
-          `type` := "text/javascript",
-          src := s"https://$serverDomain:$httpsPort/mts-jsdeps.js"),
-        script(
-          `type` := "text/javascript",
-          src := s"https://$serverDomain:$httpsPort/mts-fastopt.js"),
-        script(
-          `type` := "text/javascript",
-          src := s"https://$serverDomain:$httpsPort/mts-launcher.js")
-      ),
-      body()(
-        input(
-          `type` := "hidden",
-          value := write(prompt),
-          name := promptLabel,
-          id := promptLabel),
-        input(
-          `type` := "hidden",
-          value := write(config.serverDomain),
-          name := serverDomainLabel,
-          id := serverDomainLabel),
-        input(
-          `type` := "hidden",
-          value := write(config.httpsPort),
-          name := httpsPortLabel,
-          id := httpsPortLabel),
-        input(
-          `type` := "hidden",
-          value := write(taskKey),
-          name := taskKeyLabel,
-          id := taskKeyLabel),
-        form(
-          name := mturkFormLabel,
-          method := "post",
-          id := mturkFormLabel,
-          action := config.externalSubmitURL)(
-          // where turk puts the assignment ID
-          input(
-            `type` := "hidden",
-            value := "",
-            name := "assignmentId",
-            id := "assignmentId"),
-          // where our client code should put the response
-          input(
-            `type` := "hidden",
-            value := "",
-            name := responseLabel,
-            id := responseLabel),
-          // and here I'll let the client code do its magic
-          div(
-            id := rootClientDivLabel
-          ),
-          p(
-            input(
-              `type` := "text",
-              name := feedbackLabel,
-              placeholder := "Feedback? (Optional)",
-              margin := 1,
-              padding := 1,
-              width := 484
-            )
-          ),
-          input(
-            `type` := "submit",
-            id := "submitButton",
-            value := "submit")
-        )
-      )
-    )
     s"""
       <?xml version="1.0" encoding="UTF-8"?>
       <HTMLQuestion xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2011-11-11/HTMLQuestion.xsd">
         <HTMLContent><![CDATA[
-          <!DOCTYPE html>${page.render}
+          <!DOCTYPE html>${TaskPage.htmlPage(prompt, this).render}
         ]]></HTMLContent>
         <FrameHeight>600</FrameHeight>
       </HTMLQuestion>
@@ -262,7 +185,8 @@ object TaskSpecification {
   private[this] case class TaskSpecificationImpl[P, R, ApiReq, ApiResp](
     override val taskKey: String,
     override val hitType: HITType,
-    override val apiFlow: Flow[ApiReq, ApiResp, Any])(
+    override val apiFlow: Flow[ApiReq, ApiResp, Any],
+    override val samplePrompt: P)(
     implicit override val promptWriter: Writer[P],
     val responseReader: Reader[R],
     val apiRequestReader: Reader[ApiReq],
@@ -278,11 +202,12 @@ object TaskSpecification {
   def apply[P, R, ApiReq, ApiResp](
     taskKey: String,
     hitType: HITType,
-    apiFlow: Flow[ApiReq, ApiResp, Any])(
+    apiFlow: Flow[ApiReq, ApiResp, Any],
+    samplePrompt: P)(
     implicit promptWriter: Writer[P],
     responseReader: Reader[R],
     apiRequestReader: Reader[ApiReq],
     apiResponseWriter: Writer[ApiResp],
     config: TaskConfig): TaskSpecification { type Prompt = P; type Response = R; type ApiRequest = ApiReq; type ApiResponse = ApiResp } =
-    TaskSpecificationImpl[P, R, ApiReq, ApiResp](taskKey, hitType, apiFlow)
+    TaskSpecificationImpl[P, R, ApiReq, ApiResp](taskKey, hitType, apiFlow, samplePrompt)
 }

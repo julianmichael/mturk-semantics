@@ -17,4 +17,15 @@ object Styles extends StyleSheet.Inline {
   val answerIndicator = style(
     color(c"rgb(20, 180, 20)")
   )
+
+  val listlessList = style(
+    margin(0 px),
+    padding(0 px),
+    listStyleType := "none"
+  )
+
+  val questionWord = style(
+    fontWeight.bold,
+    textDecoration := "underline"
+  )
 }
