@@ -92,10 +92,14 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
       case ls @ Loaded(sentence, qaPairs, currentFocus, _) =>
         <.p(
           <.div(
+            ^.float := "left",
             ^.width := "25 px",
+            ^.margin := "1 px",
+            ^.padding := "1 px",
             (bonus.map(b => s"+${b}c").getOrElse(""): String)
           ),
           <.input(
+            ^.float := "left",
             ^.`type` := "text",
             ^.required := index == 0,
             ^.placeholder := s"""Use "${ls.questionWord.token}" in a short question""",
@@ -118,11 +122,13 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
           ),
           <.div(
             Styles.answerIndicator,
+            ^.float := "left",
             ^.width := "25 px",
             (Some("->").filter(_ => loadedState.currentFocus == index).getOrElse(""): String)
           ),
-          <.span(
+          <.div(
             ^.id := s"answer-$index",
+            ^.float := "left",
             ^.margin := "1 px",
             ^.padding := "1 px",
             TextRendering.renderSentence(sentence.words.filter(w => qaPairs(index)._2.contains(w.index)).map(_.token))
