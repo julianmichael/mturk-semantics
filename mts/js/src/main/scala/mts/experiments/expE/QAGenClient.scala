@@ -91,12 +91,8 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     def qaField(loadedState: Loaded, index: Int, bonus: Option[Int]) = loadedState match {
       case ls @ Loaded(sentence, qaPairs, currentFocus, _) =>
         <.p(
-          <.span(
-            ^.width := "100 px",
-            (Some("X").filter(_ => loadedState.currentFocus == index).getOrElse(""): String)
-          ),
-          <.span(
-            ^.width := "100 px",
+          <.div(
+            ^.width := "25 px",
             (bonus.map(b => s"+${b}c").getOrElse(""): String)
           ),
           <.input(
@@ -120,6 +116,11 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
               }),
             ^.onFocus --> scope.modState(currentFocusLens.set(index))
           ),
+          <.div(
+            Styles.answerIndicator,
+            ^.width := "25 px",
+            (Some("->").filter(_ => loadedState.currentFocus == index).getOrElse(""): String)
+          ),
           <.span(
             ^.id := s"answer-$index",
             ^.margin := "1 px",
@@ -136,7 +137,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
         highlightingState match {
           case DoingNothing => Callback.empty
           case Highlighting =>
-            if(!curAnswer.contains(index) && index != prompt.wordIndex) {
+            if(!curAnswer.contains(index) && index != prompt.wordIndex && !answerSpans.flatten.contains(index)) {
               scope.modState(
                 qaPairsLens.modify(
                   qaPairs => {
@@ -200,11 +201,12 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                         } else if(curAnswer.contains(word.index)) {
                           "#FFFF00"
                         } else if(answerSpans.flatten.contains(word.index)) {
-                          "#888888"
+                          "#444444"
                         } else {
                           "transparent"
                         }
                       ),
+                      ^.onClick --> touchWord(ls, word.index),
                       ^.onMouseMove --> touchWord(ls, word.index),
                       ^.onMouseDown ==> (
                         (e: ReactEventI) => if(curAnswer.contains(word.index)) {

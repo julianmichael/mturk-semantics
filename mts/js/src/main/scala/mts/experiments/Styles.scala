@@ -13,4 +13,8 @@ object Styles extends StyleSheet.Inline {
   val unselectable = style(
     userSelect := "none"
   )
+
+  val answerIndicator = style(
+    color(c"rgb(20, 180, 20)")
+  )
 }
