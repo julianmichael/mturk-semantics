@@ -55,7 +55,7 @@ object TaskPage {
           name := mturkFormLabel,
           method := "post",
           id := mturkFormLabel,
-          action := config.externalSubmitURL)(
+          action := externalSubmitURL)(
           // where turk puts the assignment ID
           input(
             `type` := "hidden",

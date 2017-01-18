@@ -16,6 +16,8 @@ object TaskDispatcher extends JSApp {
   }
 
   final def main(): Unit = jQuery { () =>
+    // this needs to be done in order for the form submit to work
+    global.turkSetAssignmentID()
     // dispatch to specific task
     taskKey match {
       case TaskIndex.`sampleTaskKey` => sample.Client.main()
