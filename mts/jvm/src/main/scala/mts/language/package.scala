@@ -32,6 +32,21 @@ package object language {
     setResource.tried.get
   }
 
+  /** (non-normalized as well as normalized PTB tokens.) */
+  val punctuation = Set[String](
+    ".", ",", "!", "?", ";", ":", "''", "\"", "'",
+    "``", "$", "#", "-",
+    "%", "-", "+",
+    ")", "]", "}",
+    "(", "[", "{",
+    "/.", "/?",
+    "-RRB-", "-RCB-", "-RSB-",
+    "-LRB-", "-LCB-", "-LSB-")
+
+  val contractions = Set("n't", "'s", "'re", "'ve", "'ll", "na", "'m", "'d")
+
+  lazy val uninterestingTokens = stopwords ++ punctuation ++ contractions
+
   /** Constructs an Inflections object containing all known inflections
     * for a given set of words.
     *

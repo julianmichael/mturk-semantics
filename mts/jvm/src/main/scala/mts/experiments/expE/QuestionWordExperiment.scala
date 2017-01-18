@@ -6,7 +6,7 @@ import mts.util._
 import mts.tasks._
 import mts.tasks._
 import mts.conll._
-import mts.language.tokenize
+import mts.language._
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
@@ -37,9 +37,18 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   lazy val qaGenTaskSpec = TaskSpecification[QAGenPrompt, QAGenResponse, ApiRequest, ApiResponse](
     TaskIndex.expEQAGenTaskKey, qaGenHITType, qaGenApiFlow, sampleQAGenPrompt)
 
-  // TODO reorder so it doesn't stick to same sentences
-  lazy val sourceSentences = mts.experiments.sentences.iterator.flatMap(pair =>
-    (0 until pair._2.words.size).map(QAGenPrompt(pair._1, _)))
+  lazy val sourceSentences = {
+    val inOrder = for {
+      (path, sentence) <- sentences.iterator
+      i <- (0 until sentence.words.size)
+      if !uninterestingTokens.contains(sentence.words(i).token)
+    } yield QAGenPrompt(path, i)
+
+    val shuffleRand = new util.Random(987654321L)
+
+    shuffleRand.shuffle(inOrder.toVector).iterator
+  }
+
 
   lazy val finishedOrActivePrompts = FileManager.loadAllData[QAGenPrompt, QAGenResponse](qaGenTaskSpec.hitTypeId)
     .map(_._1.prompt).iterator
