@@ -271,76 +271,79 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
         For each HIT, you will be presented with a selection of English text,
         and a specific (bolded and underlined) content word from that selection, called the """), <.b("question word.")),
-    <.p("""Briefly, your task is to write at least one question containing the question word whose answer is a phrase in the sentence.
-        You may earn extra by writing more questions and answers. For each HIT,
-        you will be rewarded bonuses based on how many of your question-answer pairs are valid.
-        Please read all of the instructions below for details on what constitutes a valid response."""),
+    <.p("""You will write questions containing the question word whose answers appear in the selection.
+        You may earn bonuses by writing more questions and answers.
+        For example, consider the sentence:"""),
+    <.blockquote(<.i("It ", <.span(Styles.questionWord, "reevaluated"),
+                     " the project after a period of public consultation and open debate.")),
+    <.p("""Valid question-answer pairs include:"""),
+    <.ul(
+      <.li("Who reevaluated something? --> It"),
+      <.li("What did someone reevaluate? --> the project"),
+      <.li("When did someone reevaluate something? --> after a period of public consultation and open debate")),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         Your response must satisfy the following criteria:"""),
     <.ol(
-      <.li("""The question contains the question word, and as few other words from the sentence as possible."""),
+      <.li("""The question contains the question word, and as few other words from the sentence as possible.
+           It must be obvious from your question alone which word was the question word."""),
       <.li("""The answer is the longest phrase from the sentence that answers the question without extra unnecessary information."""),
       <.li("""The answers to your questions may not overlap in the sentence.""")
     ),
-    <.p("""Answers don't have to be contiguous phrases; you can skip a word or two if it provides a more natural answer,
-        though this usually will not be the case. See the examples below for details."""),
     <.h2("""Examples"""),
     <.p("""Consider the following sentence:"""),
     <.blockquote(<.i("""I take full and complete responsibility for my decision to disclose these materials to the public. """)),
-    <.p("""Depending on the question word you receive, acceptable questions and answers include (but are not limited to):"""),
+    <.p("""Depending on the question word you receive, acceptable questions and answers include, but are not limited to, the following.
+        Mouse over each example to see an explanation."""),
     <.ul(
-      <.li(<.span("Who "), <.b("takes "), <.span("something? --> I")),
-      <.li(<.span("What does someone "), <.b("take"), <.span("? --> full and complete responsibility for my decision to disclose these materials to the public")),
-      <.li(<.span("What is "), <.b("full"), <.span("? --> responsibility")),
-      <.li(<.span("What level of "), <.b("responsibility"), <.span("? --> full and complete")),
-      <.li(<.span("Who is "), <.b("responsible "), <.span("for something? --> I")),
-      <.li(<.span("Whose "), <.b("decision "), <.span("was it? --> my decision")),
-      <.li(<.span("Who "), <.b("decided "), <.span("to do something? --> I")),
-      <.li(<.span("What did someone "), <.b("decide "), <.span("to do? --> disclose these materials to the public")),
-      <.li(<.span("Which "), <.b("materials"), <.span("? --> these materials"))
+      <.li(<.div(^.className := "tooltip",
+           <.span("Who "), <.b("takes "), <.span("something? --> I"),
+           <.span(^.className := "tooltiptext",
+                  """Write your questions from the point of view of the speaker so you can use the sentence's pronouns like "I"."""))),
+      <.li(<.div(^.className := "tooltip",
+           <.span("What does someone "), <.b("take"), <.span("? --> full and complete responsibility for my decision to disclose these materials to the public"),
+           <.span(^.className := "tooltiptext", "Choose the longest answer that correctly and naturally answers the question."))),
+      <.li(<.div(^.className := "tooltip",
+           <.span("What level of "), <.b("responsibility"), <.span("? --> full and complete"),
+           <.span(^.className := "tooltiptext",
+                  """To get descriptive words as answers, you may need to ask questions like this, or "What kind" questions."""))),
+      <.li(<.div(^.className := "tooltip",
+           <.span("Who is "), <.b("responsible "), <.span("for something? --> I"),
+           <.span(^.className := "tooltiptext",
+                  """Please use words like "someone" and "something" to avoid using words from the sentence other than question word."""))),
+      <.li(<.div(^.className := "tooltip",
+           <.span("Whose "), <.b("decision "), <.span("was it? --> my decision"),
+           <.span(^.className := "tooltiptext",
+                  """If it's necessary for the most natural answer, feel free to use the question word in the answer as well."""))),
+      <.li(<.div(^.className := "tooltip",
+           <.span("What did someone "), <.b("decide "), <.span("to do? --> disclose these materials to the public"),
+           <.span(^.className := "tooltiptext",
+                  """It is often useful to change nouns like "decision" to verbs in order to ask short questions about them.""")))
     ),
-    <.p("""Note because of pronouns like "I" and "you", you have to write your questions and answers
-        from the perspective of the speaker of the sentence.
-        You may also change the form of the word you're using in the question,
-        and sometimes (though usually not) the answer will contain the question word as well.
-        It is often useful to change nouns to verbs, as with the word "decision" where you may ask who "decided" something
-        and what they "decided" to do."""),
-    <.p("""However, it must be obvious from your question which word is the question word.
-        If you abuse this and write long questions, questions that use many words from the sentence,
-        or questions that ignore the question word entirely, you will be banned.
-        It is useful to use "someone" and "something," as well as phrases like "do something,"  wherever possible
-        to avoid confusion over the question word."""),
     <.p("""Now consider the following sentence:"""),
     <.blockquote(<.i("""Book and movie pirates who have downloaded 100 files or less tend not to consider themselves criminals.""")),
     <.p("""Acceptable questions and answers include:"""),
     <.ul(
-      <.li(<.span("What kind of "), <.b("pirates"), <.span("? --> Book and movie pirates")),
-      <.li(<.span("What does someone "), <.b("pirate"), <.span("? --> Book and movie")),
-      <.li(<.span("How many "), <.b("files"), <.span("? --> 100 or less"))
+      <.li(<.div(^.className := "tooltip",
+                 <.span("What does someone "), <.b("pirate"), <.span("? --> Book and movie"),
+                 <.span(^.className := "tooltiptext",
+                        """It is okay if the answer is not completely grammatically correct as long as it is the obvious correct choice."""))),
+      <.li(<.div(^.className := "tooltip",
+                 <.span("How many "), <.b("files"), <.span("? --> 100 or less"),
+                 <.span(^.className := "tooltiptext",
+                        """You may skip words within the answer if it is required in order to naturally answer the question.""")))
     ),
-    <.p("""Questions beginning with "What kind" tend to be useful for adjectives and other descriptors.
-        In some cases, the words from the sentence may not quite be grammatical: for example, "books and movies"
-        would be a better answer to the second question above, but since we restrict answers to be direct words from the sentence,
-        we tolerate these slightly-off answers as long as they are the best available and the meaning is obvious.
-        You may also notice in the last answer above that the word "files" is skipped to provide for a more natural answer
-        that only expresses the number."""),
-    <.h2("""Conditions"""),
-    <.p("""If your work satisfies the above criteria, it will be approved in at most one hour.
-          If your responses repeatedly fail to meet the above criteria, you will be blocked from this task and future tasks.
+    <.h2("""Conditions & Bonuses"""),
+    <.p("""If your work satisfies the criteria outlined here, it will be approved in at most one hour.
+          If your it repeatedly fails to meet requirements, you will be blocked from this task and future tasks.
           Each HIT should take less than one minute to complete, depending on how many questions and answers you choose to write."""),
-    <.h2("""Bonuses"""),
-    <.p("""Depending on how many of your question-answer pairs are accepted as valid, you will receive a bonus.
-        The first question-answer pair is required, for which you will receive the flat payment for the HIT.
-        For each additional valid question-answer pair, you will receive a progressively increasing bonus,
-        listed next to each question field below.
-        For example, since the second one gives a bonus of 3c and the third gives a bonus of 6c,
-        if you submit 3 valid question-answer pairs you will get a bonus of 9c.
-        To get the most out of this task, try to find a good time balance between reading new sentences
-        and spending time thinking of more specific questions that won't be rejected.
-        In many cases there will be only one reasonable question, and this is fine:
-        you will be better off submitting it for the 5c reward and moving on to the next HIT.
-        But in other cases, it could be worth your while to try to cover as much of the sentence as possible with your answers."""),
+    <.p("""For each HIT, the first question-answer pair is required.
+        For additional question-answer pairs, you will receive progressively increasing bonuses:
+        for example, if the bonus for the second question-answer pair is 3c, and the bonus for the third is 6c,
+        then for submitting 3 valid question-answer pairs, you will receive a bonus of 9c.
+        you will be rewarded based on the number of valid question-answer pairs you submit,
+        but bonus indicators are placed next to each response field in order to help you keep track.
+      """),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field so we may improve the task.""")
     )

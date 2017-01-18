@@ -23,7 +23,11 @@ object TaskPage {
           src := s"$protocol//$serverDomain:$port/mts-fastopt.js"),
         script(
           `type` := "text/javascript",
-          src := s"$protocol//$serverDomain:$port/mts-launcher.js")
+          src := s"$protocol//$serverDomain:$port/mts-launcher.js"),
+        link(
+          rel := "stylesheet",
+          `type` := "text/css",
+          href := s"$protocol//$serverDomain:$port/styles.css")
       ),
       body()(
         input(
