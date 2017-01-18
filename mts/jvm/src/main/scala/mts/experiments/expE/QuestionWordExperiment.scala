@@ -54,7 +54,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
     .map(_._1.prompt).iterator
 
   lazy val qaGenHITManager = new PromptOnceHITManager[QAGenPrompt, QAGenResponse](
-    qaGenTaskSpec, 1, 3, sourceSentences, finishedOrActivePrompts)
+    qaGenTaskSpec, 1, 10, sourceSentences, finishedOrActivePrompts)
 
   import config.actorSystem
   lazy val server = new Server(List(qaGenTaskSpec))

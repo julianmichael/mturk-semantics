@@ -94,9 +94,10 @@ class PromptOnceHITManager[P, R](
       numActiveHITs.decrementAndGet()
       refreshHITs
     } else {
-      // so I don't repeatedly review in case reviewing takes a while (good practice I guess
-      // since that shouldn't actually happen in this class)
-      service.setHITAsReviewing(hit.hitId)
+      // when reviewing isn't so instant in the future,
+      // we'll have to set HITs as reviewing, keep track of which assignments we need reviewed,
+      // and then dispose the HIT once we have all of them reviewed.
+      // service.setHITAsReviewing(hit.hitId)
 
       for(mTurkAssignment <- submittedAssignments) {
         val assignment = Assignment(
