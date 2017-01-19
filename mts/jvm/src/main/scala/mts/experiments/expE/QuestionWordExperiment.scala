@@ -46,15 +46,10 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
 
     val shuffleRand = new util.Random(987654321L)
 
-    shuffleRand.shuffle(inOrder.toVector).iterator
+    shuffleRand.shuffle(inOrder.toVector)
   }
 
-
-  lazy val finishedOrActivePrompts = FileManager.loadAllData[QAGenPrompt, QAGenResponse](qaGenTaskSpec.hitTypeId)
-    .map(_._1.prompt).iterator
-
-  lazy val qaGenHITManager = new PromptOnceHITManager[QAGenPrompt, QAGenResponse](
-    qaGenTaskSpec, 1, 10, sourceSentences, finishedOrActivePrompts)
+  lazy val qaGenHITManager = new QAGenHITManager(qaGenTaskSpec, 1, 10, sourceSentences.iterator)
 
   import config.actorSystem
   lazy val server = new Server(List(qaGenTaskSpec))
@@ -72,4 +67,37 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
     server
     qaGenActor ! Update
   }
+
+  def loadQAGenData = FileManager.loadAllData[QAGenPrompt, QAGenResponse](qaGenTaskSpec.hitTypeId)
+
+  def getQAGenPromptInfo(prompt: QAGenPrompt) = {
+    val sentence = FileManager.getCoNLLSentence(prompt.path).get
+    val word = sentence.words(prompt.wordIndex)
+    (sentence, word)
+  }
+
+  def getQAGenAssignmentInfo(sentence: CoNLLSentence, response: QAGenResponse) = {
+    val qaPairs = response.qaPairs.map {
+      case (question, answerIndexSet) =>
+        val answer = {
+          val answerTokens = sentence.words.filter(w => answerIndexSet.contains(w.index)).map(_.token)
+          TextRendering.renderSentence(answerTokens)
+        }
+        (question, answer)
+    }
+    qaPairs
+  }
+
+  def getHITInfo(hitStuff: (HIT[QAGenPrompt], List[Assignment[QAGenResponse]])) = hitStuff match {
+    case (HIT(_, _, prompt, _), assignments) =>
+      val (sentence, word) = getQAGenPromptInfo(prompt)
+      val assignmentInfos = assignments.map {
+        case Assignment(_, _, _, _, _, _, response, feedback) =>
+          val qaPairs = getQAGenAssignmentInfo(sentence, response)
+          (qaPairs, feedback)
+      }
+      (sentence, word, assignmentInfos)
+  }
+
+  def loadAllInfo = loadQAGenData.map(getHITInfo)
 }

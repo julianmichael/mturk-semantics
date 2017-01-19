@@ -72,7 +72,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
           val response = read[ApiResponse](event.data.toString)
           response match {
             case SentenceResponse(path, sentence) =>
-              scope.setState(Loaded(sentence, List.fill(5)(emptyQA), 0, DoingNothing)).runNow
+              scope.setState(Loaded(sentence, List.fill(numQAs)(emptyQA), 0, DoingNothing)).runNow
           }
         }
         socket.onclose = { (event: Event) =>
@@ -88,7 +88,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
       st => qaPairsLens.getOption(st).map(QAGenResponse.apply).foreach(setResponse)
     }
 
-    def qaField(loadedState: Loaded, index: Int, bonus: Option[Int]) = loadedState match {
+    def qaField(loadedState: Loaded, index: Int, bonus: Double) = loadedState match {
       case ls @ Loaded(sentence, qaPairs, currentFocus, _) =>
         val isFocused = loadedState.currentFocus == index
         val isAnswerEmpty = qaPairs(index)._2.isEmpty
@@ -101,7 +101,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
             ^.margin := "1px",
             ^.padding := "1px",
             ^.textAlign := "right",
-            (bonus.map(b => s"+${b}c").getOrElse(""): String)
+            (bonus != 0.0) ?= s"+${math.round(100 * bonus).toInt}c"
           ),
           <.input(
             ^.float := "left",
@@ -155,7 +155,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
         highlightingState match {
           case DoingNothing => s
           case Highlighting =>
-            if(!curAnswer.contains(index) && !answerSpans.flatten.contains(index)) {
+            if(!curAnswer.contains(index)) {
               qaPairsLens.modify(
                 qaPairs => {
                   val currentQA = qaPairs(currentFocus)
@@ -176,7 +176,6 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     }
 
     def render(s: State) = {
-
       <.div(
         ^.onMouseUp --> scope.modState(highlightingStateLens.set(DoingNothing)),
         ^.onMouseDown --> scope.modState(highlightingStateLens.set(Highlighting)),
@@ -189,6 +188,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
           case ls @ Loaded(sentence, qaPairs, currentFocus, highlightingState) =>
             val answerSpans = qaPairs.map(_._2)
             val curAnswer = answerSpans(currentFocus)
+            val otherAnswerWords = (answerSpans.take(currentFocus) ++ answerSpans.drop(currentFocus + 1)).flatten.toSet
             import scalaz.std.list._
             <.div(
               <.p(
@@ -201,10 +201,8 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                       ^.backgroundColor := (
                         if(curAnswer.contains(nextWord.index) && curAnswer.contains(nextWord.index - 1)) {
                           "#FFFF00"
-                        } else if(!curAnswer.contains(nextWord.index) &&
-                                    !curAnswer.contains(nextWord.index - 1) &&
-                                    answerSpans.flatten.contains(nextWord.index) &&
-                                    answerSpans.flatten.contains(nextWord.index - 1)) {
+                        } else if(otherAnswerWords.contains(nextWord.index) &&
+                                    otherAnswerWords.contains(nextWord.index - 1)) {
                           "#CCCCCC"
                         } else {
                           "transparent"
@@ -216,7 +214,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                       ^.backgroundColor := (
                         if(curAnswer.contains(word.index)) {
                           "#FFFF00"
-                        } else if(answerSpans.flatten.contains(word.index)) {
+                        } else if(otherAnswerWords.contains(word.index)) {
                           "#CCCCCC"
                         } else {
                           "transparent"
@@ -239,7 +237,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                 (0 until qaPairs.size).map(i =>
                   <.li(
                     ^.display := "block",
-                    qaField(ls, i, Some(3 * i).filter(_ != 0))
+                    qaField(ls, i, bonuses(i))
                   )
                 )
               )
@@ -261,10 +259,6 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
   }
 
-  // private[this] val introBlurb = <.p(<.b(
-  //   """Write questions and their answers about the chosen word in the following selection of English text.
-  //      Please read the instructions below in detail before beginning."""))
-
   private[this] val instructions = <.div(
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
@@ -285,10 +279,9 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     <.p("""This task is best fit for native speakers of English.
         Your response must satisfy the following criteria:"""),
     <.ol(
-      <.li("""The question contains the question word, and as few other words from the sentence as possible.
-           It must be obvious from your question alone which word was the question word."""),
-      <.li("""The answer is the longest phrase from the sentence that answers the question without extra unnecessary information."""),
-      <.li("""The answers to your questions may not overlap in the sentence.""")
+      <.li("""The question contains the question word, and as few other words from the sentence as possible."""),
+      <.li("""It must be obvious from your question alone which word was the question word."""),
+      <.li("""The answer is the longest phrase from the sentence that answers the question without extra unnecessary information.""")
     ),
     <.h2("""Examples"""),
     <.p("""Consider the following sentence:"""),
@@ -335,7 +328,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     ),
     <.h2("""Conditions & Bonuses"""),
     <.p("""If your work satisfies the criteria outlined here, it will be approved in at most one hour.
-          If your it repeatedly fails to meet requirements, you will be blocked from this task and future tasks.
+          If it repeatedly fails to meet requirements, you will be blocked from this task and future tasks.
           Each HIT should take less than one minute to complete, depending on how many questions and answers you choose to write."""),
     <.p("""For each HIT, the first question-answer pair is required.
         For additional question-answer pairs, you will receive progressively increasing bonuses:

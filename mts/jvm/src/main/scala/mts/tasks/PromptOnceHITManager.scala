@@ -44,6 +44,12 @@ class PromptOnceHITManager[P, R](
 
   private[this] val queuedPrompts = new LazyStackQueue[Prompt](_promptSource)
 
+  // private[this] val finishedPrompts: Set[Prompt] = ???
+
+  // private[this] val unfinishedInactiveHITs: Set[HIT] = ???
+
+  // private[this] val activeHITs: Set[HIT] = ???
+
   // using atomic integer for now; later ideally would make this class into an actor and remove the need
   private[this] val (finishedOrActivePrompts, numActiveHITs) = {
     val set = mutable.Set.empty[Prompt]

@@ -24,6 +24,7 @@ object TaskPage {
         script(
           `type` := "text/javascript",
           src := s"$protocol//$serverDomain:$port/mts-launcher.js"),
+        // TODO this is temporary while using copypasta'd stylesheets. get rid of this when all is unified grandly
         link(
           rel := "stylesheet",
           `type` := "text/css",
