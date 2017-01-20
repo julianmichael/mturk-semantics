@@ -24,8 +24,16 @@ object Styles extends StyleSheet.Inline {
     listStyleType := "none"
   )
 
-  val questionWord = style(
+  val specialWord = style(
     fontWeight.bold,
     textDecoration := "underline"
+  )
+
+  val goodGreen = style(
+    color(c"rgb(48, 140, 20)")
+  )
+
+  val badRed = style(
+    color(c"rgb(216, 31, 00)")
   )
 }

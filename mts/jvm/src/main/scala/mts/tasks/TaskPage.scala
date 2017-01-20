@@ -89,7 +89,8 @@ object TaskPage {
           ),
           input(
             `type` := "submit",
-            id := "submitButton",
+            disabled := true,
+            id := submitButtonLabel,
             value := "submit")
         )
       )

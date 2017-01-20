@@ -19,4 +19,5 @@ package object tasks extends PackagePlatformExtensions {
   val rootClientDivLabel = "taskContent"
   val taskKeyLabel = "taskKey"
   val feedbackLabel = "feedback"
+  val submitButtonLabel = "submitButton"
 }

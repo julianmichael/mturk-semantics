@@ -4,6 +4,7 @@ import mts.experiments._
 import mts.conll._
 import mts.tasks._
 import mts.language._
+import mts.util.dollarsToCents
 
 import scalajs.js
 import org.scalajs.dom
@@ -27,6 +28,8 @@ import japgolly.scalajs.react.MonocleReact._
 
 object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
 
+  val isNotAssigned = assignmentId == "ASSIGNMENT_ID_NOT_AVAILABLE"
+
   sealed trait HighlightingState
   case object DoingNothing extends HighlightingState
   case object Highlighting extends HighlightingState
@@ -42,7 +45,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     currentFocus: Int,
     highlightingState: HighlightingState
   ) extends State {
-    def questionWord = sentence.words(prompt.wordIndex)
+    def specialWord = sentence.words(prompt.wordIndex)
   }
   object State {
     def loading[A]: Prism[State, Loading] = GenPrism[State, Loading]
@@ -78,14 +81,15 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
         socket.onclose = { (event: Event) =>
           val msg = s"Connection lost."
           System.err.println(msg)
-          // TODO maybe retry or something
+          // TODO maybe retry or something. probably not. right now this always happens because no heartbeat
         }
       case Loaded(_, _, _, _) =>
         System.err.println("Data already loaded.")
     }
 
-    def updateResponse: Callback = scope.state.map {
-      st => qaPairsLens.getOption(st).map(QAGenResponse.apply).foreach(setResponse)
+    def updateResponse: Callback = scope.state.map { st =>
+      setSubmitEnabled(qaPairsLens.getOption(st).map(_.exists { case (q, a) => !q.isEmpty && !a.isEmpty }).getOrElse(false))
+      qaPairsLens.getOption(st).map(QAGenResponse.apply).foreach(setResponse)
     }
 
     def qaField(loadedState: Loaded, index: Int, bonus: Double) = loadedState match {
@@ -104,10 +108,10 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
             (bonus != 0.0) ?= s"+${math.round(100 * bonus).toInt}c"
           ),
           <.input(
+            isNotAssigned ?= (^.disabled := true),
             ^.float := "left",
             ^.`type` := "text",
-            ^.required := index == 0,
-            ^.placeholder := s"""Question about "${TextRendering.normalizeToken(ls.questionWord.token)}"""",
+            ^.placeholder := s"Question",
             ^.margin := "1px",
             ^.marginLeft := "26px",
             ^.padding := "1px",
@@ -150,28 +154,32 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     def touchWord(index: Int): Callback = scope.modState {
       case s @ Loading(_) => s
       case s @ Loaded(sentence, qaPairs, currentFocus, highlightingState) =>
-        val answerSpans = qaPairs.map(_._2)
-        val curAnswer = answerSpans(currentFocus)
-        highlightingState match {
-          case DoingNothing => s
-          case Highlighting =>
-            if(!curAnswer.contains(index)) {
-              qaPairsLens.modify(
-                qaPairs => {
-                  val currentQA = qaPairs(currentFocus)
-                  val newQA = currentQA.copy(_2 = currentQA._2 + index)
-                  qaPairs.updated(currentFocus, newQA)
-                })(s)
-            } else s
-          case Erasing =>
-            if(curAnswer.contains(index)) {
-              qaPairsLens.modify(
-                qaPairs => {
-                  val currentQA = qaPairs(currentFocus)
-                  val newQA = currentQA.copy(_2 = currentQA._2 - index)
-                  qaPairs.updated(currentFocus, newQA)
-                })(s)
-            } else s
+        if(isNotAssigned) {
+          s
+        } else {
+          val answerSpans = qaPairs.map(_._2)
+          val curAnswer = answerSpans(currentFocus)
+          highlightingState match {
+            case DoingNothing => s
+            case Highlighting =>
+              if(!curAnswer.contains(index)) {
+                qaPairsLens.modify(
+                  qaPairs => {
+                    val currentQA = qaPairs(currentFocus)
+                    val newQA = currentQA.copy(_2 = currentQA._2 + index)
+                    qaPairs.updated(currentFocus, newQA)
+                  })(s)
+              } else s
+            case Erasing =>
+              if(curAnswer.contains(index)) {
+                qaPairsLens.modify(
+                  qaPairs => {
+                    val currentQA = qaPairs(currentFocus)
+                    val newQA = currentQA.copy(_2 = currentQA._2 - index)
+                    qaPairs.updated(currentFocus, newQA)
+                  })(s)
+              } else s
+          }
         }
     }
 
@@ -210,7 +218,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                       " ")),
                   (word: CoNLLWord) => List(
                     <.span(
-                      word.index == prompt.wordIndex ?= Styles.questionWord,
+                      word.index == prompt.wordIndex ?= Styles.specialWord,
                       ^.backgroundColor := (
                         if(curAnswer.contains(word.index)) {
                           "#FFFF00"
@@ -263,79 +271,95 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
-        For each HIT, you will be presented with a selection of English text,
-        and a specific (bolded and underlined) content word from that selection, called the """), <.b("question word.")),
-    <.p("""You will write questions containing the question word whose answers appear in the selection.
-        You may earn bonuses by writing more questions and answers.
+        You will be presented with a selection of English text with a """), <.b("special word"), " written in bold."),
+    <.p("""You will write questions and their answers, where the answer is taken from the sentence and """,
+        <.b("""either the question or the answer contains the special word. """),
+        """You will earn bonuses by writing more questions and answers.
         For example, consider the sentence:"""),
-    <.blockquote(<.i("It ", <.span(Styles.questionWord, "reevaluated"),
-                     " the project after a period of public consultation and open debate.")),
+    <.blockquote(<.i("The jubilant ", <.span(Styles.specialWord, "protesters"),
+                     " celebrated after executive intervention canceled the project.")),
     <.p("""Valid question-answer pairs include:"""),
     <.ul(
-      <.li("Who reevaluated something? --> It"),
-      <.li("What did someone reevaluate? --> the project"),
-      <.li("When did someone reevaluate something? --> after a period of public consultation and open debate")),
+      <.li("How did the ", <.b("protesters "), "feel? --> jubilant"),
+      <.li("Who celebrated? --> the ", <.b("protesters"))),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
-        Your response must satisfy the following criteria:"""),
+        Your response must be grammatical, fluent English that satisfies the following criteria:"""),
     <.ol(
-      <.li("""The question contains the question word, and as few other words from the sentence as possible."""),
-      <.li("""It must be obvious from your question alone which word was the question word."""),
-      <.li("""The answer is the longest phrase from the sentence that answers the question without extra unnecessary information.""")
+      <.li("""Either the question or the answer contains the special word."""),
+      <.li("""The question contains at least one word from the sentence, but as few as possible beyond that."""),
+      <.li("""The answer is the longest natural, correct, and unique answer to the question."""),
+      <.li("""You do not repeat the same information between multiple question-answer pairs.""")
     ),
-    <.h2("""Examples"""),
-    <.p("""Consider the following sentence:"""),
-    <.blockquote(<.i("""I take full and complete responsibility for my decision to disclose these materials to the public. """)),
-    <.p("""Depending on the question word you receive, acceptable questions and answers include, but are not limited to, the following.
+    <.p("See the examples for further explanation."),
+    <.h2("""Good Examples"""),
+    <.p("Suppose you are given the following sentence:"),
+    <.blockquote(<.i("""I take full and complete responsibility for my thoughtless """, <.span(Styles.specialWord, """decision"""),
+                     """ to disclose these materials to the public. """)),
+    <.p("""Acceptable questions and answers include, but are not limited to, the following.
         Mouse over each example to see an explanation."""),
     <.ul(
-      <.li(<.div(^.className := "tooltip",
-           <.span("Who "), <.b("takes "), <.span("something? --> I"),
+      <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
+                 <.span("Who "), <.b("decided "), <.span("something? --> I"),
+                 <.span(^.className := "tooltiptext",
+                        """It is often useful to change nouns like "decision" to verbs in order to use them in short questions."""))),
+      <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
+                 <.span("What is someone responsible for? --> my thoughtless "), <.b("decision"),
+                 <.span(" to disclose these materials to the public"),
+                 <.span(^.className := "tooltiptext",
+                        "Prefer the longest answer that correctly and naturally answers the question."))),
+      <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
+           <.span("What kind of "), <.b("decision"), <.span("? --> thoughtless"),
            <.span(^.className := "tooltiptext",
-                  """Write your questions from the point of view of the speaker so you can use the sentence's pronouns like "I"."""))),
-      <.li(<.div(^.className := "tooltip",
-           <.span("What does someone "), <.b("take"), <.span("? --> full and complete responsibility for my decision to disclose these materials to the public"),
-           <.span(^.className := "tooltiptext", "Choose the longest answer that correctly and naturally answers the question."))),
-      <.li(<.div(^.className := "tooltip",
-           <.span("What level of "), <.b("responsibility"), <.span("? --> full and complete"),
-           <.span(^.className := "tooltiptext",
-                  """To get descriptive words as answers, you may need to ask questions like this, or "What kind" questions."""))),
-      <.li(<.div(^.className := "tooltip",
-           <.span("Who is "), <.b("responsible "), <.span("for something? --> I"),
-           <.span(^.className := "tooltiptext",
-                  """Please use words like "someone" and "something" to avoid using words from the sentence other than question word."""))),
-      <.li(<.div(^.className := "tooltip",
-           <.span("Whose "), <.b("decision "), <.span("was it? --> my decision"),
-           <.span(^.className := "tooltiptext",
-                  """If it's necessary for the most natural answer, feel free to use the question word in the answer as well."""))),
-      <.li(<.div(^.className := "tooltip",
+                  """To get descriptive words as answers, you may need to ask "What kind" or similar questions."""))),
+      <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
            <.span("What did someone "), <.b("decide "), <.span("to do? --> disclose these materials to the public"),
            <.span(^.className := "tooltiptext",
-                  """It is often useful to change nouns like "decision" to verbs in order to ask short questions about them.""")))
+                  """Use words like "do", "someone" and "something" in your question
+                     to avoid using more than one word from the sentence.""")))
     ),
-    <.p("""Now consider the following sentence:"""),
-    <.blockquote(<.i("""Book and movie pirates who have downloaded 100 files or less tend not to consider themselves criminals.""")),
-    <.p("""Acceptable questions and answers include:"""),
+    <.h2("""Bad Examples"""),
+    <.p("Suppose you are given the following sentence:"),
+    <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
+    <.p("""Consider the following question-answer pairs:"""),
     <.ul(
-      <.li(<.div(^.className := "tooltip",
-                 <.span("What does someone "), <.b("pirate"), <.span("? --> Book and movie"),
+      <.li(<.div("What did Alex do? --> ", <.span(Styles.specialWord, "pushed"), " Chandler at school today")),
+      <.li(<.div("Who ", <.span(Styles.specialWord, "pushed"), " someone? --> Alex"))
+    ),
+    <.p("These are each acceptable on their own, but ", <.b("you may not provide both, "),
+        """because they convey the same information, just reversing the order of the question and answer.
+        One way to notice this is that the answer to one question ("Alex") appears in the other question."""),
+    <.ul(
+      <.li(<.div("When did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today")),
+      <.li(<.div("On what day did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today"))
+    ),
+    <.p("""Here, the second is just a minor rephrasing of the first, which is not acceptable.
+        One way to notice this is that both questions have the same answer."""),
+    <.p("Mouse over the following examples of ", <.b("bad"), " question-answer pairs for explanations:"),
+    <.ul(
+      <.li(<.div(Styles.badRed, ^.className := "tooltip",
+                 <.span("When did Alex "), <.b("push"), <.span(" Chandler? --> today"),
                  <.span(^.className := "tooltiptext",
-                        """It is okay if the answer is not completely grammatically correct as long as it is the obvious correct choice."""))),
-      <.li(<.div(^.className := "tooltip",
-                 <.span("How many "), <.b("files"), <.span("? --> 100 or less"),
+                        """This is bad because the question includes "Alex" and "Chandler" where it should have said "someone"
+                        to use fewer words from the sentence."""))),
+      <.li(<.div(Styles.badRed, ^.className := "tooltip",
+                 <.span("Where did Alex do something? --> at school"),
                  <.span(^.className := "tooltiptext",
-                        """You may skip words within the answer if it is required in order to naturally answer the question.""")))
+                        """This is bad because it fails to include the special word "push" in either the question or answer."""))),
+      <.li(<.div(Styles.badRed, ^.className := "tooltip",
+                 <.span("Where did someone "), <.b("push "), <.span("someone? --> at school today"),
+                 <.span(^.className := "tooltiptext",
+                        """This is bad because the question asked "where", so including the word "today" is incorrect.""")))
     ),
     <.h2("""Conditions & Bonuses"""),
     <.p("""If your work satisfies the criteria outlined here, it will be approved in at most one hour.
           If it repeatedly fails to meet requirements, you will be blocked from this task and future tasks.
-          Each HIT should take less than one minute to complete, depending on how many questions and answers you choose to write."""),
-    <.p("""For each HIT, the first question-answer pair is required.
-        For additional question-answer pairs, you will receive progressively increasing bonuses:
-        for example, if the bonus for the second question-answer pair is 3c, and the bonus for the third is 6c,
-        then for submitting 3 valid question-answer pairs, you will receive a bonus of 9c.
-        you will be rewarded based on the number of valid question-answer pairs you submit,
-        but bonus indicators are placed next to each response field in order to help you keep track.
+          Mosts HITs should go quickly (less than 30 seconds) since there will often be
+          only one good question-answer pair to write."""),
+    <.p(s"""For each HIT, the first question-answer pair is required.
+        After that you will receive progressively increasing bonuses if you can come up with more.
+        The order in which you fill out the fields does not matter, but the bonus amounts
+        are written next to each response field to help you keep track.
       """),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field so we may improve the task.""")

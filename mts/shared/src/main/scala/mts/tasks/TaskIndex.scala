@@ -7,4 +7,5 @@ import upickle.default._
 object TaskIndex {
   val sampleTaskKey = "sample"
   val expEQAGenTaskKey = "expEQAGen"
+  val expFQAValidationTaskKey = "expFQAValidation"
 }

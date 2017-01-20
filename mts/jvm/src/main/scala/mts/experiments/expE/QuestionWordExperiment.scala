@@ -37,9 +37,14 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   lazy val qaGenTaskSpec = TaskSpecification[QAGenPrompt, QAGenResponse, ApiRequest, ApiResponse](
     TaskIndex.expEQAGenTaskKey, qaGenHITType, qaGenApiFlow, sampleQAGenPrompt)
 
-  lazy val sourceSentences = {
+  lazy val sourceSentences = for {
+    ((path, sentence), sentenceIndex) <- sentences.zipWithIndex
+    if sentenceIndex % 5 == 0 // only do 20 sentences
+  } yield (path, sentence)
+
+  lazy val sourcePrompts = {
     val inOrder = for {
-      (path, sentence) <- sentences.iterator
+      (path, sentence) <- sourceSentences
       i <- (0 until sentence.words.size)
       if !uninterestingTokens.contains(sentence.words(i).token)
     } yield QAGenPrompt(path, i)
@@ -49,7 +54,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
     shuffleRand.shuffle(inOrder.toVector)
   }
 
-  lazy val qaGenHITManager = new QAGenHITManager(qaGenTaskSpec, 1, 10, sourceSentences.iterator)
+  lazy val qaGenHITManager = new QAGenHITManager(qaGenTaskSpec, 1, 10, sourcePrompts.iterator)
 
   import config.actorSystem
   lazy val server = new Server(List(qaGenTaskSpec))

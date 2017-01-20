@@ -30,9 +30,12 @@ class SampleExperiment(implicit config: TaskConfig) {
     case SentenceRequest(path) => SentenceResponse(path, FileManager.getCoNLLSentence(path).get)
   }
 
+  val samplePrompt = SamplePrompt(sentences.head._1)
+
   lazy val taskSpec = TaskSpecification[SamplePrompt, SampleResponse, ApiRequest, ApiResponse](
-    TaskIndex.sampleTaskKey, sampleHITType, sampleApiFlow, SamplePrompt(sentences.head._1))
-  lazy val hitManager = new SampleHITManager[SamplePrompt, SampleResponse](taskSpec)
+    TaskIndex.sampleTaskKey, sampleHITType, sampleApiFlow, samplePrompt)
+  lazy val hitManager = new NumAssignmentsHITManager[SamplePrompt, SampleResponse](
+    taskSpec, 1, 3, List(samplePrompt).iterator)
 
   import config.actorSystem
   lazy val server = new Server(List(taskSpec))

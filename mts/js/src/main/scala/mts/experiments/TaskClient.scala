@@ -57,5 +57,9 @@ abstract class TaskClient[Prompt : Reader, Response : Writer] {
     jQuery(s"#$responseLabel").attr("value", write(response))
   }
 
+  def setSubmitEnabled(enable: Boolean): Unit = {
+    jQuery(s"#$submitButtonLabel").prop("disabled", !enable)
+  }
+
   def main(): Unit
 }
