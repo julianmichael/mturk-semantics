@@ -158,9 +158,15 @@ class QAGenHITManager(
     }.size
     val totalBonus = bonuses.take(numQAPairs).sum
     taskActor ! EvaluateAssignment(assignment, Approval(""))
+    println(s"Approved HIT: ${assignment.hitId}")
+    if(!assignment.feedback.isEmpty) {
+      println(s"Feedback: ${assignment.feedback}")
+    }
     if(totalBonus > 0.0) {
+      println(s"Number of QA pairs: $numQAPairs. Bonus granted: $totalBonus")
       service.grantBonus(assignment.workerId, totalBonus, assignment.assignmentId,
-                         s"$numQAPairs question-answer pairs given.")
+                         s"""$numQAPairs question-answer pairs given.""")
+
     }
   }
 
