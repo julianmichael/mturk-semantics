@@ -54,7 +54,11 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
     shuffleRand.shuffle(inOrder.toVector)
   }
 
-  lazy val qaGenHITManager = new QAGenHITManager(qaGenTaskSpec, 1, 10, sourcePrompts.iterator)
+  lazy val qaGenHITManager = if(config.isProduction) {
+    new QAGenHITManager(qaGenTaskSpec, 2, 60, sourcePrompts.iterator)
+  } else {
+    new QAGenHITManager(qaGenTaskSpec, 1, 4, sourcePrompts.iterator)
+  }
 
   import config.actorSystem
   lazy val server = new Server(List(qaGenTaskSpec))
