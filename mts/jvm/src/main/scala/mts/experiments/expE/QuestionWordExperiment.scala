@@ -25,7 +25,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
       write a question using the word whose answer is taken from the sentence.
       Come up with more question-answer pairs for a bonus!
     """.trim,
-    reward = 0.05,
+    reward = 0.10,
     keywords = "language,english,question answering")
 
   lazy val qaGenApiFlow = Flow[ApiRequest].map {

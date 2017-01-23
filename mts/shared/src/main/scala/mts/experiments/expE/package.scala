@@ -13,6 +13,6 @@ package object expE extends PackagePlatformExtensions {
   sealed trait ApiResponse
   case class SentenceResponse(path: CoNLLSentencePath, sentence: CoNLLSentence) extends ApiResponse
 
-  val bonuses = List(0.0, 0.03, 0.04, 0.05, 0.06)
+  val bonuses = List(0.0, 0.06, 0.08, 0.10, 0.12)
   val numQAs = bonuses.size
 }

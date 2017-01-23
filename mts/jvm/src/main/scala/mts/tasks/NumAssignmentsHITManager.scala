@@ -81,7 +81,7 @@ class NumAssignmentsHITManager[P, R](
               case Success(hit) =>
                 activeHITs += hit
                 println(s"Created HIT: ${hit.hitId}")
-                println(s"https://workersandbox.mturk.com/mturk/preview?groupId=${hit.hitTypeId}")
+                println(s"${service.getWebsiteURL}/mturk/preview?groupId=${hit.hitTypeId}")
               case Failure(e) =>
                 System.err.println(e.getMessage)
                 e.printStackTrace
@@ -95,7 +95,7 @@ class NumAssignmentsHITManager[P, R](
               case Success(hit) =>
                 activeHITs += hit
                 println(s"Created HIT: ${hit.hitId}")
-                println(s"https://workersandbox.mturk.com/mturk/preview?groupId=${hit.hitTypeId}")
+                println(s"${service.getWebsiteURL}/mturk/preview?groupId=${hit.hitTypeId}")
               case Failure(e) =>
                 System.err.println(e.getMessage)
                 e.printStackTrace
