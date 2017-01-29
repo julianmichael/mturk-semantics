@@ -7,6 +7,9 @@ import mts.language._
 
 import scala.util.Try
 
+import resource.managed
+import resource.ManagedResource
+
 trait PackagePlatformExtensions {
   val annotationFilepaths = List(
     "bn/abc/00/abc_0010.v4_gold_conll",
@@ -56,6 +59,19 @@ trait PackagePlatformExtensions {
       }
       val path = directory.resolve(fileName)
       Files.write(path, contents.getBytes())
+    }
+
+    def loadDataFile(
+      experimentName: String,
+      fileName: String
+    ) = {
+      val directory = experimentRootPath.resolve(experimentName).resolve(dataPath)
+      if(!Files.exists(directory)) {
+        Files.createDirectories(directory)
+      }
+      val path = directory.resolve(fileName)
+      import scala.collection.JavaConverters._
+      managed(Files.lines(path)).map(_.iterator.asScala.toList).tried
     }
   }
 }

@@ -46,9 +46,7 @@ class Inflections(
     */
   def getAllForms(word: LowerCaseString): Set[LowerCaseString] = {
     val extras: Set[LowerCaseString] = extraForms.get(getUninflected(word).getOrElse(word)).getOrElse(Set.empty[LowerCaseString])
-    def beIfHasWord(wordSet: Set[LowerCaseString]) = wordSet.onlyIf(_.contains(word))
-    List(doVerbs, beVerbs, willVerbs, haveVerbs, wouldVerbs, negationWords)
-      .map(beIfHasWord).flatten.headOption.map(_.toSet)
+    List(doVerbs, beVerbs, willVerbs, haveVerbs, wouldVerbs, negationWords).filter(_.contains(word)).headOption
       .orElse(getInflectedForms(word).map(_.toSet))
       .getOrElse(Set(word)) ++ extras
   }

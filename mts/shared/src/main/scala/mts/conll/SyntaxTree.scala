@@ -15,8 +15,16 @@ import mts.util._
   * }}}
   */
 sealed trait SyntaxTree {
-  final def toStringMultiline: String = toStringMultiline(0)
-  protected def toStringMultiline(indent: Int): String
+  final def toStringMultiline: String = toStringMultilineAux(0)
+  // TODO can have a better qualifier. why doesn't unqualified protected work?
+  protected[conll] def toStringMultilineAux(indent: Int): String
+
+  final def fold[A](leaf: CoNLLWord => A)(node: (String, List[A]) => A): A = this match {
+    case SyntaxTreeLeaf(word) => leaf(word)
+    case SyntaxTreeNode(label, children) => node(label, children.map(_.fold(leaf)(node)))
+  }
+  // assume nonempty children
+  final def depth = fold(_ => 0) { case (_, depths) => depths.max + 1}
 }
 
 /** Represents a nonterminal node of a SyntaxTree.
@@ -28,8 +36,11 @@ case class SyntaxTreeNode(
   label: String,
   children: List[SyntaxTree]
 ) extends SyntaxTree {
-  protected override def toStringMultiline(i: Int): String =
-    s"${" " * i}$label(\n${children.map(_.toStringMultiline(i + 1)).mkString("\n")})"
+  override def toStringMultilineAux(i: Int): String = {
+    val indent = " " * i
+    val childrenStr = children.map(_.toStringMultilineAux(i + 1)).mkString("\n")
+    s"$indent$label\n$childrenStr"
+  }
 }
 
 /** Represents a terminal node of a SyntaxTree, including POS tag.
@@ -39,8 +50,12 @@ case class SyntaxTreeNode(
 case class SyntaxTreeLeaf(
   word: CoNLLWord
 ) extends SyntaxTree {
-  protected override def toStringMultiline(i: Int): String =
-    s"${" " * i}${word.pos}\t${word.token}"
+  override def toStringMultilineAux(i: Int): String = {
+    val indent = " " * i
+    val wordStr = s"${word.pos}\t${word.token}"
+    s"$indent$wordStr"
+  }
+
 }
 
 /** Provides parsing of SyntaxTrees. */

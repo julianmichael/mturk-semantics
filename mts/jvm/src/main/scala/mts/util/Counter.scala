@@ -9,6 +9,7 @@ import scala.collection.mutable
   * Not writing scaladoc because it's pretty self-explanatory...
   */
 class Counter[A] private (private[this] val map: mutable.Map[A, Int]) {
+  @inline def apply(a: A): Int = get(a)
   def get(a: A): Int = map.get(a).getOrElse(0)
   def add(a: A): Unit = addN(a, 1)
   def addN(a: A, n: Int): Unit = map.put(a, get(a) + n)

@@ -97,4 +97,10 @@ package object util extends PackagePlatformExtensions {
   }
 
   def dollarsToCents(d: Double): Int = math.round(100 * d).toInt
+
+  def longestCommonPrefix(s: String, t: String): String =
+    (s, t).zipped.takeWhile(Function.tupled(_ == _)).map(_._1).mkString
+
+  def percent(amount: Int, total: Int): Double =
+    amount * 100.0 / total
 }

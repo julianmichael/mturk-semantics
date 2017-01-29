@@ -19,10 +19,14 @@ lazy val mts = crossProject.settings(
     "com.lihaoyi" %%% "upickle" % "0.4.1",
     "com.lihaoyi" %%% "scalatags" % "0.4.6",
     "com.lihaoyi" %%% "autowire" % "0.2.5",
-    "com.lihaoyi" %%% "fastparse" % "0.3.7"
+    "com.lihaoyi" %%% "fastparse" % "0.3.7",
+    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
+    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
   )
 ).jvmSettings(
   addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  fork in console := true,
+  javaOptions in console += "-Djava.library.path=lib/native/",
   libraryDependencies ++= Seq(
     "org.scalaz" %% "scalaz-core" % "7.2.4",
     // TODO eventually switch to this if necessary
@@ -51,9 +55,7 @@ lazy val mts = crossProject.settings(
     "com.github.japgolly.scalajs-react" %%% "core" % scalaJSReactVersion,
     "com.github.japgolly.scalajs-react" %%% "ext-monocle" % scalaJSReactVersion,
     "com.github.japgolly.scalacss" %%% "core" % "0.4.1",
-    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1",
-    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
-    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1"
     // "com.github.julien-truffaut" %%% "monocle-law"   % monocleVersion % "test"
   ),
   relativeSourceMaps := true,

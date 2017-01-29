@@ -2,10 +2,23 @@ package mts.experiments
 
 import mts.conll.CoNLLSentencePath
 import mts.conll.CoNLLSentence
+import mts.conll.CoNLLWord
 
 package object expE extends PackagePlatformExtensions {
   case class QAGenPrompt(path: CoNLLSentencePath, wordIndex: Int)
   case class QAGenResponse(qaPairs: List[(String, Set[Int])])
+
+  def isQAPairNonempty(qaPair: (String, Set[Int])): Boolean =
+    !qaPair._1.isEmpty && !qaPair._2.isEmpty
+
+  def spanTokens(sentence: CoNLLSentence, span: Set[Int]): List[String] =
+    sentence.words.filter(w => span.contains(w.index)).map(_.token)
+
+  def renderSpan(sentence: CoNLLSentence, span: Set[Int]): String =
+    mts.language.TextRendering.renderSentence(spanTokens(sentence, span))
+
+  def printableWord(sentence: CoNLLSentence, index: Int) = s"${sentence.words(index).index}:${sentence.words(index).token}"
+  def printableWord(word: CoNLLWord) = s"${word.index}:${word.token}"
 
   sealed trait ApiRequest
   case class SentenceRequest(path: CoNLLSentencePath) extends ApiRequest
