@@ -717,9 +717,9 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   //   }
   // }
 
-  lazy val manualTrees = manualAnnotations.toStream.map(p => induceTree(p._2, p._3))
-  lazy val turkTrees = qaPairsBySentence.toStream.map(Function.tupled(induceTree))
+  // lazy val manualTrees = manualAnnotations.toStream.map(p => induceTree(p._2, p._3))
+  // lazy val turkTrees = qaPairsBySentence.toStream.map(Function.tupled(induceTree))
 
-  def printTree(t: DependencyTree[Index, Unit]) = t.toStringMultiline(_ => "", _.printable)
+  // def printTree(t: DependencyTree[Index, Unit]) = t.toStringMultiline(_ => "", _.printable)
 
 }
