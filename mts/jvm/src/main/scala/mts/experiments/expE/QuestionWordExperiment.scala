@@ -506,216 +506,216 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   case object Root extends Index
   case class Word(word: CoNLLWord) extends Index
 
-  def induceTree(sentence: CoNLLSentence, qaPairs: List[(String, Set[Int])]): DependencyTree[Index, Unit] = {
-    import gurobi._
-    val env: GRBEnv = new GRBEnv("ilp-deps.log")
-    val model: GRBModel = new GRBModel(env)
-    model.set(GRB.IntParam.LogToConsole, 0)
+  // def induceTree(sentence: CoNLLSentence, qaPairs: List[(String, Set[Int])]): DependencyTree[Index, Unit] = {
+  //   import gurobi._
+  //   val env: GRBEnv = new GRBEnv("ilp-deps.log")
+  //   val model: GRBModel = new GRBModel(env)
+  //   model.set(GRB.IntParam.LogToConsole, 0)
 
-    try {
-      // Construct the ARBORESCENCE POLYTOPE!!!!!
+  //   try {
+  //     // Construct the ARBORESCENCE POLYTOPE!!!!!
 
-      val allIndices: List[Index] = Root :: sentence.words.map(Word(_))
-      val n = sentence.words.size.toDouble
+  //     val allIndices: List[Index] = Root :: sentence.words.map(Word(_))
+  //     val n = sentence.words.size.toDouble
 
-      case class Arc(parent: Index, child: Index) {
-        private[this] def shortIndex(i: Index) = i match {
-          case Root => "$"
-          case Word(w) => w.index
-        }
-        // not sure if variable names have to be unique...?
-        override def toString: String = s"${shortIndex(parent)}-${shortIndex(child)}"
-      }
+  //     case class Arc(parent: Index, child: Index) {
+  //       private[this] def shortIndex(i: Index) = i match {
+  //         case Root => "$"
+  //         case Word(w) => w.index
+  //       }
+  //       // not sure if variable names have to be unique...?
+  //       override def toString: String = s"${shortIndex(parent)}-${shortIndex(child)}"
+  //     }
 
-      def incoming(index: Index): List[Arc] = allIndices.map(Arc(_, index))
-      def outgoing(index: Index): List[Arc] = allIndices.map(Arc(index, _))
+  //     def incoming(index: Index): List[Arc] = allIndices.map(Arc(_, index))
+  //     def outgoing(index: Index): List[Arc] = allIndices.map(Arc(index, _))
 
-      sealed trait LPVar
-      case class ArcVar(arc: Arc) extends LPVar {
-        override def toString = s"a$arc"
-      }
-      case class FlowVar(arc: Arc) extends LPVar {
-        override def toString = s"f$arc"
-      }
-      case class DisjunctiveVar(arcs: List[Arc]) extends LPVar {
-        override def toString = s"d${arcs.mkString(",")}".hashCode.toString.take(255)
-      }
+  //     sealed trait LPVar
+  //     case class ArcVar(arc: Arc) extends LPVar {
+  //       override def toString = s"a$arc"
+  //     }
+  //     case class FlowVar(arc: Arc) extends LPVar {
+  //       override def toString = s"f$arc"
+  //     }
+  //     case class DisjunctiveVar(arcs: List[Arc]) extends LPVar {
+  //       override def toString = s"d${arcs.mkString(",")}".hashCode.toString.take(255)
+  //     }
 
-      // Create variables
-      val vars = collection.mutable.Map.empty[LPVar, GRBVar]
-      for {
-        parent <- allIndices
-        child <- allIndices
-      } yield {
-        val arc = Arc(parent, child)
+  //     // Create variables
+  //     val vars = collection.mutable.Map.empty[LPVar, GRBVar]
+  //     for {
+  //       parent <- allIndices
+  //       child <- allIndices
+  //     } yield {
+  //       val arc = Arc(parent, child)
 
-        val arcVar = ArcVar(arc)
-        // arc is binary --- TODO make this real valued if we do relaxation
-        val arcGRBVar = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, arcVar.toString)
-        vars.put(arcVar, arcGRBVar)
+  //       val arcVar = ArcVar(arc)
+  //       // arc is binary --- TODO make this real valued if we do relaxation
+  //       val arcGRBVar = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, arcVar.toString)
+  //       vars.put(arcVar, arcGRBVar)
 
-        val flowVar = FlowVar(arc)
-        // flow ranges from 0 to n
-        val flowGRBVar = model.addVar(0.0, n, 0.0, GRB.CONTINUOUS, flowVar.toString)
-        vars.put(flowVar, flowGRBVar)
-      }
-      model.update()
+  //       val flowVar = FlowVar(arc)
+  //       // flow ranges from 0 to n
+  //       val flowGRBVar = model.addVar(0.0, n, 0.0, GRB.CONTINUOUS, flowVar.toString)
+  //       vars.put(flowVar, flowGRBVar)
+  //     }
+  //     model.update()
 
-      // Add constraints
+  //     // Add constraints
 
-      // CONSTRAINT SET 1 (n): each node except root has exactly one parent
-      for {
-        child <- allIndices
-        if child != Root
-      } yield {
-        val expr = new GRBLinExpr()
-        for(arc <- incoming(child)) {
-          expr.addTerm(1.0, vars(ArcVar(arc)))
-        }
-        model.addConstr(expr, GRB.EQUAL, 1.0, s"$child-parents")
-      }
+  //     // CONSTRAINT SET 1 (n): each node except root has exactly one parent
+  //     for {
+  //       child <- allIndices
+  //       if child != Root
+  //     } yield {
+  //       val expr = new GRBLinExpr()
+  //       for(arc <- incoming(child)) {
+  //         expr.addTerm(1.0, vars(ArcVar(arc)))
+  //       }
+  //       model.addConstr(expr, GRB.EQUAL, 1.0, s"$child-parents")
+  //     }
 
-      // CONSTRAINT SET 2 (1): root has no parents
-      val _ = {
-        val expr = new GRBLinExpr()
-        for(arc <- incoming(Root)) {
-          expr.addTerm(1.0, vars(ArcVar(arc)))
-        }
-        model.addConstr(expr, GRB.EQUAL, 0.0, "root-noparents")
-      }
+  //     // CONSTRAINT SET 2 (1): root has no parents
+  //     val _ = {
+  //       val expr = new GRBLinExpr()
+  //       for(arc <- incoming(Root)) {
+  //         expr.addTerm(1.0, vars(ArcVar(arc)))
+  //       }
+  //       model.addConstr(expr, GRB.EQUAL, 0.0, "root-noparents")
+  //     }
 
-      // CONSTRAINT SET 3 (1): root sends flow n
-      val __ = {
-        val expr = new GRBLinExpr()
-        for(arc <- outgoing(Root)) {
-          expr.addTerm(1.0, vars(FlowVar(arc)))
-        }
-        model.addConstr(expr, GRB.EQUAL, n, "root-flow-n")
-      }
+  //     // CONSTRAINT SET 3 (1): root sends flow n
+  //     val __ = {
+  //       val expr = new GRBLinExpr()
+  //       for(arc <- outgoing(Root)) {
+  //         expr.addTerm(1.0, vars(FlowVar(arc)))
+  //       }
+  //       model.addConstr(expr, GRB.EQUAL, n, "root-flow-n")
+  //     }
 
-      // CONSTRAINT SET 4 (n): Each non-root node consumes 1 flow
-      for {
-        node <- allIndices
-        if node != Root
-      } yield {
-        val expr = new GRBLinExpr()
-        // add inward flow
-        for(arc <- incoming(node)) {
-          expr.addTerm(1.0, vars(FlowVar(arc)))
-        }
-        // subtract outward flow
-        for(arc <- outgoing(node)) {
-          expr.addTerm(-1.0, vars(FlowVar(arc)))
-        }
-        // result == 1
-        model.addConstr(expr, GRB.EQUAL, 1.0, s"$node-flow-consume")
-      }
+  //     // CONSTRAINT SET 4 (n): Each non-root node consumes 1 flow
+  //     for {
+  //       node <- allIndices
+  //       if node != Root
+  //     } yield {
+  //       val expr = new GRBLinExpr()
+  //       // add inward flow
+  //       for(arc <- incoming(node)) {
+  //         expr.addTerm(1.0, vars(FlowVar(arc)))
+  //       }
+  //       // subtract outward flow
+  //       for(arc <- outgoing(node)) {
+  //         expr.addTerm(-1.0, vars(FlowVar(arc)))
+  //       }
+  //       // result == 1
+  //       model.addConstr(expr, GRB.EQUAL, 1.0, s"$node-flow-consume")
+  //     }
 
-      // CONSTRAINT SET 5 (n^2): flow is 0 on disabled arcs
-      for {
-        parent <- allIndices
-        child <- allIndices
-      } yield {
-        val arc = Arc(parent, child)
+  //     // CONSTRAINT SET 5 (n^2): flow is 0 on disabled arcs
+  //     for {
+  //       parent <- allIndices
+  //       child <- allIndices
+  //     } yield {
+  //       val arc = Arc(parent, child)
 
-        val left = new GRBLinExpr()
-        left.addTerm(1.0, vars(FlowVar(arc)))
-        val right = new GRBLinExpr()
-        right.addTerm(n, vars(ArcVar(arc)))
-        model.addConstr(left, GRB.LESS_EQUAL, right, s"$parent-$child-flow")
-      }
+  //       val left = new GRBLinExpr()
+  //       left.addTerm(1.0, vars(FlowVar(arc)))
+  //       val right = new GRBLinExpr()
+  //       right.addTerm(n, vars(ArcVar(arc)))
+  //       model.addConstr(left, GRB.LESS_EQUAL, right, s"$parent-$child-flow")
+  //     }
 
-      // done with constraints; we're now in the arborescence polytope.
-      // QA pairs determine the objective.
-      val qaPairIndices = qaPairs.map {
-        case (question, answerIndices) =>
-          (getWordsInQuestion(sentence, question).map(sentence.words(_)), answerIndices.map(sentence.words(_)))
-      }
+  //     // done with constraints; we're now in the arborescence polytope.
+  //     // QA pairs determine the objective.
+  //     val qaPairIndices = qaPairs.map {
+  //       case (question, answerIndices) =>
+  //         (getWordsInQuestion(sentence, question).map(sentence.words(_)), answerIndices.map(sentence.words(_)))
+  //     }
 
-      val arcScores = Scorer[Arc, Double]
-      for((qis, ais) <- qaPairIndices) {
-        // ask for question words to be connected
-        for(p <- qis; c <- qis) {
-          if(p != c) arcScores.add(Arc(Word(p), Word(c)), 1.0)
-        }
-        // ask for answer words to be connected
-        for(p <- ais; c <- ais) {
-          if(p != c) arcScores.add(Arc(Word(p), Word(c)), 1.0)
-        }
+  //     val arcScores = Scorer[Arc, Double]
+  //     for((qis, ais) <- qaPairIndices) {
+  //       // ask for question words to be connected
+  //       for(p <- qis; c <- qis) {
+  //         if(p != c) arcScores.add(Arc(Word(p), Word(c)), 1.0)
+  //       }
+  //       // ask for answer words to be connected
+  //       for(p <- ais; c <- ais) {
+  //         if(p != c) arcScores.add(Arc(Word(p), Word(c)), 1.0)
+  //       }
 
-        // ask for question words to be connected to answer words (weighted down)
-        val qToAScore = 1.0 / (qis.size * ais.size)
-        // val aToQScore = 0.2 / (qis.size * ais.size)
-        for(q <- qis; a <- ais) {
-          if(q != a) {
-            arcScores.add(Arc(Word(q), Word(a)), qToAScore)
-            // arcScores.add(Arc(Word(a), Word(q)), aToQScore)
-          }
-        }
-      }
+  //       // ask for question words to be connected to answer words (weighted down)
+  //       val qToAScore = 1.0 / (qis.size * ais.size)
+  //       // val aToQScore = 0.2 / (qis.size * ais.size)
+  //       for(q <- qis; a <- ais) {
+  //         if(q != a) {
+  //           arcScores.add(Arc(Word(q), Word(a)), qToAScore)
+  //           // arcScores.add(Arc(Word(a), Word(q)), aToQScore)
+  //         }
+  //       }
+  //     }
 
-      val objective = new GRBLinExpr()
+  //     val objective = new GRBLinExpr()
 
-      // // ask for question words to be connected to answer words (disjunctive)
-      // val qaPairConnectionWeight = 0.5
-      // for((qis, ais) <- qaPairIndices) {
-      //   val qaArcs = (for(p <- qis; c <- ais) yield Arc(Word(p), Word(c))).toList
-      //   val disjVar = DisjunctiveVar(qaArcs)
-      //   val disjGRBVar = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, disjVar.toString)
-      //   vars.put(disjVar, disjGRBVar)
-      //   for(arc <- qaArcs) {
-      //     val left = new GRBLinExpr()
-      //     left.addTerm(1.0, disjGRBVar)
-      //     val right = new GRBLinExpr()
-      //     right.addTerm(1.0, vars(ArcVar(arc)))
-      //     model.addConstr(left, GRB.GREATER_EQUAL, right, s"$disjVar-greater-$arc")
-      //   }
-      //   val left = new GRBLinExpr()
-      //   left.addTerm(1.0, disjGRBVar)
-      //   val right = new GRBLinExpr()
-      //   for(arc <- qaArcs) {
-      //     right.addTerm(1.0, vars(ArcVar(arc)))
-      //   }
-      //   model.addConstr(left, GRB.LESS_EQUAL, right, s"$disjVar-less")
-      //   objective.addTerm(qaPairConnectionWeight, disjGRBVar)
-      //   model.update()
-      // }
+  //     // // ask for question words to be connected to answer words (disjunctive)
+  //     // val qaPairConnectionWeight = 0.5
+  //     // for((qis, ais) <- qaPairIndices) {
+  //     //   val qaArcs = (for(p <- qis; c <- ais) yield Arc(Word(p), Word(c))).toList
+  //     //   val disjVar = DisjunctiveVar(qaArcs)
+  //     //   val disjGRBVar = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, disjVar.toString)
+  //     //   vars.put(disjVar, disjGRBVar)
+  //     //   for(arc <- qaArcs) {
+  //     //     val left = new GRBLinExpr()
+  //     //     left.addTerm(1.0, disjGRBVar)
+  //     //     val right = new GRBLinExpr()
+  //     //     right.addTerm(1.0, vars(ArcVar(arc)))
+  //     //     model.addConstr(left, GRB.GREATER_EQUAL, right, s"$disjVar-greater-$arc")
+  //     //   }
+  //     //   val left = new GRBLinExpr()
+  //     //   left.addTerm(1.0, disjGRBVar)
+  //     //   val right = new GRBLinExpr()
+  //     //   for(arc <- qaArcs) {
+  //     //     right.addTerm(1.0, vars(ArcVar(arc)))
+  //     //   }
+  //     //   model.addConstr(left, GRB.LESS_EQUAL, right, s"$disjVar-less")
+  //     //   objective.addTerm(qaPairConnectionWeight, disjGRBVar)
+  //     //   model.update()
+  //     // }
 
-      for((arc, weight) <- arcScores.iterator) {
-        objective.addTerm(weight, vars(ArcVar(arc)))
-      }
-      model.setObjective(objective, GRB.MAXIMIZE)
+  //     for((arc, weight) <- arcScores.iterator) {
+  //       objective.addTerm(weight, vars(ArcVar(arc)))
+  //     }
+  //     model.setObjective(objective, GRB.MAXIMIZE)
 
-      // run the optimization
-      model.optimize()
+  //     // run the optimization
+  //     model.optimize()
 
-      // TODO construct dependency tree from the results
-      val arcs = for {
-        pIndex <- allIndices
-        cIndex <- allIndices
-        arc = Arc(pIndex, cIndex)
-        if vars(ArcVar(arc)).get(GRB.DoubleAttr.X) > 0.9 // TODO proper way to get binary value?
-      } yield arc
+  //     // TODO construct dependency tree from the results
+  //     val arcs = for {
+  //       pIndex <- allIndices
+  //       cIndex <- allIndices
+  //       arc = Arc(pIndex, cIndex)
+  //       if vars(ArcVar(arc)).get(GRB.DoubleAttr.X) > 0.9 // TODO proper way to get binary value?
+  //     } yield arc
 
-      // since there are no cycles, we can safely do this
-      def treeAt(index: Index): DependencyTree[Index, Unit] = {
-        val childArcs = arcs
-          .filter(_.parent == index)
-          .map(arc => ((), treeAt(arc.child)))
-        DependencyTree[Index, Unit](index, childArcs)
-      }
+  //     // since there are no cycles, we can safely do this
+  //     def treeAt(index: Index): DependencyTree[Index, Unit] = {
+  //       val childArcs = arcs
+  //         .filter(_.parent == index)
+  //         .map(arc => ((), treeAt(arc.child)))
+  //       DependencyTree[Index, Unit](index, childArcs)
+  //     }
 
-      val tree = treeAt(Root)
+  //     val tree = treeAt(Root)
 
-      tree
-    } catch {
-      case e: Exception => e.printStackTrace
-        null // TODO meh option return type
-    } finally {
-      model.dispose()
-      env.dispose()
-    }
-  }
+  //     tree
+  //   } catch {
+  //     case e: Exception => e.printStackTrace
+  //       null // TODO meh option return type
+  //   } finally {
+  //     model.dispose()
+  //     env.dispose()
+  //   }
+  // }
 
   lazy val manualTrees = manualAnnotations.toStream.map(p => induceTree(p._2, p._3))
   lazy val turkTrees = qaPairsBySentence.toStream.map(Function.tupled(induceTree))
