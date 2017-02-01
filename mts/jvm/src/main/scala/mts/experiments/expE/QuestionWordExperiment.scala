@@ -644,9 +644,13 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
         }
 
         // ask for question words to be connected to answer words (weighted down)
-        val qToAscore = 1.0 / (qis.size * ais.size)
-        for(p <- qis; c <- ais) {
-          if(p != c) arcScores.add(Arc(Word(p), Word(c)), qToAscore)
+        val qToAScore = 1.0 / (qis.size * ais.size)
+        // val aToQScore = 0.2 / (qis.size * ais.size)
+        for(q <- qis; a <- ais) {
+          if(q != a) {
+            arcScores.add(Arc(Word(q), Word(a)), qToAScore)
+            // arcScores.add(Arc(Word(a), Word(q)), aToQScore)
+          }
         }
       }
 

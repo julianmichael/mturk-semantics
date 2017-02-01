@@ -6,6 +6,8 @@ import scala.language.postfixOps
 object Styles extends StyleSheet.Inline {
   import dsl._
 
+  // freeze after expE
+
   val mainContent = style(
     font := "Helvetica"
   )
@@ -36,4 +38,8 @@ object Styles extends StyleSheet.Inline {
   val badRed = style(
     color(c"rgb(216, 31, 00)")
   )
+
+  // freeze after expF
+
+  val bolded = style(fontWeight.bold)
 }

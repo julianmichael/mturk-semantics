@@ -122,7 +122,6 @@ howbeit
 however
 ie
 if
-in
 inasmuch
 inc
 indeed
@@ -136,7 +135,6 @@ just
 k
 l
 last
-latterly
 least
 less
 lest
@@ -165,7 +163,6 @@ non
 nor
 normally
 not
-novel
 now
 o
 obviously
@@ -174,7 +171,6 @@ off
 oh
 ok
 okay
-on
 ones
 only
 onto

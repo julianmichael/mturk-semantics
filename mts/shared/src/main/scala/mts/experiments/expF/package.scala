@@ -7,15 +7,17 @@ import expE.QAGenPrompt
 import expE.QAGenResponse
 
 package object expF extends PackagePlatformExtensions {
-  case class Prompt(origPrompt: QAGenPrompt, origResponse: QAGenResponse)
-  case class Response(qaPairs: List[(String, Set[Int])])
+
+  case class SourcedQAPair(originalHITId: String, question: String, answer: Set[Int])
+
+  case class ValidationPrompt(path: CoNLLSentencePath, sourcedQAPairs: List[SourcedQAPair])
+  case class QuestionValidationResponse(questions: List[Option[String]])
+  case class AnswerValidationResponse(answerIndices: List[Set[Int]])
 
   sealed trait ApiRequest
   case class SentenceRequest(path: CoNLLSentencePath) extends ApiRequest
 
   sealed trait ApiResponse
-  case class SentenceResponse(path: CoNLLSentencePath, sentence: CoNLLSentence) extends ApiResponse
-
-  val bonuses = List(0.0, 0.03, 0.04, 0.05, 0.06)
+  case class SentenceResponse(sentence: CoNLLSentence) extends ApiResponse
 }
 
