@@ -29,7 +29,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
       Given a sentence and a list of questions,
       highlight the part of the sentence that answers the question.
     """.trim,
-    reward = 0.10,
+    reward = 0.20,
     keywords = "language,english,question answering")
 
   lazy val sentenceApiFlow = Flow[ApiRequest].map {
@@ -50,7 +50,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
       You'll be given a sentence and a list of questions (and their answers).
       Revise and simplify the questions while preserving their answers.
     """.trim,
-    reward = 0.10,
+    reward = 0.30,
     keywords = "language,english,question answering")
 
   lazy val qvTaskSpec = TaskSpecification[ValidationPrompt, QuestionValidationResponse, ApiRequest, ApiResponse](
@@ -84,7 +84,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
   }
 
   // for each sentence, group its questions into lists of 10 each; then, randomize these sentence/group pairs
-  val numQAsPerHIT = 10
+  val numQAsPerHIT = 6
 
   lazy val prompts = {
     val shuffleRand = new util.Random(444443333L)

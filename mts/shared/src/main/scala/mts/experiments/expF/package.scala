@@ -12,7 +12,7 @@ package object expF extends PackagePlatformExtensions {
 
   case class ValidationPrompt(path: CoNLLSentencePath, sourcedQAPairs: List[SourcedQAPair])
   case class QuestionValidationResponse(questions: List[Option[String]])
-  case class AnswerValidationResponse(answerIndices: List[Set[Int]])
+  case class AnswerValidationResponse(answerIndices: List[Option[Set[Int]]])
 
   sealed trait ApiRequest
   case class SentenceRequest(path: CoNLLSentencePath) extends ApiRequest

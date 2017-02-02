@@ -38,13 +38,21 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
 
   @Lenses case class State(
     curQuestion: Int,
-    isInterfaceFocused: Boolean)
+    isInterfaceFocused: Boolean,
+    invalids: Set[Int])
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
-    def updateResponse(hs: HighlightingState): Callback = Callback {
+    def updateResponse(state: State)(hs: HighlightingState): Callback = Callback {
       val questionIndices = (0 until questions.length)
-      setSubmitEnabled(questionIndices.forall(qi => hs.span.exists(_._1 == qi)))
-      setResponse(AnswerValidationResponse(questionIndices.toList.map(qi => hs.span.collect { case (`qi`, ai) => ai })))
+      setSubmitEnabled(questionIndices.forall(qi => state.invalids.contains(qi) || hs.span.exists(_._1 == qi)))
+      setResponse(
+        AnswerValidationResponse(
+          questionIndices.toList.map(
+            qi => if(state.invalids.contains(qi)) None
+                  else Some(hs.span.collect { case (`qi`, ai) => ai })
+          )
+        )
+      )
     }
 
     def handleKey(e: ReactKeyboardEvent): Callback = {
@@ -56,7 +64,7 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
       } >> e.preventDefaultCB
     }
 
-    def qaField(curQuestion: Int, sentence: CoNLLSentence, span: Set[(Int, Int)])(index: Int) = {
+    def qaField(curQuestion: Int, invalids: Set[Int], sentence: CoNLLSentence, span: Set[(Int, Int)])(index: Int) = {
       val isFocused = curQuestion == index
       val answerIndices = span.collect { case (`index`, ai) => ai }
       val isAnswerEmpty = answerIndices.isEmpty
@@ -65,8 +73,26 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
 
       <.div(
         ^.overflow := "hidden",
+        <.div(
+          Styles.unselectable,
+          ^.float := "left",
+          // ^.`type` := "button",
+          ^.margin := "1px",
+          ^.padding := "1px",
+          ^.minHeight := "1px",
+          ^.border := "1px solid",
+          ^.borderRadius := "2px",
+          ^.textAlign := "center",
+          ^.width := "50px",
+          invalids.contains(index) ?= (^.backgroundColor := "#E01010"),
+          ^.onClick --> scope.modState(
+            State.invalids.modify(is => if(is.contains(index)) is - index else is + index)
+          ),
+          "Invalid"
+        ),
         <.span(
           isFocused ?= Styles.bolded,
+          Styles.unselectable,
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
@@ -75,6 +101,7 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
         ),
         <.div(
           Styles.answerIndicator,
+          Styles.unselectable,
           ^.float := "left",
           ^.minHeight := "1px",
           ^.width := "25px",
@@ -84,8 +111,10 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
-          isAnswerEmpty ?= (^.color := "#CCCCCC"),
-          if(isAnswerEmpty && isFocused) {
+          (invalids.contains(index) || isAnswerEmpty) ?= (^.color := "#CCCCCC"),
+          if(invalids.contains(index)) {
+            "N/A"
+          } else if(isAnswerEmpty && isFocused) {
             "Highlight your answer above, switch questions with arrow keys"
           } else {
             curAnswer
@@ -104,8 +133,9 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
               import scalaz.std.list._
               Highlighting(
                 HighlightingProps(
-                  isEnabled = !isNotAssigned, update = updateResponse, render = {
+                  isEnabled = !isNotAssigned && !s.invalids(s.curQuestion), update = updateResponse(s), render = {
                     case (HighlightingState(spans, status), HighlightingContext(startHighlight, startErase, stopHighlight, touchElement)) =>
+                      val showHighlights = !s.invalids(s.curQuestion)
                       val curSpan = spans.collect { case (questionIndex, i) if questionIndex == s.curQuestion => i }
                       def touchWord(i: Int) = touchElement((s.curQuestion, i))
                       <.div(
@@ -129,7 +159,7 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
                             ^.textAlign := "center",
                             ^.color := "rgba(48, 140, 20, .3)",
                             ^.fontSize := "48pt",
-                            "Click here to start"
+                            (if(isNotAssigned) "Accept assignment to start" else "Click here to start")
                           ),
                           <.p(
                             Styles.unselectable,
@@ -139,14 +169,14 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
                               spaceFromNextWord = (nextWord: CoNLLWord) => List(
                                 <.span(
                                   ^.backgroundColor := (
-                                    if(curSpan.contains(nextWord.index) && curSpan.contains(nextWord.index - 1)) {
+                                    if(showHighlights && curSpan.contains(nextWord.index) && curSpan.contains(nextWord.index - 1)) {
                                       "#FFFF00"
                                     } else "transparent"),
                                   " ")),
                               renderWord = (word: CoNLLWord) => List(
                                 <.span(
                                   ^.backgroundColor := (
-                                    if(curSpan.contains(word.index)) "#FFFF00"
+                                    if(showHighlights && curSpan.contains(word.index)) "#FFFF00"
                                     else "transparent"),
                                   ^.onMouseMove --> touchWord(word.index),
                                   ^.onMouseDown ==> (
@@ -163,7 +193,7 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
                           <.ul(
                             Styles.listlessList,
                             (0 until questions.size)
-                              .map(qaField(s.curQuestion, sentence, spans))
+                              .map(qaField(s.curQuestion, s.invalids, sentence, spans))
                               .map(field => <.li(^.display := "block", field))
                           )
                         )
@@ -178,7 +208,7 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
   }
 
   val FullUI = ReactComponentB[Unit]("Full UI")
-    .initialState(State(0, false))
+    .initialState(State(0, false, Set.empty[Int]))
     .renderBackend[FullUIBackend]
     .build
 
@@ -208,7 +238,7 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
     <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into a list of questions and answers.
            You will be presented with a selection of English text and a list of questions prepared by other annotators."""),
-    <.p("""You will highlight the smallest set of words in the sentence that correctly and naturally answers the question.
+    <.p("""You will highlight the smallest set of words in the sentence that correctly answers the question.
            For example, consider the following sentence and questions:"""),
     <.blockquote(<.i("The jubilant protesters celebrated after executive intervention canceled the project.")),
     <.ul(
@@ -220,13 +250,13 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
     <.p("""This task is best fit for native speakers of English.
         Each of your answers must satisfy the following criteria:"""),
     <.ol(
-      <.li("""It is a correct and natural answer to the question."""),
+      <.li("""It is a correct answer to the question."""),
       <.li("""It is grammatical, to the extent possible."""),
       <.li("""It is the shortest such answer, i.e., it does not contain any unnecessary words.""")),
-    <.p(""" If it is clear what the question is trying to ask (even if there are grammatical errors),
-        please answer it to the best of your ability.
+    <.p("""Even if there are spelling and grammar mistakes in the question, if it is clear what the question is supposed to be,
+        please provide a correct answer if possible.
         If there are multiple correct answers, choose any one of them.
-        If the question is incoherent, has no apparent connection to the sentence,
+        If the question is incoherent, has no obvious and grammatical answer in the sentence,
         or is otherwise unanswerable, you should mark it """, <.b("Invalid"), """.
         See the examples for further explanation."""),
     <.h2("""Examples"""),
@@ -242,15 +272,15 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
       example(question = "What is someone responsible for?", answer = "my decision", isGood = true,
               tooltip = """You should skip over words or phrases when they are not necessary to answer the question."""),
       example(question = "What am I taking?", answer = "responsibility for my decision", isGood = false,
-              tooltip = """You should prefer the shortest natural, grammatical answer.
+              tooltip = """You should prefer the shortest grammatical answer.
                            In this case it would be "responsibility." """)
     ),
     <.p("""If you consistently provide answers that violate the above criteria, you will be banned from this task and future tasks.
         Otherwise, your work will be approved within an hour."""),
-    <.p("""Sometimes you may be unsure whether to choose between a shorter answer and a longer, slightly more natural one.
-        Exercise your best judgment and as long as you choose something reasonable you will not be penalized.
+    <.p("""Sometimes you may be unsure whether to choose between a shorter answer and a longer, slightly more grammatically appropriate one.
+        Exercise your best judgment and if you choose something reasonable you will not be penalized.
         As a rule of thumb, when all else is equal, choose the shorter answer."""),
-    <.p("""You may see the same or very similar questions appear twice. This is fine: just give the same answer."""),
+    <.p("""You may see the same or very similar questions appear more than once. This is fine: just give the same answer."""),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field so we may improve the task.""")
   )

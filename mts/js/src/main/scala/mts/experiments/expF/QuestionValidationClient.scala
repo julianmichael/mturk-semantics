@@ -236,13 +236,14 @@ object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionVal
       <.li("""The question asks about the same thing, and has the same correct answer as before."""),
       <.li("""Any unnecessary words from the sentence have been removed or replaced with "someone," "something," or other generic words."""),
       <.li("""The question still contains at least one content word from the sentence.""")),
-    <.p("""If the question is incoherent, has no apparent connection to the answer,
-        has multiple correct answers, or is otherwise unsalvageable,
-        you should mark it """, <.b("Invalid"), """. See the examples for further explanation."""),
+    <.p("""It is fine for a question to have multiple correct answers as long as the given answer is one of them.
+        However, if the question is incoherent, has no apparent connection to the answer,
+        or is otherwise unsalvageable, you should mark it """, <.b("Invalid"),
+        """. See the examples for further explanation."""),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
     <.blockquote(<.i("""The new chairman fears a large decrease in profits in the second quarter,
-            after shaky performance in the beginning of the year.""")),
+            after a shaky performance in the beginning of the year.""")),
     <.p("""Here are examples of revisions you might make:"""),
     <.ul(
       Styles.listlessList,
@@ -268,7 +269,11 @@ object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionVal
                            this can often be done with words like "may" and "might"."""),
       example(origQ = "Which quarter?", answer = "second",
               newQ = Some("Which quarter?"), isGood = true,
-              tooltip = """If the question is fine as-is, don't change it.""")
+              tooltip = """If the question is fine as-is, don't change it."""),
+      example(origQ = "What else did profits do?", answer = "a shaky performance",
+              newQ = Some("What had profits done?"), isGood = true,
+              tooltip = """Keep each question isolated; don't use words like "else."
+                           If there are multiple answers it is fine.""")
     ),
     <.p("""Your revisions will be examined and cross-checked with other workers.
            If you spam or consistently provide low-quality revisions, you will be banned this task and future tasks.
