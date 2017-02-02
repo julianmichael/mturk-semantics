@@ -237,7 +237,7 @@ object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidat
     <.h2("""Task Summary"""),
     <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into a list of questions and answers.
-           You will be presented with a selection of English text and a list of questions prepared by other annotators."""),
+           You will be presented with a selection of English text and a list of at most 6 questions prepared by other annotators."""),
     <.p("""You will highlight the smallest set of words in the sentence that correctly answers the question.
            For example, consider the following sentence and questions:"""),
     <.blockquote(<.i("The jubilant protesters celebrated after executive intervention canceled the project.")),

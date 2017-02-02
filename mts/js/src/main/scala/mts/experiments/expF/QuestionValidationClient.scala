@@ -218,7 +218,7 @@ object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionVal
     <.h2("""Task Summary"""),
     <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
-        You will be presented with a selection of English text and a list of question-answer pairs about that selection
+        You will be presented with a selection of English text and a list of at most 6 question-answer pairs about that selection
         prepared by other annotators."""),
     <.p("""You will revise and the questions to make them shorter and remove unneeded content words
         while preserving their meaning. Consider the following example:"""),
