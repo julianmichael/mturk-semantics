@@ -87,7 +87,7 @@ object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionVal
             ^.`type` := "text",
             ^.margin := "1px",
             ^.padding := "1px",
-            ^.width := "240px",
+            ^.width := "360px",
             ^.onChange ==> (
               (e: ReactEventI) => {
                 val newValue = Some(e.target.value)
@@ -171,7 +171,7 @@ object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionVal
   }
 
   val exDivStyle = List(^.margin := "10px", ^.width := "360px", ^.float := "left")
-  def example(origQ: String, answer: String, newQ: ReactElement, isGood: Boolean, tooltip: String) =
+  def example(origQ: String, answer: String, newQ: Option[String], isGood: Boolean, tooltip: String) =
     <.li(
       ^.overflow := "hidden",
       ^.borderBottom := "1px solid",
@@ -199,7 +199,7 @@ object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionVal
           ^.position := "relative",
           isGood ?= Styles.goodGreen,
           !isGood ?= Styles.badRed,
-          <.span(<.b("Q: "), newQ)
+          newQ.fold(<.span("<Invalid>"))(q => <.span(<.b("Q: "), q))
         )
       ),
       <.div(exDivStyle)(
@@ -241,40 +241,38 @@ object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionVal
         you should mark it """, <.b("Invalid"), """. See the examples for further explanation."""),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
-    <.blockquote(<.i("""I take full and complete responsibility for
-                        my thoughtless decision to disclose these materials to the public. """)),
-    <.p("""Here are examples of revisions someone might make.
-           Good revisions are in """, <.span(Styles.goodGreen, "green "), """and unacceptable revisions
-           are in """, <.span(Styles.badRed, "red"), "."),
+    <.blockquote(<.i("""The new chairman fears a large decrease in profits in the second quarter,
+            after shaky performance in the beginning of the year.""")),
+    <.p("""Here are examples of revisions you might make:"""),
     <.ul(
       Styles.listlessList,
-      example(origQ = "Who decided to disclose materials to the public?", answer = "I",
-              newQ = <.span("Who decided something?"), isGood = true,
-              tooltip = """You should replace phrases with "something" instead of deleting the
-                           when necessary to keep the question sounding natural."""),
-      example(origQ = "Whose thoughtless decisoin was it ?", answer = "I",
-              newQ = <.span("Whose decision was it?"), isGood = true,
-              tooltip = """Delete words that aren't necessary for answering the question, and fix any typographical problems."""),
-      example(origQ = "What kind of decision?", answer = "thoughtless",
-              newQ = <.span("What kind of decision?"), isGood = true,
-              tooltip = """Do not change the question if it is already valid. Questions do not have to be complete sentences."""),
-      example(origQ = "What level of responsibility am I taking?", answer = "I",
-              newQ = <.span("What level of responsibility?"), isGood = true,
-              tooltip = """Sometimes extra words like "level" will be used, which don't appear in the sentence. This is okay."""),
-      example(origQ = "What did I do?", answer = "take full and complete responsibility",
-              newQ = <.b("Invalid"), isGood = true,
-              tooltip = """This question has several correct answers (take, decide, disclose),
-                           and there is no obvious way to fix it, so you should mark it invalid."""),
-      example(origQ = "What did I disclose?", answer = "these materials",
-              newQ = <.span("What did I decide to disclose?"), isGood = false,
-              tooltip = """Avoid adding words from the sentence to the question if at all possible."""),
-      example(origQ = "What did I disclose something to?", answer = "the public",
-              newQ = <.span("Who was given access to the materials?"), isGood = false,
-              tooltip = """You should change the question as minimally as possible, and make sure it is asking about the same thing.""")
+      example(origQ = "What is feared to decrease?", answer = "profits",
+              newQ = Some("What may decrease?"), isGood = true,
+              tooltip = """Try to eliminate all but one word from the sentence if possible.
+                           Feel free to change the phrasing to make the question more natural."""),
+      example(origQ = """Shaky performance resulted in an expected decrease in what?""", answer = "profits",
+              newQ = Some("A decrease in what?"), isGood = true,
+              tooltip = """The question does not need to be a complete sentence. Keep only the words that are necessary,
+                           but make sure it is fluent English."""),
+      example(origQ = "What direction will profits go?", answer = "decrease",
+              newQ = Some("What might profits do?"), isGood = true,
+              tooltip = """This question was almost unsalvageable, because "decrease" is not a proper answer.
+                           It also would be acceptable to mark this question Invalid."""),
+      example(origQ = "what does the chairman ffear", answer = "a decrease in profits",
+              newQ = Some("What does someone fear?"), isGood = true,
+              tooltip = """Make sure to replace words and phrases with "someone" or "something" if you can.
+                           Also correct typos, capitalization, and punctuation if necessary."""),
+      example(origQ = "What is feared to happen to profits?", answer = "a larger decrease",
+              newQ = Some("What may happen to profits?"), isGood = true,
+              tooltip = """If there are extra verbs in the sentence, make sure to remove them as well;
+                           this can often be done with words like "may" and "might"."""),
+      example(origQ = "Which quarter?", answer = "second",
+              newQ = Some("Which quarter?"), isGood = true,
+              tooltip = """If the question is fine as-is, don't change it.""")
     ),
     <.p("""Your revisions will be examined and cross-checked with other workers.
            If you spam or consistently provide low-quality revisions, you will be banned this task and future tasks.
-           Otherwise, your work will be approved within at most 20 minutes.
+           Otherwise, your work will be approved within an hour.
         """),
     <.p("""If you have any questions, concerns, or points of confusion,
            please share them in the "Feedback" field so we may improve the task.""")

@@ -41,7 +41,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
       SourcedQAPair("", "Who is awesome?", Set(1, 2, 3, 4)),
       SourcedQAPair("", "What did Julian do?", Set(5, 6, 8, 9))))
 
-  lazy val answerValidationTaskSpec = TaskSpecification[ValidationPrompt, AnswerValidationResponse, ApiRequest, ApiResponse](
+  lazy val avTaskSpec = TaskSpecification[ValidationPrompt, AnswerValidationResponse, ApiRequest, ApiResponse](
     TaskIndex.expFAnswerValidationTaskKey, answerValidationHITType, sentenceApiFlow, sampleValidationPrompt)
 
   val questionValidationHITType = HITType(
@@ -53,12 +53,12 @@ class ValidationExperiment(implicit config: TaskConfig) {
     reward = 0.10,
     keywords = "language,english,question answering")
 
-  lazy val questionValidationTaskSpec = TaskSpecification[ValidationPrompt, QuestionValidationResponse, ApiRequest, ApiResponse](
+  lazy val qvTaskSpec = TaskSpecification[ValidationPrompt, QuestionValidationResponse, ApiRequest, ApiResponse](
     TaskIndex.expFQuestionValidationTaskKey, questionValidationHITType, sentenceApiFlow, sampleValidationPrompt)
 
   import config.actorSystem
   lazy val server = new Server(
-    List(answerValidationTaskSpec, questionValidationTaskSpec))
+    List(avTaskSpec, qvTaskSpec))
 
   // get all of the questions to validate from expE
 
@@ -98,14 +98,14 @@ class ValidationExperiment(implicit config: TaskConfig) {
   }
 
   lazy val qvHITManager = new NumAssignmentsHITManager(
-    questionValidationTaskSpec,
+    qvTaskSpec,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
     numHITsToKeepActive = (if(config.isProduction) 30 else 3),
     prompts.iterator)
   lazy val qvActor = actorSystem.actorOf(Props(TaskManager(qvHITManager)))
 
   lazy val avHITManager = new NumAssignmentsHITManager(
-    answerValidationTaskSpec,
+    avTaskSpec,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
     numHITsToKeepActive = (if(config.isProduction) 30 else 3),
     prompts.iterator)
@@ -133,4 +133,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
     qvActor ! qvHITManager.Message.Update
     avActor ! avHITManager.Message.Update
   }
+
+  lazy val loadQData = FileManager.loadAllData[ValidationPrompt, QuestionValidationResponse](qvTaskSpec.hitTypeId)
+  lazy val loadAData = FileManager.loadAllData[ValidationPrompt, AnswerValidationResponse](avTaskSpec.hitTypeId)
 }
