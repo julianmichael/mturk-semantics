@@ -41,7 +41,8 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   val sampleQAGenPrompt = QAGenPrompt(sentences.head._1, 0)
 
   lazy val qaGenTaskSpec = TaskSpecification[QAGenPrompt, QAGenResponse, ApiRequest, ApiResponse](
-    TaskIndex.expEQAGenTaskKey, qaGenHITType, qaGenApiFlow, sampleQAGenPrompt)
+    TaskIndex.expEQAGenTaskKey, qaGenHITType, qaGenApiFlow, sampleQAGenPrompt,
+    frozenHITTypeId = Some("3ARIN4O78FH2188DD05SP7EY06CIFS")) // task is done
 
   lazy val sourceSentences = for {
     ((path, sentence), sentenceIndex) <- sentences.zipWithIndex

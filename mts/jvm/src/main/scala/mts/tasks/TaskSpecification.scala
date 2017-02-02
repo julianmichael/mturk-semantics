@@ -55,6 +55,7 @@ sealed trait TaskSpecification {
   val hitType: HITType
   val apiFlow: Flow[ApiRequest, ApiResponse, Any]
   val samplePrompt: Prompt
+  val frozenHITTypeId: Option[String]
 
   import hitType._
   import config._
@@ -69,7 +70,7 @@ sealed trait TaskSpecification {
     *
     * I'm not 100% sure this needs to be lazy... but it's not hurting anyone as it is.
     */
-  final lazy val hitTypeId = hitType.register(service)
+  final lazy val hitTypeId = frozenHITTypeId.getOrElse(hitType.register(service))
 
   /** Creates a HIT on MTurk.
     *
@@ -186,7 +187,8 @@ object TaskSpecification {
     override val taskKey: String,
     override val hitType: HITType,
     override val apiFlow: Flow[ApiReq, ApiResp, Any],
-    override val samplePrompt: P)(
+    override val samplePrompt: P,
+    override val frozenHITTypeId: Option[String])(
     implicit override val promptWriter: Writer[P],
     val responseReader: Reader[R],
     val apiRequestReader: Reader[ApiReq],
@@ -198,16 +200,16 @@ object TaskSpecification {
     override type ApiRequest = ApiReq
     override type ApiResponse = ApiResp
   }
-  // TODO specify return type
   def apply[P, R, ApiReq, ApiResp](
     taskKey: String,
     hitType: HITType,
     apiFlow: Flow[ApiReq, ApiResp, Any],
-    samplePrompt: P)(
+    samplePrompt: P,
+    frozenHITTypeId: Option[String] = None)(
     implicit promptWriter: Writer[P],
     responseReader: Reader[R],
     apiRequestReader: Reader[ApiReq],
     apiResponseWriter: Writer[ApiResp],
     config: TaskConfig): TaskSpecification { type Prompt = P; type Response = R; type ApiRequest = ApiReq; type ApiResponse = ApiResp } =
-    TaskSpecificationImpl[P, R, ApiReq, ApiResp](taskKey, hitType, apiFlow, samplePrompt)
+    TaskSpecificationImpl[P, R, ApiReq, ApiResp](taskKey, hitType, apiFlow, samplePrompt, frozenHITTypeId)
 }
