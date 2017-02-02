@@ -29,8 +29,8 @@ class Server(tasks: List[TaskSpecification])(implicit config: TaskConfig) {
       val localAddress = binding.localAddress
       println(s"Server is listening on http://${localAddress.getHostName}:${localAddress.getPort}")
     case Failure(e) ⇒
-      println(s"Binding failed with ${e.getMessage}")
-      system.terminate()
+      println(s"HTTP binding failed:")
+      e.printStackTrace
   }
 
   val httpsServer = Try {
@@ -63,13 +63,15 @@ class Server(tasks: List[TaskSpecification])(implicit config: TaskConfig) {
         val localAddress = binding.localAddress
         println(s"Server is listening on https://${localAddress.getHostName}:${localAddress.getPort}")
       case Failure(e) ⇒
-        println(s"Binding failed with ${e.getMessage}")
-        system.terminate()
+        println(s"HTTPS binding failed:")
+        e.printStackTrace
     }
   }
 
   httpsServer match {
     case Success(_) => ()
-    case Failure(e) => System.err.println(s"HTTPS binding failed: $e")
+    case Failure(e) =>
+      System.err.println(s"HTTPS configuration failed: $e")
+      e.printStackTrace
   }
 }
