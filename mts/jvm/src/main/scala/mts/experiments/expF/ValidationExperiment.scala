@@ -58,9 +58,20 @@ class ValidationExperiment(implicit config: TaskConfig) {
     TaskIndex.expFQuestionValidationTaskKey, questionValidationHITType, sentenceApiFlow, sampleValidationPrompt,
     frozenHITTypeId = Some("3SGI3JPMZ02SE0U77QDB3KAL5GWFBK"))
 
+  val longAnswerValidationHITType = HITType(
+    title = s"Answer simple questions about a sentence",
+    description = s"""
+      Given a sentence and a list of questions,
+      highlight the longest part the sentence that correctly answers the question.
+    """.trim,
+    reward = 0.20,
+    keywords = "language,english,question answering")
+  lazy val lavTaskSpec = TaskSpecification[ValidationPrompt, AnswerValidationResponse, ApiRequest, ApiResponse](
+    TaskIndex.expFLongAnswerValidationTaskKey, longAnswerValidationHITType, sentenceApiFlow, sampleValidationPrompt)
+
   import config.actorSystem
   lazy val server = new Server(
-    List(avTaskSpec, qvTaskSpec))
+    List(avTaskSpec, qvTaskSpec, lavTaskSpec))
 
   // get all of the questions to validate from expE
 
@@ -115,16 +126,6 @@ class ValidationExperiment(implicit config: TaskConfig) {
 
   // oh, ok, guess we should do longest-answer preferring validation too
 
-  val longAnswerValidationHITType = HITType(
-    title = s"Answer simple questions about a sentence",
-    description = s"""
-      Given a sentence and a list of questions,
-      highlight the longest part the sentence that correctly answers the question.
-    """.trim,
-    reward = 0.20,
-    keywords = "language,english,question answering")
-  lazy val lavTaskSpec = TaskSpecification[ValidationPrompt, AnswerValidationResponse, ApiRequest, ApiResponse](
-    TaskIndex.expFLongAnswerValidationTaskKey, longAnswerValidationHITType, sentenceApiFlow, sampleValidationPrompt)
   lazy val lavHITManager = new NumAssignmentsHITManager(
     lavTaskSpec,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
