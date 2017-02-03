@@ -24,6 +24,7 @@ object TaskDispatcher extends JSApp {
       case TaskIndex.`expEQAGenTaskKey` => expE.QAGenClient.main()
       case TaskIndex.`expFAnswerValidationTaskKey` => expF.AnswerValidationClient.main()
       case TaskIndex.`expFQuestionValidationTaskKey` => expF.QuestionValidationClient.main()
+      case TaskIndex.`expFLongAnswerValidationTaskKey` => expF.LongAnswerValidationClient.main()
       // case _ => // this will happen if it couldn't connect over the network...wait...no? idk
       //   jQuery(s"#$rootClientDivLabel").append(
       //     "Could not connect to the server"

@@ -9,4 +9,5 @@ object TaskIndex {
   val expEQAGenTaskKey = "expEQAGen"
   val expFAnswerValidationTaskKey = "expFAnswerValidation"
   val expFQuestionValidationTaskKey = "expFQuestionValidation"
+  val expFLongAnswerValidationTaskKey = "expFLongAnswerValidation"
 }
