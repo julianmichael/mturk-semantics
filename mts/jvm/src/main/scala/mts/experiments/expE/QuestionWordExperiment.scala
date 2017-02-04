@@ -61,17 +61,19 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
     shuffleRand.shuffle(inOrder.toVector)
   }
 
+  import config.actorSystem
+
+  lazy val hitManagementHelper = new HITManager.Helper(qaGenTaskSpec)
   lazy val qaGenHITManager = if(config.isProduction) {
-    new QAGenHITManager(qaGenTaskSpec, 2, 60, sourcePrompts.iterator)
+    actorSystem.actorOf(Props(new QAGenHITManager(hitManagementHelper, 2, 60, sourcePrompts.iterator)))
   } else {
-    new QAGenHITManager(qaGenTaskSpec, 1, 4, sourcePrompts.iterator)
+    actorSystem.actorOf(Props(new QAGenHITManager(hitManagementHelper, 1, 4, sourcePrompts.iterator)))
   }
 
-  import config.actorSystem
   lazy val server = new Server(List(qaGenTaskSpec))
-  lazy val qaGenActor = actorSystem.actorOf(Props(TaskManager(qaGenHITManager)))
+  lazy val qaGenActor = actorSystem.actorOf(Props(new TaskManager(hitManagementHelper, qaGenHITManager)))
 
-  import qaGenHITManager.Message._
+  import TaskManager._
   def start(interval: FiniteDuration = 1 minute) = {
     server
     qaGenActor ! Start(interval)

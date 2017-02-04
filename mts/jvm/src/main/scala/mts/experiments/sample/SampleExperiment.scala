@@ -34,14 +34,17 @@ class SampleExperiment(implicit config: TaskConfig) {
 
   lazy val taskSpec = TaskSpecification[SamplePrompt, SampleResponse, ApiRequest, ApiResponse](
     TaskIndex.sampleTaskKey, sampleHITType, sampleApiFlow, samplePrompt)
-  lazy val hitManager = new NumAssignmentsHITManager[SamplePrompt, SampleResponse](
-    taskSpec, 1, 3, List(samplePrompt).iterator)
+  lazy val helper = new HITManager.Helper(taskSpec)
 
   import config.actorSystem
-  lazy val server = new Server(List(taskSpec))
-  lazy val actor = actorSystem.actorOf(Props(TaskManager(hitManager)))
+  lazy val hitManager = actorSystem.actorOf(
+    Props(new NumAssignmentsHITManager[SamplePrompt, SampleResponse](
+            helper, 1, 3, List(samplePrompt).iterator)))
 
-  import hitManager.Message._
+  lazy val server = new Server(List(taskSpec))
+  lazy val actor = actorSystem.actorOf(Props(new TaskManager(helper, hitManager)))
+
+  import TaskManager._
   def start(interval: FiniteDuration = 1 minute) = {
     server
     actor ! Start(interval)

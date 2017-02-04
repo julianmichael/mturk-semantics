@@ -149,6 +149,17 @@ sealed trait TaskSpecification {
   final def extractFeedback(answerXML: String): String =
     getAnswers(answerXML).get(feedbackLabel).getOrElse("")
 
+  final def makeAssignment(hitId: String, mTurkAssignment: MTurkAssignment): Assignment[Response] =
+    Assignment(
+      hitTypeId = hitTypeId,
+      hitId = hitId,
+      assignmentId = mTurkAssignment.getAssignmentId,
+      workerId = mTurkAssignment.getWorkerId,
+      acceptTime = mTurkAssignment.getAcceptTime.getTime.getTime,
+      submitTime = mTurkAssignment.getSubmitTime.getTime.getTime,
+      response = extractResponse(mTurkAssignment.getAnswer),
+      feedback = extractFeedback(mTurkAssignment.getAnswer))
+
   // == Private methods and fields ==
 
   // auxiliary method for extracting response and feedback

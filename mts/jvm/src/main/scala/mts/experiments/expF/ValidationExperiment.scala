@@ -110,55 +110,62 @@ class ValidationExperiment(implicit config: TaskConfig) {
     shuffleRand.shuffle(inOrder)
   }
 
-  lazy val qvHITManager = new NumAssignmentsHITManager(
-    qvTaskSpec,
+  // NOTE for future tasks. Do more than 30 of each HIT Type at once.
+  // If responding to individual assignments with review, this can work fine; in particular,
+  // you can just put all of the HITs up at once. So that's a better way to do it.
+  lazy val qvHelper = new HITManager.Helper(qvTaskSpec)
+  lazy val qvHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
+    qvHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
     numHITsToKeepActive = (if(config.isProduction) 30 else 3),
-    prompts.iterator)
-  lazy val qvActor = actorSystem.actorOf(Props(TaskManager(qvHITManager)))
+    prompts.iterator)))
+  lazy val qvActor = actorSystem.actorOf(Props(new TaskManager(qvHelper, qvHITManager)))
 
-  lazy val avHITManager = new NumAssignmentsHITManager(
-    avTaskSpec,
+  lazy val avHelper = new HITManager.Helper(avTaskSpec)
+  lazy val avHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
+    avHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
     numHITsToKeepActive = (if(config.isProduction) 30 else 3),
-    prompts.iterator)
-  lazy val avActor = actorSystem.actorOf(Props(TaskManager(avHITManager)))
+    prompts.iterator)))
+  lazy val avActor = actorSystem.actorOf(Props(new TaskManager(avHelper, avHITManager)))
 
   // oh, ok, guess we should do longest-answer preferring validation too
 
-  lazy val lavHITManager = new NumAssignmentsHITManager(
-    lavTaskSpec,
+  lazy val lavHelper = new HITManager.Helper(lavTaskSpec)
+  lazy val lavHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
+    lavHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
     numHITsToKeepActive = (if(config.isProduction) 30 else 3),
-    prompts.iterator)
-  lazy val lavActor = actorSystem.actorOf(Props(TaskManager(lavHITManager)))
+    prompts.iterator)))
+  lazy val lavActor = actorSystem.actorOf(Props(new TaskManager(lavHelper, lavHITManager)))
 
+  import TaskManager._
   def start(interval: FiniteDuration = 1 minute) = {
     server
-    qvActor ! qvHITManager.Message.Start(interval)
-    avActor ! avHITManager.Message.Start(interval)
-    lavActor ! lavHITManager.Message.Start(interval)
+    qvActor ! Start(interval)
+    avActor ! Start(interval)
+    lavActor ! Start(interval)
   }
   def stop() = {
-    qvActor ! qvHITManager.Message.Stop
-    avActor ! avHITManager.Message.Stop
-    lavActor ! lavHITManager.Message.Stop
+    qvActor ! Stop
+    avActor ! Stop
+    lavActor ! Stop
   }
   def disable() = {
-    qvActor ! qvHITManager.Message.Disable
-    avActor ! avHITManager.Message.Disable
-    lavActor ! lavHITManager.Message.Disable
+    qvActor ! Disable
+    avActor ! Disable
+    lavActor ! Disable
   }
   def expire() = {
-    qvActor ! qvHITManager.Message.Expire
-    avActor ! avHITManager.Message.Expire
-    lavActor ! lavHITManager.Message.Expire
+    qvActor ! Expire
+    avActor ! Expire
+    lavActor ! Expire
   }
   def update() = {
     server
-    qvActor ! qvHITManager.Message.Update
-    avActor ! avHITManager.Message.Update
-    lavActor ! lavHITManager.Message.Update
+    qvActor ! Update
+    avActor ! Update
+    lavActor ! Update
   }
 
   lazy val qData = FileManager.loadAllData[ValidationPrompt, QuestionValidationResponse](qvTaskSpec.hitTypeId)
