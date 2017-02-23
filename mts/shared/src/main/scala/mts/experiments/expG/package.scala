@@ -93,4 +93,15 @@ package object expG extends PackagePlatformExtensions {
     val blank = KeywordedQAPair("", -1, Set.empty[Int])
   }
 
+  case class AlignedKeywordedQAPair(
+    question: String,
+    keywordIndex: Int,
+    questionIndices: Set[Int],
+    answerIndices: Set[Int])
+
+  case class AlignedManualQARecord(
+    path: CoNLLSentencePath,
+    sentence: CoNLLSentence,
+    qaGroups: List[List[AlignedKeywordedQAPair]])
+
 }

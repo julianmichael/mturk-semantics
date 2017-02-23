@@ -36,14 +36,18 @@ class ManualQA(implicit config: TaskConfig) {
   import expE.{QuestionWordExperiment, QAGenPrompt, QAGenResponse}
   lazy val experimentE = new QuestionWordExperiment
 
-  def loadSavedData = FileManager.loadDataFile(experimentName, "goldData.txt")
+  def loadSavedData: List[ManualQARecord] = FileManager.loadDataFile(experimentName, "goldData.txt")
     .map(_.mkString("\n"))
     .map(read[List[SavedManualQARecord]]) match {
     case Failure(_) =>
       val newGold = experimentE.sourceSentences.map(Function.tupled(SavedManualQARecord.blank)).toList
       FileManager.saveDataFile(experimentName, "goldData.txt", write(newGold))
       newGold.map(_.load)
-    case Success(x) => x.map(_.load)
+    case Success(x) => x.map(_.load) ++
+        sentences.filter(pair => !x.exists(r => pair._1 == r.path))
+          .map(Function.tupled(SavedManualQARecord.blank))
+          .map(_.load)
+          .toList
   }
 
   var goldData = loadSavedData

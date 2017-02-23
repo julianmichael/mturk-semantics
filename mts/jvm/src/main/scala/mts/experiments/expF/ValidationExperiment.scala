@@ -410,7 +410,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
     "Majority Validated" -> majorityValidatedQAPairs)
 
   val allAnnotationSources: List[(String, Map[CoNLLSentencePath, AnnotatedSentence])] =
-    "Gold" -> getGoldAnnotations(getWordsInQuestion) :: qaPairExtractors.map {
+    "Personal" -> getGoldAnnotations(getWordsInQuestion) :: qaPairExtractors.map {
       case (k, v) => k -> pathToAnnotation(v)
     }
 
@@ -459,44 +459,61 @@ class ValidationExperiment(implicit config: TaskConfig) {
 
   // dependency trees
 
-  @memoize(maxSize = 5, expiresAfter = 1 hour)
-  def pathsAndTrees(
-    annotations: Map[CoNLLSentencePath, AnnotatedSentence]
-  ): Stream[(CoNLLSentencePath, DependencyTree[TreeInduction.Index, Unit])] =
-    annotations.toStream.map {
-      case (path, annotation) =>
-        val qaPairs = annotation.alignedQAPairs.map {
-          case AlignedQuestionAnswerPair(QuestionAnswerPair(_, answer), questionIndices) =>
-            (questionIndices, answer)
-        }
-        val sentence = FileManager.getCoNLLSentence(path).get
-        val tree = TreeInduction.induceTree(sentence, qaPairs)
-        (path -> tree)
-    }
+  // @memoize(maxSize = 5, expiresAfter = 1 hour)
+  // def pathsAndTrees(
+  //   annotations: Map[CoNLLSentencePath, AnnotatedSentence]
+  // ): Stream[(CoNLLSentencePath, DependencyTree[TreeInduction.Index, Unit])] =
+  //   annotations.toStream.map {
+  //     case (path, annotation) =>
+  //       val qaPairs = annotation.alignedQAPairs.map {
+  //         case AlignedQuestionAnswerPair(QuestionAnswerPair(_, answer), questionIndices) =>
+  //           (questionIndices, answer)
+  //       }
+  //       val sentence = FileManager.getCoNLLSentence(path).get
+  //       val tree = TreeInduction.induceTree(sentence, qaPairs)
+  //       (path -> tree)
+  //   }
 
-  def printIndex(idx: TreeInduction.Index) = idx match {
-    case TreeInduction.Root => "root"
-    case TreeInduction.Word(w) => expE.printableWord(w)
-  }
+  // def printIndex(idx: TreeInduction.Index) = idx match {
+  //   case TreeInduction.Root => "root"
+  //   case TreeInduction.Word(w) => expE.printableWord(w)
+  // }
 
-  def printTree(tree: DependencyTree[TreeInduction.Index, Unit]) =
-    tree.toStringMultiline(_ => "", printIndex _)
+  // def printTree(tree: DependencyTree[TreeInduction.Index, Unit]) =
+  //   tree.toStringMultiline(_ => "", printIndex _)
 
-  def treeStrings(
-    pathsAndTrees: Stream[(CoNLLSentencePath, DependencyTree[TreeInduction.Index, Unit])]
-  ) = pathsAndTrees.map {
-    case (path, tree) => printTree(tree)
-  }
+  // def treeStrings(
+  //   pathsAndTrees: Stream[(CoNLLSentencePath, DependencyTree[TreeInduction.Index, Unit])]
+  // ) = pathsAndTrees.map {
+  //   case (path, tree) => printTree(tree)
+  // }
 
-  lazy val allTreeStrings = allAnnotationSources.map {
-    case (k, v) => k -> treeStrings(pathsAndTrees(v))
-  }
+  // lazy val allTreeStrings = allAnnotationSources.map {
+  //   case (k, v) => k -> treeStrings(pathsAndTrees(v))
+  // }
 
   lazy val qaGenExperiment = new expE.QuestionWordExperiment
 
+  import expG.ManualQARecord
+  import expG.AlignedManualQARecord
+  import expG.KeywordedQAPair
+  import expG.AlignedKeywordedQAPair
+  lazy val manualQA = new expG.ManualQA
+  lazy val manualQARecordsByPath = manualQA.loadSavedData.map {
+    case ManualQARecord(path, sentence, groups) =>
+      AlignedManualQARecord(
+        path, sentence,
+        groups map { group =>
+          group map {
+            case KeywordedQAPair(question, keywordIndex, answer) =>
+              AlignedKeywordedQAPair(question, keywordIndex, getWordsInQuestion(sentence, question), answer)
+          }
+        })
+  }.groupBy(_.path).map { case (k, v) => k -> v.head }
+
   lazy val allQAPairAnalyses = allAnnotationSources.map {
     case (k, v) => k -> new QAPairAnalysis(
-      goldAnnotations = allAnnotationSources.find(_._1 == "Gold").get._2,
+      goldAnnotations = manualQARecordsByPath,
       turkAnnotations = v,
       makeHypergraph = (as: AnnotatedSentence) => pathToHypergraph(v)(as.path).mapLabels(_._1))
   }
@@ -523,5 +540,5 @@ ${longIAA.report}
 ${shortIAA.report}
 """
 
-  lazy val completeReport = iaaReport + "\n" + qaPairAnalysisReport
+  lazy val completeReport = iaaReport + "\n==Gold==\n" + (allQAPairAnalyses.head._2.goldStatsString) + "\n" + qaPairAnalysisReport
 }
