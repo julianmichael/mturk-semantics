@@ -1,4 +1,4 @@
-package mts
+package mts.language
 
 import edu.stanford.nlp.ling.Word
 import edu.stanford.nlp.process.PTBTokenizer
@@ -16,7 +16,7 @@ import mts.util.LowerCaseStrings._
   * a tokenizer (provided by Stanford CoreNLP),
   * and inflections (drawn from Wiktionary).
   */
-package object language {
+trait PackagePlatformExtensions {
 
   private[this] val stopwordFilePath = Paths.get("english.stop.txt")
   private[this] val conservativeStopwordFilePath = Paths.get("english-stop-conservative.txt")
@@ -54,10 +54,12 @@ package object language {
 
   val contractions = Set("n't", "'s", "'re", "'ve", "'ll", "na", "'m", "'d")
 
-  // TODO remove pronouns from this list
+  val questionWords = Set("who", "what", "when", "where", "why", "how", "much", "many")
+
+  // TODO remove pronouns from this list?
   // NOTE: can get java code with pronouns from HITL stuff
   lazy val uninterestingTokens = stopwords ++ punctuation ++ contractions
-  lazy val reallyUninterestingTokens = conservativeStopwords ++ punctuation ++ contractions
+  lazy val reallyUninterestingTokens = conservativeStopwords ++ punctuation ++ contractions ++ questionWords
 
   /** Constructs an Inflections object containing all known inflections
     * for a given set of words.

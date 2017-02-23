@@ -27,8 +27,6 @@ import japgolly.scalajs.react.MonocleReact._
 
 object AnswerValidationClient extends TaskClient[ValidationPrompt, AnswerValidationResponse] {
 
-  lazy val isNotAssigned = assignmentId == "ASSIGNMENT_ID_NOT_AVAILABLE"
-
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[ApiRequest, ApiResponse]
   import WebsocketLoadableComponent._
   val HighlightingComponent = new HighlightingComponent[(Int, Int)]

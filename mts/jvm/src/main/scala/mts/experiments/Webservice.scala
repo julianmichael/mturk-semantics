@@ -58,26 +58,27 @@ class Webservice(
     taskOpt match {
       case None =>
         System.err.println(s"Got API request for task $taskKey which matches no task")
-        Flow[Message].map(identity)
+        Flow[Message].filter(_ => false)
       case Some(taskSpec) =>
-        // to get ApiRequest and ApiResponse types and serialization objects
-        import taskSpec._
+        import taskSpec._ // to get ApiRequest and ApiResponse types and serialization objects
         Flow[Message].map {
           case TextMessage.Strict(msg) =>
-            Future.successful(List(read[ApiRequest](msg)))
+            Future.successful(List(read[HeartbeatingWebSocketMessage[ApiRequest]](msg)))
           case TextMessage.Streamed(stream) => stream
               .limit(100)                   // Max frames we are willing to wait for
               .completionTimeout(5 seconds) // Max time until last frame
               .runFold("")(_ + _)           // Merges the frames
-              .flatMap(msg => Future.successful(List(read[ApiRequest](msg))))
+              .flatMap(msg => Future.successful(List(read[HeartbeatingWebSocketMessage[ApiRequest]](msg))))
           case bm: BinaryMessage =>
             // ignore binary messages but drain content to avoid the stream being clogged
             bm.dataStream.runWith(Sink.ignore)
-            Future.successful(Nil) }
-          .mapAsync(parallelism = 3)(identity)
-          .mapConcat(identity)
+            Future.successful(Nil)
+        }.mapAsync(parallelism = 3)(identity).mapConcat(identity)
+          .collect { case WebSocketMessage(request) => request } // ignore heartbeats
           .via(taskSpec.apiFlow) // this is the key line that delegates to task-specific logic
-          .map((response: ApiResponse) => TextMessage.Strict(write(response)))
+          .map(WebSocketMessage(_): HeartbeatingWebSocketMessage[ApiResponse])
+          .keepAlive(30 seconds, () => Heartbeat) // send heartbeat every 30 seconds
+          .map(message => TextMessage.Strict(write[HeartbeatingWebSocketMessage[ApiResponse]]((message))))
     }
   }
 }

@@ -36,11 +36,13 @@ class WebsocketLoadableComponent[Request : Writer, Response : Reader] {
   case object Loading extends WebsocketLoadableState
   case class Loaded(
     content: Response,
-    socket: WebSocket) extends WebsocketLoadableState
+    sendMessage: Request => Callback) extends WebsocketLoadableState
 
   case class WebsocketLoadableProps(
     websocketURI: String,
     request: Request,
+    onLoad: (Response => Callback) = (_ => Callback.empty),
+    onMessage: (Response => Callback) = (_ => Callback.empty),
     render: (WebsocketLoadableState => ReactElement))
 
   class WebsocketLoadableBackend(scope: BackendScope[WebsocketLoadableProps, WebsocketLoadableState]) {
@@ -49,7 +51,7 @@ class WebsocketLoadableComponent[Request : Writer, Response : Reader] {
         val socket = new WebSocket(props.websocketURI)
         socket.onopen = { (event: Event) =>
           scope.setState(Loading).runNow
-          socket.send(write(props.request))
+          socket.send(write(WebSocketMessage(props.request)))
         }
         socket.onerror = { (event: ErrorEvent) =>
           val msg = s"Connection failure. Error code: ${event.colno}"
@@ -57,7 +59,22 @@ class WebsocketLoadableComponent[Request : Writer, Response : Reader] {
           // TODO maybe retry or something
         }
         socket.onmessage = { (event: MessageEvent) =>
-          scope.setState(Loaded(read[Response](event.data.toString), socket)).runNow
+          val msg = event.data.toString
+          read[HeartbeatingWebSocketMessage[Response]](msg) match {
+            case Heartbeat => socket.send(msg)
+            case WebSocketMessage(response) => scope.modState {
+              case Connecting =>
+                System.err.println("Received message before socket opened?")
+                props.onLoad(response).runNow
+                Loaded(response, (r: Request) => Callback(socket.send(write[HeartbeatingWebSocketMessage[Request]](WebSocketMessage(r)))))
+              case Loading =>
+                props.onLoad(response).runNow
+                Loaded(response, (r: Request) => Callback(socket.send(write[HeartbeatingWebSocketMessage[Request]](WebSocketMessage(r)))))
+              case l @ Loaded(_, _) =>
+                props.onMessage(response).runNow
+                l
+            }.runNow
+          }
         }
         socket.onclose = { (event: Event) =>
           val msg = s"Connection lost."

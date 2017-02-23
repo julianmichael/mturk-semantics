@@ -23,6 +23,7 @@ class Scorer[A, N] private (private[this] val map: mutable.Map[A, N])(implicit N
   def iterator: Iterator[(A, N)] = map.iterator
   def keyIterator: Iterator[A] = map.keys.iterator
 
+  def mean: Double = N.toDouble(sum) / size.toDouble
   def median: Double = {
     if(map.isEmpty) {
       0.0

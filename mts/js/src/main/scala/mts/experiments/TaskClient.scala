@@ -17,6 +17,8 @@ abstract class TaskClient[Prompt : Reader, Response : Writer] {
     jQuery("#assignmentId").attr("value").get
   }
 
+  lazy val isNotAssigned = assignmentId == "ASSIGNMENT_ID_NOT_AVAILABLE"
+
   lazy val taskKey: String = {
     read[String](jQuery(s"#$taskKeyLabel").attr("value").get)
   }

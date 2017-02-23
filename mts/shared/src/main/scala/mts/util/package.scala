@@ -66,7 +66,20 @@ package object util extends PackagePlatformExtensions {
     def lowerCase = LowerCaseStrings.LowerCaseStringOpsImpl.lowerCase(s)
   }
 
+  def majorities[A](sets: Iterable[Set[A]]): Set[A] = {
+    sets.flatten.toSet
+      .filter(ai => sets.filter(_.contains(ai)).size >= (sets.size / 2))
+  }
+
   // == Extension methods ==
+
+  implicit class RichSeq[A](val a: Seq[A]) extends AnyVal {
+    def mean(implicit N: Numeric[A]) = N.toDouble(a.sum) / a.size
+  }
+
+  implicit class RichList[A](val a: List[A]) extends AnyVal {
+    def remove(i: Int) = a.take(i) ++ a.drop(i + 1)
+  }
 
   implicit class RichValForOptions[A](val a: A) extends AnyVal {
     def onlyIf(p: (A => Boolean)): Option[A] = Some(a).filter(p)

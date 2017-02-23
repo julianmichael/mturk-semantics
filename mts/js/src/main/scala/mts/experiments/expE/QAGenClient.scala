@@ -28,8 +28,6 @@ import japgolly.scalajs.react.MonocleReact._
 
 object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
 
-  val isNotAssigned = assignmentId == "ASSIGNMENT_ID_NOT_AVAILABLE"
-
   sealed trait HighlightingState
   case object DoingNothing extends HighlightingState
   case object Highlighting extends HighlightingState

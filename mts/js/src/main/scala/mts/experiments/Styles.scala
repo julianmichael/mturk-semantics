@@ -42,4 +42,28 @@ object Styles extends StyleSheet.Inline {
   // freeze after expF
 
   val bolded = style(fontWeight.bold)
+
+  // freeze after expG
+
+  val sideButton = style(
+    float.left,
+    margin(1 px),
+    padding(1 px),
+    width(25 px))
+
+  val bottomButton = style(
+    margin(1 px),
+    padding(1 px),
+    width(25 px))
+
+  val niceBlue = style(
+    style(fontWeight.bold),
+    color(c"rgb(50, 164, 251)"))
+
+  val greenBack = style(
+    backgroundColor(c"rgba(48, 140, 20, 0.2)"))
+
+  val paddingTop150 = style(
+    paddingTop(150 px)
+  )
 }

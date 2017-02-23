@@ -36,7 +36,7 @@ class HighlightingComponent[Index]() {
     span: Set[Index],
     status: HighlightingStatus)
   object HighlightingState {
-    val initial = HighlightingState(Set.empty[Index], DoNothing)
+    def init(is: Set[Index]) = HighlightingState(is, DoNothing)
   }
 
   case class HighlightingContext(
@@ -48,6 +48,7 @@ class HighlightingComponent[Index]() {
   case class HighlightingProps(
     isEnabled: Boolean,
     update: HighlightingState => Callback,
+    initial: Set[Index] = Set.empty[Index],
     render: (HighlightingState, HighlightingContext) => ReactElement)
 
   class HighlightingBackend(scope: BackendScope[HighlightingProps, HighlightingState]) {
@@ -60,9 +61,10 @@ class HighlightingComponent[Index]() {
           case Highlight => HighlightingState(span + index, status)
           case Erase => HighlightingState(span - index, status)
         }
-    }
+    } >> scope.state.flatMap(s => scope.props.flatMap(p => p.update(s)))
     def setHighlightingStatus(s: HighlightingStatus): Callback =
-      scope.modState(HighlightingState.status.set(s))
+      scope.modState(HighlightingState.status.set(s)) >>
+        scope.state.flatMap(s => scope.props.flatMap(p => p.update(s)))
     val startHighlight: Callback = setHighlightingStatus(Highlight)
     val startErase: Callback = setHighlightingStatus(Erase)
     val stop: Callback = setHighlightingStatus(DoNothing)
@@ -72,8 +74,7 @@ class HighlightingComponent[Index]() {
   }
 
   val Highlighting = ReactComponentB[HighlightingProps]("Highlighting")
-    .initialState(HighlightingState.initial)
+    .initialState_P(props => HighlightingState.init(props.initial))
     .renderBackend[HighlightingBackend]
-    .componentDidUpdate(context => context.$.props.update(context.$.state))
     .build
 }

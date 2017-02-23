@@ -1,4 +1,4 @@
-package mts.experiments.expF
+package mts.experiments.expG
 
 import mts.experiments._
 import mts.conll._
@@ -25,83 +25,144 @@ import monocle._
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
-object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionValidationResponse] {
+import scalaz.std.list._
 
-  val WebsocketLoadableComponent = new WebsocketLoadableComponent[ApiRequest, ApiResponse]
+object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidationPrompt, KeywordQuestionValidationResponse] {
+
+  val WebsocketLoadableComponent = new expF.WebsocketLoadableComponent[ApiRequest, ApiResponse]
   import WebsocketLoadableComponent._
+
+  val numQAPairs = prompt.sourcedTokenizedQAPairs.size
 
   @Lenses case class State(
     curQuestion: Int,
-    questions: List[Option[String]])
+    keywordPicking: Option[Set[Int]],
+    validatedQuestions: List[Option[ValidatedQuestion]]) {
+    def curKeyword: Option[Int] = validatedQuestions(curQuestion)
+      .flatMap(_.fold(None: Option[Int])((i: Int, _: String) => Some(i)))
+  }
   object State {
-    def initial = State(0, prompt.sourcedQAPairs.map(qa => Some(qa.question)))
+    def initial = State(0, None, List.fill(numQAPairs)(None: Option[ValidatedQuestion]))
   }
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
     def updateResponse: Callback = scope.state.map { st =>
-      setSubmitEnabled(true)
-      setResponse(QuestionValidationResponse(st.questions))
+      import scalaz._
+      import Scalaz._
+      st.validatedQuestions.sequence match {
+        case None => setSubmitEnabled(false)
+        case Some(vqs) =>
+          setSubmitEnabled(true)
+          setResponse(KeywordQuestionValidationResponse(vqs))
+      }
     }
 
-    def qaField(state: State, sentence: CoNLLSentence)(index: Int) = state match {
-      case State(curQuestion, questions) =>
+    def qaField(state: State, sentence: CoNLLSentence, alignedTokens: Set[(String, Int)])(index: Int) = state match {
+      case State(curQuestion, _, validatedQuestions) =>
         val isFocused = curQuestion == index
-        val answerIndices = prompt.sourcedQAPairs(index).answer
-        val originalQuestion = prompt.sourcedQAPairs(index).question
+        val answerIndices = prompt.sourcedTokenizedQAPairs(index).answer
+        val originalQuestionTokens = prompt.sourcedTokenizedQAPairs(index).questionTokens
         val answer = TextRendering.renderSentence(
           sentence.words.filter(w => answerIndices.contains(w.index)).map(_.token))
 
         <.div(
           ^.overflow := "hidden",
           <.input(
+            isNotAssigned ?= (^.disabled := true),
             ^.float := "left",
             ^.`type` := "button",
             ^.margin := "1px",
             ^.padding := "1px",
             ^.width := "50px",
-            ^.onClick --> scope.modState(State.questions.modify(_.updated(index, Some(originalQuestion)))),
+            ^.onClick --> scope.modState(State.validatedQuestions.modify(_.updated(index, None))),
             ^.value := "Reset"
-          ),
-          <.input(
-            ^.float := "left",
-            ^.`type` := "button",
-            ^.margin := "1px",
-            ^.padding := "1px",
-            ^.width := "50px",
-            state.questions(index).isEmpty ?= (^.backgroundColor := "#E01010"),
-            ^.onClick --> scope.modState(
-              State.questions.modify(
-                _.updated(
-                  index,
-                  questions(index).fold(Option(originalQuestion))(_ => None)
-                )
-              )
-            ),
-            ^.value := "Invalid"
           ),
           <.input(
             isNotAssigned ?= (^.disabled := true),
             ^.float := "left",
-            ^.`type` := "text",
+            ^.`type` := "button",
             ^.margin := "1px",
             ^.padding := "1px",
-            ^.width := "360px",
-            ^.onChange ==> (
-              (e: ReactEventI) => {
-                val newValue = Some(e.target.value)
-                scope.modState(State.questions.modify(_.updated(index, newValue)))
-              }),
-            ^.onFocus --> scope.modState(State.curQuestion.set(index)))(
-            (questions(index) match {
-               case None => List[TagMod](
-                 ^.backgroundColor := "#CCCCCC",
-                 ^.disabled := true,
-                 ^.value := prompt.sourcedQAPairs(index).question
-               )
-               case Some(q) => List[TagMod](^.value := q)
-             }): _*),
+            ^.width := "50px",
+            validatedQuestions(index).fold(false)(_ == InvalidQuestion) ?= (^.backgroundColor := "#E01010"),
+            ^.onClick --> scope.modState(
+              State.validatedQuestions.modify(
+                _.updated(
+                  index,
+                  validatedQuestions(index).fold(Option(InvalidQuestion: ValidatedQuestion)) {
+                    case InvalidQuestion => None
+                    case EditedQuestion(_, _) => Some(InvalidQuestion)
+                  })
+              )
+            ),
+            ^.value := "Invalid"
+          ),
+          validatedQuestions(index) match {
+            case None => <.div(
+              ^.float := "left",
+              ^.margin := "1px",
+              ^.padding := "1px",
+              TextRendering.renderSentence(
+                originalQuestionTokens,
+                getToken = identity[String],
+                spaceFromNextWord = (_: String) => List(<.span(" ")),
+                renderWord = (token: String) => List(
+                  <.span(
+                    ^.onClick --> (
+                      if(isNotAssigned) {
+                        Callback.empty
+                      } else {
+                        // TODO get index of word in SENTENCE
+                        val tokenIndices = alignedTokens.filter(_._1.equals(token.toLowerCase)).map(_._2)
+                        if(tokenIndices.size == 1) {
+                          scope.modState(
+                            State.validatedQuestions.modify(
+                              _.updated(
+                                index,
+                                Some(EditedQuestion(tokenIndices.head, TextRendering.renderSentence(originalQuestionTokens))))
+                            ))
+                        } else {
+                          scope.modState(State.keywordPicking.set(Some(tokenIndices)))
+                        }
+                      }
+                    ),
+                    token
+                  )
+                )
+              )
+            )
+            case Some(InvalidQuestion) => <.div(
+              ^.float := "left",
+              ^.margin := "1px",
+              ^.padding := "1px",
+              ^.color := "#CCCCCC",
+              TextRendering.renderSentence(originalQuestionTokens)
+            )
+            case Some(EditedQuestion(keywordIndex, newString)) => <.input(
+              ^.float := "left",
+              ^.`type` := "text",
+              ^.margin := "1px",
+              ^.padding := "1px",
+              ^.width := "360px",
+              ^.onChange ==> (
+                (e: ReactEventI) => {
+                  val newValue = Some(EditedQuestion(keywordIndex, e.target.value))
+                  scope.modState(State.validatedQuestions.modify(_.updated(index, newValue)))
+                }),
+              ^.onFocus --> scope.modState(State.curQuestion.set(index)),
+              ^.value := newString
+            )
+          },
           <.div(
             ^.float := "left",
+            ^.margin := "1px",
+            ^.padding := "1px",
+            ^.color := "red",
+            validatedQuestions(index)
+              .fold("")(_.overlappingWords(alignedTokens).size.toString)
+          ),
+          <.div(
+            // ^.float := "left",
             ^.margin := "1px",
             ^.padding := "1px",
             answer
@@ -109,51 +170,70 @@ object QuestionValidationClient extends TaskClient[ValidationPrompt, QuestionVal
         )
     }
 
-    def render(s: State) = {
-      WebsocketLoadable(
-        WebsocketLoadableProps(
-          websocketURI = websocketUri, request = SentenceRequest(prompt.path), render = {
-            case Connecting => <.div("Connecting to server...")
-            case Loading => <.div("Retrieving data...")
-            case Loaded(SentenceResponse(sentence), _) =>
-              import scalaz.std.list._
-              val curSpan = prompt.sourcedQAPairs(s.curQuestion).answer
-                <.div(
-                  Styles.mainContent,
-                  instructions,
-                  <.hr(),
+    def render(s: State) = s match {
+      case State(curQuestion, keywordPicking, validatedQuestions) =>
+        WebsocketLoadable(
+          WebsocketLoadableProps(
+            websocketURI = websocketUri, request = SentenceRequest(prompt.path), render = {
+              case Connecting => <.div("Connecting to server...")
+              case Loading => <.div("Retrieving data...")
+              case Loaded(SentenceResponse(sentence, alignedTokens), _) =>
+                import scalaz.std.list._
+                val curKeyword = s.curKeyword
+                val curBadWords = validatedQuestions(curQuestion)
+                  .fold(Set.empty[Int])(_.overlappingIndices(alignedTokens))
                   <.div(
-                    <.p(
-                      Styles.unselectable,
-                      TextRendering.renderSentence(
-                        sentence.words,
-                        getToken = (word: CoNLLWord) => word.token,
-                        spaceFromNextWord = (nextWord: CoNLLWord) => List(
-                          <.span(
-                            ^.backgroundColor := (
-                              if(curSpan.contains(nextWord.index) && curSpan.contains(nextWord.index - 1)) {
-                                "#FFFF00"
-                              } else "transparent"),
-                            " ")),
-                        renderWord = (word: CoNLLWord) => List(
-                          <.span(
-                            ^.backgroundColor := (
-                              if(curSpan.contains(word.index)) "#FFFF00"
-                              else "transparent"),
-                            TextRendering.normalizeToken(word.token)
-                          ))
-                      )),
-                    <.ul(
-                      Styles.listlessList,
-                      (0 until s.questions.size)
-                        .map(qaField(s, sentence))
-                        .map(field => <.li(^.display := "block", field))
+                    Styles.mainContent,
+                    instructions,
+                    <.hr(),
+                    <.div(
+                      <.p(
+                        Styles.unselectable,
+                        TextRendering.renderSentence(
+                          sentence.words,
+                          getToken = (word: CoNLLWord) => word.token,
+                          spaceFromNextWord = (nextWord: CoNLLWord) => List(
+                            <.span(
+                              // ^.backgroundColor := (
+                              //   if(curSpan.contains(nextWord.index) && curSpan.contains(nextWord.index - 1)) {
+                              //     "#FFFF00"
+                              //   } else "transparent"),
+                              " ")),
+                          renderWord = (word: CoNLLWord) => List(
+                            <.span(
+                              // TODO revise to color properly
+                              ^.color := (
+                                if(keywordPicking.fold(false)(_.contains(word.index))) "rgb(27, 143, 249)"
+                                else if(curKeyword.fold(false)(_ == word.index)) "rgb(27, 143, 249)"
+                                else if(curBadWords.contains(word.index)) "rgb(216, 31, 0)"
+                                else "black"),
+                              ^.onClick --> scope.modState(
+                                State.keywordPicking.set(None) andThen State.validatedQuestions.modify(_.updated(
+                                  curQuestion, validatedQuestions(curQuestion) match {
+                                    case None => Some(
+                                      EditedQuestion(
+                                        word.index,
+                                        TextRendering.renderSentence(prompt.sourcedTokenizedQAPairs(curQuestion).questionTokens)
+                                      ))
+                                    case Some(InvalidQuestion) => Some(InvalidQuestion)
+                                    case Some(EditedQuestion(_, questionString)) =>
+                                      Some(EditedQuestion(word.index, questionString))
+                                  }))
+                              ),
+                              TextRendering.normalizeToken(word.token)
+                            ))
+                        )),
+                      <.ul(
+                        Styles.listlessList,
+                        (0 until validatedQuestions.size)
+                          .map(qaField(s, sentence, alignedTokens))
+                          .map(field => <.li(^.display := "block", field))
+                      )
                     )
                   )
-                )
-          }
+            }
+          )
         )
-      )
     }
   }
 

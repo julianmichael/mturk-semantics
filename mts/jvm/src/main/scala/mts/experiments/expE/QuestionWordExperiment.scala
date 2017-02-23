@@ -42,7 +42,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
 
   lazy val qaGenTaskSpec = TaskSpecification[QAGenPrompt, QAGenResponse, ApiRequest, ApiResponse](
     TaskIndex.expEQAGenTaskKey, qaGenHITType, qaGenApiFlow, sampleQAGenPrompt,
-    frozenHITTypeId = Some("3ARIN4O78FH2188DD05SP7EY06CIFS")) // task is done
+    frozenHITTypeId = Some(qaGenFrozenHITTypeId)) // task is done
 
   lazy val sourceSentences = for {
     ((path, sentence), sentenceIndex) <- sentences.zipWithIndex
@@ -495,7 +495,6 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
     experimentName, "turkMIs.txt", turkMutualInformationScores.map {
       case (sentence, infos) => TextRendering.renderSentence(sentence) + "\n" + miInfoString(infos)
     }.mkString("\n\n"))
-
 
   def saveOntonotesPredArgStructures = FileManager.saveDataFile(
     experimentName, "predArgs.txt", sourceSentences.map(_._1).sortBy(_.toString).map(predArgStructureString).mkString("\n\n"))

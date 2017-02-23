@@ -1,4 +1,4 @@
-package mts.validation
+package mts.analysis
 
 import mts.util.LowerCaseStrings._
 import mts.language.Inflections
