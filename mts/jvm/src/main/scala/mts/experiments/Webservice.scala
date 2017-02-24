@@ -65,7 +65,7 @@ class Webservice(
           case TextMessage.Strict(msg) =>
             Future.successful(List(read[HeartbeatingWebSocketMessage[ApiRequest]](msg)))
           case TextMessage.Streamed(stream) => stream
-              .limit(100)                   // Max frames we are willing to wait for
+              .limit(10000)                 // Max frames we are willing to wait for
               .completionTimeout(5 seconds) // Max time until last frame
               .runFold("")(_ + _)           // Merges the frames
               .flatMap(msg => Future.successful(List(read[HeartbeatingWebSocketMessage[ApiRequest]](msg))))
