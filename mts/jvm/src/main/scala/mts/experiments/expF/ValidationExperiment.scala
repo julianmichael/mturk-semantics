@@ -541,4 +541,39 @@ ${shortIAA.report}
 """
 
   lazy val completeReport = iaaReport + "\n==Gold==\n" + (allQAPairAnalyses.head._2.goldStatsString) + "\n" + qaPairAnalysisReport
+
+  lazy val goodIndices = manualQARecordsByPath.values.zipWithIndex.filter(_._1.qaGroups.size > 1).map(_._2).toList
+  def reportManualGraph(i: Int) = {
+    val sentence = FileManager.getCoNLLSentence(manualQARecordsByPath.keys.toList(i)).get
+    val qaPairs = manualQARecordsByPath.values.toList(i).qaGroups.flatten.toVector.map {
+      kqa => AlignedQuestionAnswerPair(QuestionAnswerPair(kqa.question, kqa.answerIndices), kqa.questionIndices)
+    }
+    reportGraph(sentence, qaPairs)
+  }
+
+  def reportTurkGraph(path: CoNLLSentencePath) = {
+    val sentence = FileManager.getCoNLLSentence(path).get
+    val qaPairs = pathToAnnotation(origQAPairs)(path).alignedQAPairs.toVector
+    reportGraph(sentence, qaPairs)
+  }
+
+  def reportGraph(sentence: CoNLLSentence, qaPairs: Vector[AlignedQuestionAnswerPair]) = {
+    val answerSpans = qaPairs.map(
+      kqa => kqa.qaPair.answer.filterNot(i => reallyUninterestingTokens.contains(sentence.words(i).token.toLowerCase))
+    )
+    val questionSpans = qaPairs.map(
+      kqa => kqa.questionIndices.filterNot(i => reallyUninterestingTokens.contains(sentence.words(i).token.toLowerCase))
+    )
+    val qaArcs = qaPairs.map(
+      kqa => (
+        kqa.questionIndices.filterNot(i => reallyUninterestingTokens.contains(sentence.words(i).token.toLowerCase)),
+        kqa.qaPair.answer.filterNot(i => reallyUninterestingTokens.contains(sentence.words(i).token.toLowerCase)))
+    )
+    val graph = GraphInduction.induceGraphSingleTreeSubroutines(questionSpans ++ answerSpans, qaArcs)
+    println(
+      graph.edges.toVector.map(
+        e => s"${e.lesser}:${sentence.words(e.lesser).token} <--> ${e.greater}:${sentence.words(e.greater).token}"
+      ).mkString("\n"))
+  }
+
 }

@@ -73,5 +73,4 @@ class ManualQA(implicit config: TaskConfig) {
 
   import config.actorSystem
   lazy val server = new Server(List(taskSpec))
-
 }

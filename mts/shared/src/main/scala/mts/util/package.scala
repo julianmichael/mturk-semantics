@@ -71,8 +71,35 @@ package object util extends PackagePlatformExtensions {
       .filter(ai => sets.filter(_.contains(ai)).size >= (sets.size / 2))
   }
 
+  // == typeclass instances ==
+
+  import scala.collection.immutable.SortedSet
+    // basic, inefficient immutable union-find based on sets
+  implicit object SetBasedUnionFind extends OrderedUnionFind[({ type λ[A] = Set[SortedSet[A]]})#λ] {
+    override def empty[A : Ordering] =
+      Set.empty[SortedSet[A]]
+
+    override def add[A: Ordering](fa: Set[SortedSet[A]], a: A): Set[SortedSet[A]] =
+      if(fa.forall(!_.contains(a))) fa + SortedSet[A](a)
+      else fa
+
+    override def find[A](fa: Set[SortedSet[A]], a: A): Option[A] =
+      fa.find(_.contains(a)).map(_.head)
+
+    override def union[A](fa: Set[SortedSet[A]], a: A, b: A): Option[Set[SortedSet[A]]] = for {
+      aSet <- fa.find(_.contains(a))
+      bSet <- fa.find(_.contains(b))
+    } yield if(aSet != bSet) {
+      fa - aSet - bSet + (aSet ++ bSet)
+    }
+    else fa
+
+    override def representatives[A](fa: Set[SortedSet[A]]): Iterator[A] = fa.iterator.map(_.head)
+  }
+
   // == Extension methods ==
 
+  // TODO make this return an option
   implicit class RichSeq[A](val a: Seq[A]) extends AnyVal {
     def mean(implicit N: Numeric[A]) = N.toDouble(a.sum) / a.size
   }
