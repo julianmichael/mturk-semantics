@@ -372,7 +372,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                            is what would happen "in the second quarter"."""),
       example(origQ = "What might the chairman lose?", answer = "profits",
               newQ = None, isGood = true,
-              tooltip = """This asks about something that is not explicitly stated in the sentence, so it is invalid."""),
+              tooltip = """This asks about something that is not explicitly stated in the sentence, so it is invalid.""")
     ),
     <.p("""Your responses will be assessed by other workers.
            If your revisions are consistently rejected as low-quality,
