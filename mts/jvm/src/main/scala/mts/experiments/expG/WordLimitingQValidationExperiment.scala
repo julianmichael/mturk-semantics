@@ -40,7 +40,6 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
       val alignedTokens = for {
         w <- sentence.words
         t <- inflections.getAllForms(w.token.lowerCase)
-        if !reallyUninterestingTokens.contains(t)
       } yield (t.toString, w.index)
       SentenceResponse(sentence, alignedTokens.toSet)
   }

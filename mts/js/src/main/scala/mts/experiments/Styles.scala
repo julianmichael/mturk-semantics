@@ -83,4 +83,9 @@ object Styles extends StyleSheet.Inline {
       style(fontWeight.bold)
     )
   )
+
+  val badRedBold = style(
+    color(c"rgb(216, 31, 00)"),
+    fontWeight.bold
+  )
 }

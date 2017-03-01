@@ -66,16 +66,18 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
         val answer = TextRendering.renderSentence(
           sentence.words.filter(w => answerIndices.contains(w.index)).map(_.token))
 
+        val tryingToPickKeyword = isFocused && !state.keywordPicking.isEmpty
+
         <.div(
           ^.overflow := "hidden",
           <.div(
-            isFocused ?= Styles.niceBlue,
+            isFocused ?= (if(tryingToPickKeyword) Styles.badRedBold else Styles.niceBlue),
             ^.float := "left",
             ^.margin := "1px",
             ^.padding := "1px",
             ^.width := "100px",
             ^.minHeight := "1px",
-            state.keywordFor(index).fold("")(kwIndex =>
+            state.keywordFor(index).fold(if(tryingToPickKeyword) "?" else "")(kwIndex =>
               TextRendering.normalizeToken(sentence.words(kwIndex).token)
             )
           ),
@@ -125,7 +127,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                       if(isNotAssigned) {
                         Callback.empty
                       } else {
-                        val tokenIndices = alignedTokens.filter(_._1.toLowerCase.equals(token.toLowerCase)).map(_._2)
+                        val tokenIndices = alignedTokens.filter(_._1.equals(token.toLowerCase)).map(_._2)
                         if(tokenIndices.size == 1) {
                           scope.modState(
                             State.keywordPicking.set(None) andThen State.validatedQuestions.modify(
@@ -225,16 +227,19 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                               TextRendering.normalizeToken(word.token)
                             ))
                         )),
-                      <.p(
-                        Styles.niceBlue,
                         keywordPicking match {
                           case None => s.curKeyword match {
-                            case None => "Click your chosen key word in a question to start editing it"
-                            case Some(kwIndex) => "Click in the sentence to change the current keyword"
+                            case None =>
+                              <.p(Styles.niceBlue,
+                                "Click your chosen key word in a question to start editing it")
+                            case Some(kwIndex) =>
+                              <.p(Styles.niceBlue,
+                                "Click in the sentence to change the current keyword")
                           }
-                          case Some(kwChoices) => "Couldn't determine exact keyword; please click it in the sentence"
-                        }
-                      ),
+                          case Some(kwChoices) =>
+                            <.p(Styles.badRed,
+                              "Couldn't determine exact keyword; please click it in the sentence")
+                        },
                       <.ul(
                         Styles.listlessList,
                         (0 until validatedQuestions.size)
@@ -328,7 +333,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
       <.li("""Any unnecessary words and phrases have been removed."""),
       <.li("""The question still contains the key word.""")),
     <.p("""You may reword the question slightly if necessary.
-        For the key word, you should choose the word in the question that you think
+        For the key word, you should choose a content word in the question that you think is
         most important to the question, and relates most closely to the answer.
         The word will be taken from the sentence, but may appear in the question in a different form (e.g., "appear" versus "appearance").
         If you are unsure which word to choose, just use your best judgment about which word feels most important."""),
