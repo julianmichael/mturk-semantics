@@ -316,7 +316,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
       <.li("What did the protesters leave after? --> executive intervention reinstated the project")),
     <.p("""For the first question, the keyword should be """, <.b("protesters"), """ and you would revise it to """,
         <.b("How did the protesters feel? "),
-        """For the second question, the keyword could be """, <.b("after") """ and you would leave the question unchanged."""),
+        """For the second question, the keyword could be """, <.b("after"), """ and you would leave the question unchanged."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         For each question, your revised version must satisfy the following criteria:"""),
