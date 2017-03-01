@@ -198,6 +198,20 @@ object FileManager {
     allData.toList
   }
 
+  // updated version of the above
+  def loadAllHITInfo[Prompt: Reader, Response : Reader](
+    hitTypeId: String
+  )(implicit config: TaskConfig): List[HITInfo[Prompt, Response]] = {
+    val hitTypePath = getHITTypePath(hitTypeId)
+    val allData = for {
+      hitFolder <- new java.io.File(hitTypePath.toString).listFiles
+      if hitFolder.isDirectory // exclude extraneous files if necessary --- shouldn't happen though
+      hit <- Try(loadHITUnsafe[Prompt](Paths.get(hitFolder.getPath))).toOptionPrinting.toList
+      assignments = loadAssignmentsForHIT[Response](hit.hitTypeId, hit.hitId)
+    } yield HITInfo(hit, assignments)
+    allData.toList
+  }
+
   /** Loads all approved assignments for the given HIT info.
     *
     * Captures any exceptions, prints them to the console, and excludes the missed results (if any) from the loaded data.

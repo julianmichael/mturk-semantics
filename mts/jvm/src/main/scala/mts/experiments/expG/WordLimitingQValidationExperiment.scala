@@ -109,4 +109,35 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
     server
     actor ! Update
   }
+
+  def completedRevisions = FileManager.loadAllHITInfo[TokenizedValidationPrompt, KeywordQuestionValidationResponse](taskSpec.hitTypeId)
+    .filterNot(_.assignments.isEmpty)
+    .map {
+    case HITInfo(hit, assignments) =>
+      val validatedQuestionLists = assignments.map(_.response.validatedQuestions).transpose
+      (hit.prompt.path, hit.prompt.sourcedTokenizedQAPairs.zip(validatedQuestionLists))
+  }.groupBy(_._1)
+    .map {
+    case (path, infosWithPath) => path -> infosWithPath.map(_._2).flatten
+  }
+
+  def printCompletedRevisions = {
+    completedRevisions.foreach {
+      case (path, validations) =>
+        val sentence = FileManager.getCoNLLSentence(path).get
+        println(TextRendering.renderSentence(sentence))
+        validations.foreach {
+          case (question, validatedQs) =>
+            println(s"  $question")
+            validatedQs.foreach {
+              case InvalidQuestion =>
+                println("    <Invalid>")
+              case EditedQuestion(keywordIndex, newQuestion) =>
+                val keywordToken = TextRendering.normalizeToken(sentence.words(keywordIndex).token)
+                val keywordString = s"$keywordIndex:$keywordToken"
+                println(f"    $keywordString%10s | $newQuestion%s")
+            }
+        }
+    }
+  }
 }

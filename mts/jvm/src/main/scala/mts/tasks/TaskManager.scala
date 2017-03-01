@@ -75,6 +75,7 @@ class TaskManager[Prompt, Response](
     println
     println(s"Updating (${hitTypeId})...")
     hitManager ! ReviewHITs
+    hitManager ! ReviewHITs
   }
 }
 

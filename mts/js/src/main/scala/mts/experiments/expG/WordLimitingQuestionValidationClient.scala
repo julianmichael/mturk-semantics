@@ -308,14 +308,15 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
         You will be presented with a selection of English text and a list of at most 6 question-answer pairs about that selection
         prepared by other annotators."""),
-    <.p("""You will identify a key word, correct any typos or errors, and remove unnecessary words from each question,
+    <.p("""You will choose a key word, correct any typos or errors, and remove unnecessary words from each question,
         while preserving its meaning. Consider the following example:"""),
     <.blockquote(<.i("The downtrodden protesters left after executive intervention reinstated the project.")),
     <.ul(
       <.li("How did the leaving protesters feel? --> downtrodden"),
       <.li("What did the protesters leave after? --> executive intervention reinstated the project")),
-    <.p("""For the first question, the keyword will be "protesters" and you will revise it to """, <.b("How did the protesters feel? "),
-        """For the second question, the keyword will be "after" and you will leave the question unchanged."""),
+    <.p("""For the first question, the keyword should be """, <.b("protesters"), """ and you would revise it to """,
+        <.b("How did the protesters feel? "),
+        """For the second question, the keyword could be """, <.b("after") """ and you would leave the question unchanged."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         For each question, your revised version must satisfy the following criteria:"""),
@@ -325,7 +326,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
       <.li("""Any unnecessary words and phrases have been removed."""),
       <.li("""The question still contains the key word.""")),
     <.p("""You may reword the question slightly if necessary.
-        For the key word, you should choose the word in the question that seems
+        For the key word, you should choose the word in the question that you think
         most important to the question, and relates most closely to the answer.
         The word will be taken from the sentence, but may appear in the question in a different form (e.g., "appear" versus "appearance").
         If you are unsure which word to choose, just use your best judgment about which word feels most important."""),
