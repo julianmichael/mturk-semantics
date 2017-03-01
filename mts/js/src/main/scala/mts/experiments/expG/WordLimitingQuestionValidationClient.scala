@@ -136,7 +136,9 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                             Callback(scala.scalajs.js.Dynamic.global.document.getElementById(s"qa-$index").focus())
                           )
                         } else {
-                          scope.modState(State.keywordPicking.set(Some(tokenIndices)))
+                          scope.modState(
+                            State.curQuestion.set(index) andThen State.keywordPicking.set(Some(tokenIndices))
+                          )
                         }
                       }
                     ),
