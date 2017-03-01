@@ -30,7 +30,8 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
       You'll be given a sentence and a list of questions (and their answers).
       You will revise the questions picking a key word and removing/replacing as many other words as possible.
     """.trim,
-    reward = 0.30,
+    reward = 0.20,
+    assignmentDuration = 180L, // 3 minutes
     keywords = "language,english,question answering")
 
   lazy val sentenceApiFlow = Flow[ApiRequest].map {

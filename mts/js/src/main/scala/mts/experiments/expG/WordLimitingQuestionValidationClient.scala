@@ -125,7 +125,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                       if(isNotAssigned) {
                         Callback.empty
                       } else {
-                        val tokenIndices = alignedTokens.filter(_._1.equals(token.toLowerCase)).map(_._2)
+                        val tokenIndices = alignedTokens.filter(_._1.toLowerCase.equals(token.toLowerCase)).map(_._2)
                         if(tokenIndices.size == 1) {
                           scope.modState(
                             State.keywordPicking.set(None) andThen State.validatedQuestions.modify(
@@ -369,8 +369,9 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
            If your revisions are consistently rejected as low-quality,
            or if you fail to improve low-quality questions, you will be notified.
            After that, if your responses do not improve, you will be banned from this task and future tasks.
-           Otherwise, your work will be approved within an hour.
-        """),
+           Otherwise, your work will be approved within an hour."""),
+    <.p("""There is a time limit of 3 minutes,
+           but it should generally take between one and two minutes to complete each HIT."""),
     <.p("""You must provide keywords for every question, and revisions where applicable, in order to submit the HIT.
            If you have any questions, concerns, or points of confusion,
            please share them in the "Feedback" field so we may improve the task.""")
