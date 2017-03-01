@@ -127,7 +127,8 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
         val sentence = FileManager.getCoNLLSentence(path).get
         println(TextRendering.renderSentence(sentence))
         validations.foreach {
-          case (question, validatedQs) =>
+          case (stQAPair, validatedQs) =>
+            val question = TextRendering.renderSentence(stQAPair.questionTokens)
             println(s"  $question")
             validatedQs.foreach {
               case InvalidQuestion =>
