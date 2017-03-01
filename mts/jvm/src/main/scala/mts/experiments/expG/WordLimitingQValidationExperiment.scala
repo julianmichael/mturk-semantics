@@ -121,7 +121,7 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
     case (path, infosWithPath) => path -> infosWithPath.map(_._2).flatten
   }
 
-  def printCompletedRevisions = {
+  def printRevisions(revisions: Iterator[(CoNLLSentencePath, List[(SourcedTokenizedQAPair, List[ValidatedQuestion])])]) = {
     completedRevisions.foreach {
       case (path, validations) =>
         val sentence = FileManager.getCoNLLSentence(path).get
