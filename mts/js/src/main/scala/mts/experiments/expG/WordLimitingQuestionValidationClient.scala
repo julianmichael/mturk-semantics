@@ -38,8 +38,9 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
     curQuestion: Int,
     keywordPicking: Option[Set[Int]],
     validatedQuestions: List[Option[ValidatedQuestion]]) {
-    def curKeyword: Option[Int] = validatedQuestions(curQuestion)
-      .flatMap(_.fold(None: Option[Int])((i: Int, _: String) => Some(i)))
+    def keywordFor(i: Int): Option[Int] = validatedQuestions(i)
+      .flatMap(_.fold(None: Option[Int])((j: Int, _: String) => Some(j)))
+    def curKeyword: Option[Int] = keywordFor(curQuestion)
   }
   object State {
     def initial = State(0, None, List.fill(numQAPairs)(None: Option[ValidatedQuestion]))
@@ -67,6 +68,17 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
 
         <.div(
           ^.overflow := "hidden",
+          <.div(
+            isFocused ?= Styles.niceBlue,
+            ^.float := "left",
+            ^.margin := "1px",
+            ^.padding := "1px",
+            ^.width := "100px",
+            ^.minHeight := "1px",
+            state.keywordFor(index).fold("")(kwIndex =>
+              TextRendering.normalizeToken(sentence.words(kwIndex).token)
+            )
+          ),
           <.input(
             isNotAssigned ?= (^.disabled := true),
             ^.float := "left",
@@ -93,13 +105,13 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                     case InvalidQuestion => None
                     case EditedQuestion(_, _) => Some(InvalidQuestion)
                   })
-              )
-            ),
+              )),
             ^.value := "Invalid"
           ),
           validatedQuestions(index) match {
             case None => <.div(
               ^.float := "left",
+              ^.width := "320px",
               ^.margin := "1px",
               ^.padding := "1px",
               TextRendering.renderSentence(
@@ -108,19 +120,21 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                 spaceFromNextWord = (_: String) => List(<.span(" ")),
                 renderWord = (token: String) => List(
                   <.span(
+                    Styles.hoverBlueBold,
                     ^.onClick --> (
                       if(isNotAssigned) {
                         Callback.empty
                       } else {
-                        // TODO get index of word in SENTENCE
                         val tokenIndices = alignedTokens.filter(_._1.equals(token.toLowerCase)).map(_._2)
                         if(tokenIndices.size == 1) {
                           scope.modState(
-                            State.validatedQuestions.modify(
+                            State.keywordPicking.set(None) andThen State.validatedQuestions.modify(
                               _.updated(
                                 index,
                                 Some(EditedQuestion(tokenIndices.head, TextRendering.renderSentence(originalQuestionTokens))))
-                            ))
+                            ),
+                            Callback(scala.scalajs.js.Dynamic.global.document.getElementById(s"qa-$index").focus())
+                          )
                         } else {
                           scope.modState(State.keywordPicking.set(Some(tokenIndices)))
                         }
@@ -135,15 +149,17 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
               ^.float := "left",
               ^.margin := "1px",
               ^.padding := "1px",
+              ^.width := "320px",
               ^.color := "#CCCCCC",
               TextRendering.renderSentence(originalQuestionTokens)
             )
             case Some(EditedQuestion(keywordIndex, newString)) => <.input(
-              ^.float := "left",
               ^.`type` := "text",
+              ^.id := s"qa-$index",
+              ^.float := "left",
               ^.margin := "1px",
               ^.padding := "1px",
-              ^.width := "360px",
+              ^.width := "320px",
               ^.onChange ==> (
                 (e: ReactEventI) => {
                   val newValue = Some(EditedQuestion(keywordIndex, e.target.value))
@@ -154,17 +170,9 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
             )
           },
           <.div(
-            ^.float := "left",
             ^.margin := "1px",
-            ^.padding := "1px",
-            ^.color := "red",
-            validatedQuestions(index)
-              .fold("")(_.overlappingWords(alignedTokens).size.toString)
-          ),
-          <.div(
-            // ^.float := "left",
-            ^.margin := "1px",
-            ^.padding := "1px",
+            ^.paddingLeft := "20px",
+            ^.paddingRight := "1px", ^.paddingTop := "1px", ^.paddingBottom := "1px",
             answer
           )
         )
@@ -180,32 +188,24 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
               case Loaded(SentenceResponse(sentence, alignedTokens), _) =>
                 import scalaz.std.list._
                 val curKeyword = s.curKeyword
-                val curBadWords = validatedQuestions(curQuestion)
-                  .fold(Set.empty[Int])(_.overlappingIndices(alignedTokens))
                   <.div(
                     Styles.mainContent,
                     instructions,
                     <.hr(),
+                    <.h2("Task"),
                     <.div(
                       <.p(
                         Styles.unselectable,
                         TextRendering.renderSentence(
                           sentence.words,
                           getToken = (word: CoNLLWord) => word.token,
-                          spaceFromNextWord = (nextWord: CoNLLWord) => List(
-                            <.span(
-                              // ^.backgroundColor := (
-                              //   if(curSpan.contains(nextWord.index) && curSpan.contains(nextWord.index - 1)) {
-                              //     "#FFFF00"
-                              //   } else "transparent"),
-                              " ")),
+                          spaceFromNextWord = (nextWord: CoNLLWord) => List(<.span(" ")),
                           renderWord = (word: CoNLLWord) => List(
                             <.span(
-                              // TODO revise to color properly
+                              Styles.hoverBold,
                               ^.color := (
-                                if(keywordPicking.fold(false)(_.contains(word.index))) "rgb(27, 143, 249)"
-                                else if(curKeyword.fold(false)(_ == word.index)) "rgb(27, 143, 249)"
-                                else if(curBadWords.contains(word.index)) "rgb(216, 31, 0)"
+                                if(keywordPicking.fold(false)(_.contains(word.index))) "rgb(50, 164, 251)"
+                                else if(curKeyword.fold(false)(_ == word.index)) "rgb(50, 164, 251)"
                                 else "black"),
                               ^.onClick --> scope.modState(
                                 State.keywordPicking.set(None) andThen State.validatedQuestions.modify(_.updated(
@@ -223,11 +223,21 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                               TextRendering.normalizeToken(word.token)
                             ))
                         )),
+                      <.p(
+                        Styles.niceBlue,
+                        keywordPicking match {
+                          case None => s.curKeyword match {
+                            case None => "Click your chosen key word in a question to start editing it"
+                            case Some(kwIndex) => "Click in the sentence to change the current keyword"
+                          }
+                          case Some(kwChoices) => "Couldn't determine exact keyword; please click it in the sentence"
+                        }
+                      ),
                       <.ul(
                         Styles.listlessList,
                         (0 until validatedQuestions.size)
                           .map(qaField(s, sentence, alignedTokens))
-                          .map(field => <.li(^.display := "block", field))
+                          .map(field => <.li(Styles.topSep, ^.display := "block", field))
                       )
                     )
                   )
@@ -249,7 +259,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
   }
 
   val exDivStyle = List(^.margin := "10px", ^.width := "360px", ^.float := "left")
-  def example(origQ: String, answer: String, newQ: Option[String], isGood: Boolean, tooltip: String) =
+  def example(origQ: String, answer: String, newQ: Option[ReactElement], isGood: Boolean, tooltip: String) =
     <.li(
       ^.overflow := "hidden",
       ^.borderBottom := "1px solid",
@@ -298,66 +308,68 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
         You will be presented with a selection of English text and a list of at most 6 question-answer pairs about that selection
         prepared by other annotators."""),
-    <.p("""You will revise and the questions to make them shorter and remove unneeded content words
-        while preserving their meaning. Consider the following example:"""),
-    <.blockquote(<.i("The jubilant protesters celebrated after executive intervention canceled the project.")),
+    <.p("""You will identify a key word, correct any typos or errors, and remove unnecessary words from each question,
+        while preserving its meaning. Consider the following example:"""),
+    <.blockquote(<.i("The downtrodden protesters left after executive intervention reinstated the project.")),
     <.ul(
-      <.li("How did the celebrating protesters feel? --> jubilant"),
-      <.li("What did the protesters celebrate after? --> executive intervention")),
-    <.p("""You will revise the first question to """, <.b("How did the protesters feel? "),
-        """and the second question to """, <.b("What did someone celebrate after?")),
+      <.li("How did the leaving protesters feel? --> downtrodden"),
+      <.li("What did the protesters leave after? --> executive intervention reinstated the project")),
+    <.p("""For the first question, the keyword will be "protesters" and you will revise it to """, <.b("How did the protesters feel? "),
+        """For the second question, the keyword will be "after" and you will leave the question unchanged."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
-        For each question, your revised version must be fluent, grammatical English and satisfy the following criteria:"""),
+        For each question, your revised version must satisfy the following criteria:"""),
     <.ol(
-      <.li("""Any typos, spelling errors, or grammatical errors have been fixed."""),
+      <.li("""Spelling, punctuation, capitalization, and other errors have been fixed and the question is fluent English."""),
       <.li("""The question asks about the same thing, and has the same correct answer as before."""),
-      <.li("""Any unnecessary words from the sentence have been removed or replaced with "someone," "something," or other generic words."""),
-      <.li("""The question still contains at least one content word from the sentence.""")),
-    <.p("""It is fine for a question to have multiple correct answers as long as the given answer is one of them.
-        However, if the question is incoherent, has no apparent connection to the answer,
-        or is otherwise unsalvageable, you should mark it """, <.b("Invalid"),
-        """. See the examples for further explanation."""),
+      <.li("""Any unnecessary words and phrases have been removed."""),
+      <.li("""The question still contains the key word.""")),
+    <.p("""You may reword the question slightly if necessary.
+        For the key word, you should choose the word in the question that seems
+        most important to the question, and relates most closely to the answer.
+        The word will be taken from the sentence, but may appear in the question in a different form (e.g., "appear" versus "appearance").
+        If you are unsure which word to choose, just use your best judgment about which word feels most important."""),
+    <.p("""If there is no possible key word, the question is not salvageable to fluent English,
+        or the answer is incorrect, you should mark it """, <.b("Invalid"), """.
+        It is fine for a question to have multiple correct answers as long as the given answer is one of them.
+        See the examples for further explanation."""),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
     <.blockquote(<.i("""The new chairman fears a large decrease in profits in the second quarter,
             after a shaky performance in the beginning of the year.""")),
-    <.p("""Here are examples of revisions you might make:"""),
+    <.p("""Here are examples of revisions you might make, with the key words bolded:"""),
     <.ul(
       Styles.listlessList,
-      example(origQ = "What is feared to decrease?", answer = "profits",
-              newQ = Some("What may decrease?"), isGood = true,
-              tooltip = """Try to eliminate all but one word from the sentence if possible.
-                           Feel free to change the phrasing to make the question more natural."""),
       example(origQ = """Shaky performance resulted in an expected decrease in what?""", answer = "profits",
-              newQ = Some("A decrease in what?"), isGood = true,
+              newQ = Some(<.span("An expected ", <.b("decrease"), " in what?")), isGood = true,
               tooltip = """The question does not need to be a complete sentence. Keep only the words that are necessary,
                            but make sure it is fluent English."""),
       example(origQ = "What direction will profits go?", answer = "decrease",
-              newQ = Some("What might profits do?"), isGood = true,
+              newQ = Some(<.span("What might ", <.b("profits "), " do?")), isGood = true,
               tooltip = """This question was almost unsalvageable, because "decrease" is not a proper answer.
                            It also would be acceptable to mark this question Invalid."""),
-      example(origQ = "what does the chairman ffear", answer = "a decrease in profits",
-              newQ = Some("What does someone fear?"), isGood = true,
-              tooltip = """Make sure to replace words and phrases with "someone" or "something" if you can.
-                           Also correct typos, capitalization, and punctuation if necessary."""),
-      example(origQ = "What is feared to happen to profits?", answer = "a larger decrease",
-              newQ = Some("What may happen to profits?"), isGood = true,
-              tooltip = """If there are extra verbs in the sentence, make sure to remove them as well;
-                           this can often be done with words like "may" and "might"."""),
+      example(origQ = "what does the chairmen fear", answer = "a decrease in profits",
+              newQ = Some(<.span("What does the chairman ", <.b("fear"), "?")), isGood = true,
+              tooltip = """Correct typos, capitalization, and punctuation if necessary."""),
       example(origQ = "Which quarter?", answer = "second",
-              newQ = Some("Which quarter?"), isGood = true,
+              newQ = Some(<.span("Which ", <.b("quarter?"))), isGood = true,
               tooltip = """If the question is fine as-is, don't change it."""),
-      example(origQ = "What else did profits do?", answer = "a shaky performance",
-              newQ = Some("What had profits done?"), isGood = true,
-              tooltip = """Keep each question isolated; don't use words like "else."
-                           If there are multiple answers it is fine.""")
+      example(origQ = "What went down?", answer = "profits",
+              newQ = None, isGood = true,
+              tooltip = """There is no viable key word in this question, so it is invalid."""),
+      example(origQ = "When might profits decrease?", answer = "in the second quarter",
+              newQ = Some(<.span("When might profits ", <.b("decrease"), "?")), isGood = true,
+              tooltip = """The special word should be "decrease" here because the decrease 
+                           is what would happen "in the second quarter".""")
     ),
-    <.p("""Your revisions will be examined and cross-checked with other workers.
-           If you spam or consistently provide low-quality revisions, you will be banned this task and future tasks.
+    <.p("""Your responses will be assessed by other workers.
+           If your revisions are consistently rejected as low-quality,
+           or if you fail to improve low-quality questions, you will be notified.
+           After that, if your responses do not improve, you will be banned from this task and future tasks.
            Otherwise, your work will be approved within an hour.
         """),
-    <.p("""If you have any questions, concerns, or points of confusion,
+    <.p("""You must provide keywords for every question, and revisions where applicable, in order to submit the HIT.
+           If you have any questions, concerns, or points of confusion,
            please share them in the "Feedback" field so we may improve the task.""")
   )
 }

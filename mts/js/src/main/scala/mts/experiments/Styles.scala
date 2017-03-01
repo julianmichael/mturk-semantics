@@ -66,4 +66,21 @@ object Styles extends StyleSheet.Inline {
   val paddingTop150 = style(
     paddingTop(150 px)
   )
+
+  val topSep = style(
+    borderBottom(1 px, solid, c"rgba(0, 0, 0, 0.3)")
+  )
+
+  val hoverBlueBold = style(
+    &.hover(
+      style(fontWeight.bold),
+      color(c"rgb(50, 164, 251)")
+    )
+  )
+
+  val hoverBold = style(
+    &.hover(
+      style(fontWeight.bold)
+    )
+  )
 }
