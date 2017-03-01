@@ -329,7 +329,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
         For each question, your revised version must satisfy the following criteria:"""),
     <.ol(
       <.li("""Spelling, punctuation, capitalization, and other errors have been fixed and the question is fluent English."""),
-      <.li("""The question asks about the same thing, and has the same correct answer as before."""),
+      <.li("""The question asks about the same thing, the answer is correct and grammatical for that question."""),
       <.li("""Any unnecessary words and phrases have been removed."""),
       <.li("""The question still contains the key word.""")),
     <.p("""You may reword the question slightly if necessary.
@@ -339,6 +339,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
         If you are unsure which word to choose, just use your best judgment about which word feels most important."""),
     <.p("""If there is no possible key word, the question is not salvageable to fluent English,
         or the answer is incorrect, you should mark it """, <.b("Invalid"), """.
+        You should also mark as invalid questions that are not explicitly and obviously answered in the sentence.
         It is fine for a question to have multiple correct answers as long as the given answer is one of them.
         See the examples for further explanation."""),
     <.h2("""Examples"""),
@@ -354,7 +355,7 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                            but make sure it is fluent English."""),
       example(origQ = "What direction will profits go?", answer = "decrease",
               newQ = Some(<.span("What might ", <.b("profits "), " do?")), isGood = true,
-              tooltip = """This question was almost unsalvageable, because "decrease" is not a proper answer.
+              tooltip = """This question was almost unsalvageable, because "decrease" is not a grammatical answer.
                            It also would be acceptable to mark this question Invalid."""),
       example(origQ = "what does the chairmen fear", answer = "a decrease in profits",
               newQ = Some(<.span("What does the chairman ", <.b("fear"), "?")), isGood = true,
@@ -367,8 +368,11 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
               tooltip = """There is no viable key word in this question, so it is invalid."""),
       example(origQ = "When might profits decrease?", answer = "in the second quarter",
               newQ = Some(<.span("When might profits ", <.b("decrease"), "?")), isGood = true,
-              tooltip = """The special word should be "decrease" here because the decrease 
-                           is what would happen "in the second quarter".""")
+              tooltip = """The special word should be "decrease" here because the decrease
+                           is what would happen "in the second quarter"."""),
+      example(origQ = "What might the chairman lose?", answer = "profits",
+              newQ = None, isGood = true,
+              tooltip = """This asks about something that is not explicitly stated in the sentence, so it is invalid."""),
     ),
     <.p("""Your responses will be assessed by other workers.
            If your revisions are consistently rejected as low-quality,
