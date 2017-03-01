@@ -63,41 +63,50 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
   import config.actorSystem
   lazy val server = new Server(List(taskSpec))
 
-  // lazy val helper = new HITManager.Helper(taskSpec)
-  // lazy val hitManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
-  //   helper,
-  //   numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
-  //   numHITsToKeepActive = (if(config.isProduction) 30 else 3),
-  //   prompts.iterator)))
-  // lazy val actor = actorSystem.actorOf(Props(new TaskManager(helper, hitManager)))
+  lazy val sourcedTokenizedQAPairsBySentence = {
+    val shuffleRand = new util.Random(555555555L)
+    questionInfos.groupBy(_._1).map {
+      case (path, items) => path -> shuffleRand.shuffle(items.map(_._2))
+    }
+  }
 
-  // import TaskManager._
-  // def start(interval: FiniteDuration = 1 minute) = {
-  //   server
-  //   qvActor ! Start(interval)
-  //   avActor ! Start(interval)
-  //   lavActor ! Start(interval)
-  // }
-  // def stop() = {
-  //   qvActor ! Stop
-  //   avActor ! Stop
-  //   lavActor ! Stop
-  // }
-  // def disable() = {
-  //   qvActor ! Disable
-  //   avActor ! Disable
-  //   lavActor ! Disable
-  // }
-  // def expire() = {
-  //   qvActor ! Expire
-  //   avActor ! Expire
-  //   lavActor ! Expire
-  // }
-  // def update() = {
-  //   server
-  //   qvActor ! Update
-  //   avActor ! Update
-  //   lavActor ! Update
-  // }
+  val numQAsPerHIT = 6
 
+  lazy val prompts = {
+    val shuffleRand = new util.Random(444443333L)
+
+    val inOrder = for {
+      (path, qaPairs) <- sourcedTokenizedQAPairsBySentence
+      qaPairGroup <- qaPairs.grouped(numQAsPerHIT)
+    } yield TokenizedValidationPrompt(path, qaPairGroup.toList)
+
+    shuffleRand.shuffle(inOrder)
+  }
+
+  lazy val helper = new HITManager.Helper(taskSpec)
+  lazy val hitManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
+    helper,
+    numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
+    numHITsToKeepActive = (if(config.isProduction) 100 else 3),
+    prompts.iterator)))
+  lazy val actor = actorSystem.actorOf(Props(new TaskManager(helper, hitManager)))
+
+  import TaskManager._
+  def start(interval: FiniteDuration = 30 seconds) = {
+    server
+    actor ! Start(interval)
+  }
+  def stop() = {
+    actor ! Stop
+  }
+  def disable() = {
+    actor ! Disable
+  }
+  def expire() = {
+    actor ! Expire
+  }
+  def update() = {
+    server
+    actor ! Update
+  }
 }
