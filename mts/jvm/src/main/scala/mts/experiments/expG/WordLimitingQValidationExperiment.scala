@@ -58,7 +58,8 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
   val samplePrompt = TokenizedValidationPrompt(questionInfos(10)._1, questionInfos.filter(_._1 == questionInfos(10)._1).take(4).map(_._2))
 
   lazy val taskSpec = TaskSpecification[TokenizedValidationPrompt, KeywordQuestionValidationResponse, ApiRequest, ApiResponse](
-    TaskIndex.expGWordLimQValTaskKey, hitType, sentenceApiFlow, samplePrompt)
+    TaskIndex.expGWordLimQValTaskKey, hitType, sentenceApiFlow, samplePrompt,
+    frozenHITTypeId = Some("3QPQ7LAZERSKMFFOFSO9K8UTU0WQA6"))
 
   import config.actorSystem
   lazy val server = new Server(List(taskSpec))
@@ -110,7 +111,16 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
     actor ! Update
   }
 
-  def completedRevisions = FileManager.loadAllHITInfo[TokenizedValidationPrompt, KeywordQuestionValidationResponse](taskSpec.hitTypeId)
+  lazy val allHITInfo = FileManager.loadAllHITInfo[TokenizedValidationPrompt, KeywordQuestionValidationResponse](taskSpec.hitTypeId)
+
+  // ID of worker who spammed with tons of "Invalid"s
+  val spammer = "A2VTCD0KE6U9RA"
+
+  lazy val allHITInfoFiltered = allHITInfo.map {
+    case HITInfo(hit, assignments) => HITInfo(hit, assignments.filterNot(_.workerId == spammer))
+  }
+
+  lazy val completedRevisions = allHITInfo
     .filterNot(_.assignments.isEmpty)
     .map {
     case HITInfo(hit, assignments) =>
@@ -122,7 +132,7 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
   }
 
   def printRevisions(revisions: Iterator[(CoNLLSentencePath, List[(SourcedTokenizedQAPair, List[ValidatedQuestion])])]) = {
-    completedRevisions.foreach {
+    revisions.foreach {
       case (path, validations) =>
         val sentence = FileManager.getCoNLLSentence(path).get
         println("\n" + TextRendering.renderSentence(sentence))
@@ -141,4 +151,18 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
         }
     }
   }
+
+  lazy val allValidatedQuestions = for {
+    HITInfo(hit, assignments) <- allHITInfoFiltered
+    assignment <- assignments
+    q <- assignment.response.validatedQuestions
+  } yield q
+
+  lazy val questionsUnchanged = for {
+    HITInfo(hit, assignments) <- allHITInfoFiltered
+    assignment <- assignments
+    (stqa, EditedQuestion(_, newQ)) <- hit.prompt.sourcedTokenizedQAPairs.zip(assignment.response.validatedQuestions)
+    origQ = TextRendering.renderSentence(stqa.questionTokens)
+    if newQ.equals(origQ)
+  } yield newQ
 }

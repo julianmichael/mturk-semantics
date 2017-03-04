@@ -89,6 +89,9 @@ object FileManager {
 
   // == Saving / loading specific kinds of files ==
 
+  // TODO need this elsewhere but maybe it breaks encapsulation here or something but i don't care
+  def getResourcePath: Path = resourcePath
+
   /** Loads an iterator over the lines of the desired resource file, wrapped in an ARM container.
     *
     * @param the path of the file within the resources directory

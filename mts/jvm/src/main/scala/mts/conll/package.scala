@@ -38,6 +38,7 @@ trait PackagePlatformExtensions {
     import com.softwaremill.macmemo.MemoCacheBuilder
     implicit val cacheProvider = MemoCacheBuilder.guavaMemoCacheBuilder
 
+    // development
     private[this] val conllAnnotationPath = Paths.get("conll-2012/v4/data/development/data/english/annotations")
 
     @memoize(maxSize = 200, expiresAfter = 1 hour)

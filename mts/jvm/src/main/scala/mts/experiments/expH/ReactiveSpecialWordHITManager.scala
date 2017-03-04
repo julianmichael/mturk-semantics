@@ -1,4 +1,4 @@
-package mts.experiments.expG
+package mts.experiments.expH
 
 import mts.core._
 import mts.util._
@@ -13,29 +13,48 @@ import akka.actor.ActorRef
 import com.amazonaws.mturk.requester.AssignmentStatus
 import com.amazonaws.mturk.requester.HITStatus
 
-// class ReactiveSpecialWordHITManager[Prompt, Response](
+// class ReactiveSpecialWordHITManager(
 //   helper: HITManager.Helper[Prompt, Response],
-//   reviewActor: ActorRef,
-//   numHITsToKeepActive: Int,
-//   _promptSource: Iterator[Prompt]) extends HITManager[Prompt, Response](helper) {
+//   validationActor: ActorRef,
+//   initNumHITsToKeepActive: Int,
+//   _promptSource: Iterator[Prompt]) extends HITManager[GenerationPrompt, GenerationResponse](helper) {
 
 //   import helper._
 //   import config._
 //   import taskSpec.hitTypeId
 
+//   var numHITsToKeepActive: Int = initNumHITsToKeepActive
 
 //   override def receiveAux = {
-//     // TODO receive info on which QA pairs were valid or something
+//     // TODO receive orders to increase num hits active
+//     // TODO get validation results here
 //     // evaluateAssignment(, Approval(""))
 //   }
 
-//   // override for more interesting review policy
+//   // could add a few sanity checks... meh
 //   def reviewAssignment(assignment: Assignment[Response]): Unit = {
-//     startReviewing(assignment)
-//     // TODO send assignment to question validator and answer validator
+//     // check that no two questions are identical? eh, let's not...
+//     evaluateAssignment(startReviewing(assignment), Approval(""))
+//     // TODO send questions for validation
 //   }
 
-//   private[this] val queuedPrompts = new LazyStackQueue[Prompt](_promptSource)
+//   // updated when we get validation results
+//   val completedWordStatsBySentenceId = {
+//     val res = mutable.Map.empty[SentenceId, WordStats]
+//       ???
+
+//     res
+//   }
+
+//   // updated when we get responses or validation results
+//   val tentativeWordStatsBySentenceId = {
+//     val res = mutable.Map.empty[SentenceId, WordStats]
+//       ???
+
+//     res
+//   }
+
+//   private[this] val queuedSentenceIds = new LazyStackQueue[SentenceId](_promptSource)
 
 //   private[this] val (finishedPrompts, unfinishedInactivePrompts) = {
 //     val finished = mutable.Set.empty[Prompt]
@@ -65,7 +84,8 @@ import com.amazonaws.mturk.requester.HITStatus
 //           reviewAssignment(assignment)
 //         }
 //       }
-//       // if the HIT is "reviewable", and all its assignments are reviewed (i.e., no longer "Submitted"), we can dispose
+//       // if the HIT is "reviewable", and all its assignments are reviewed (i.e., no longer "Submitted"),
+//       // we choose whether to EXTEND: TODO
 //       if(mTurkHIT.getHITStatus == HITStatus.Reviewable && submittedAssignments.isEmpty) {
 //         finishHIT(hit)
 //         val numAssignmentsCompleted = finishedAssignments(hit.prompt).map(_._2.size).sum
@@ -104,6 +124,7 @@ import com.amazonaws.mturk.requester.HITStatus
 //     }
 //   }
 
+//   // shouldn't need this but oh well
 //   final override def addPrompt(prompt: Prompt): Unit = {
 //     queuedPrompts.enqueue(prompt)
 //   }
