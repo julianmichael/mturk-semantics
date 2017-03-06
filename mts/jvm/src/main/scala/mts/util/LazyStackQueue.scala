@@ -22,6 +22,11 @@ class LazyStackQueue[A](
   private[this] val maxBufferSize: Int = 10
 ) {
 
+  /** Returns the total number of elements in the component queues,
+    * not counting those buffered from the source iterator.
+    */
+  def numManuallyEnqueued: Int = top.size + bottom.size
+
   // used to store anything pushed on
   private[this] val top: mutable.Stack[A] = mutable.Stack.empty[A]
 

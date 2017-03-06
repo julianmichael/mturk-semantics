@@ -88,4 +88,8 @@ object Styles extends StyleSheet.Inline {
     color(c"rgb(216, 31, 00)"),
     fontWeight.bold
   )
+
+  val uncomfortableOrange = style(
+    color(c"rgb(255, 135, 0)")
+  )
 }

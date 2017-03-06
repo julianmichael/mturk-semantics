@@ -27,7 +27,7 @@ import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.requester.Comparator
 
 class FinalExperiment(implicit config: TaskConfig) {
-  val experimentName = "h_final"
+  val experimentName = finalExperimentName
 
   val approvalRateRequirement = new QualificationRequirement(
     RequesterService.APPROVAL_RATE_QUALIFICATION_TYPE_ID,
@@ -35,9 +35,11 @@ class FinalExperiment(implicit config: TaskConfig) {
     null, true)
 
   // saved these manually, see code in package.scala
-  lazy val origQASRLPaths = read[Vector[PTBSentencePath]](FileManager.loadDataFile(experimentName, "origQASRLPaths.txt").get)
+  lazy val origQASRLPaths = read[Vector[PTBSentencePath]](
+    FileManager.loadDataFile(experimentName, "origQASRLPaths.txt").get.head
+  )
 
-  lazy val random250PTBSentencePathss = {
+  lazy val random250PTBSentencePaths = {
     val shuffleRand = new util.Random(987654321L)
     shuffleRand.shuffle(origQASRLPaths)
       .take(250)
@@ -55,11 +57,8 @@ class FinalExperiment(implicit config: TaskConfig) {
     qualRequirements = Array[QualificationRequirement](approvalRateRequirement))
 
   lazy val genApiFlow = Flow[GenerationApiRequest].map {
-    case GenerationApiRequest(id) =>
-      val sentence = getSentenceById(id)
-      val wordStats: WordStats =
-        sentence.indices.map(i => i -> WordStat.empty(i)).toMap // TODO get from the hit manager
-      GenerationApiResponse(sentence, wordStats)
+    case GenerationApiRequest(path) =>
+      GenerationApiResponse(getPTBTokens(path))
   }
 
   val sampleGenPrompt = GenerationPrompt(origQASRLPaths.head, List(0, 1, 2, 3))
@@ -80,13 +79,14 @@ class FinalExperiment(implicit config: TaskConfig) {
     qualRequirements = Array[QualificationRequirement](approvalRateRequirement))
 
   lazy val valApiFlow = Flow[ValidationApiRequest].map {
-    case ValidationApiRequest(id) => ValidationApiResponse(getSentenceById(id))
+    case ValidationApiRequest(path) =>
+      ValidationApiResponse(getPTBTokens(path))
   }
 
   val sampleValPrompt = ValidationPrompt(
-    origQASRLPaths.head, List(
-      SourcedQAPair("", "", 0, WordedQAPair(0, "Who is awesome?", Set(1, 2, 3, 4))),
-      SourcedQAPair("", "", 1, WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)))))
+    sampleGenPrompt, "", "",
+    List(WordedQAPair(0, "Who is awesome?", Set(1, 2, 3, 4)),
+         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
     TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
@@ -95,28 +95,76 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   // hit management --- circularly defined so they can communicate
 
+  def splitNum(n: Int): List[Int] =
+    if(n <= 0) Nil
+    else if(n <= 3) List(n)
+    else if(n == 5) List(2, 3)
+    else if(n == 6) List(3, 3)
+    else if(n == 9) List(3, 3, 3)
+    else 4 :: splitNum(n - 4)
+
+  def splitList(l: List[Int]) = splitNum(l.size)
+    .foldLeft((l, List.empty[List[Int]])) {
+    case ((remaining, groups), groupSize) =>
+      (remaining.drop(groupSize), remaining.take(groupSize) :: groups)
+  }._2
+
+  val sourcePrompts = random250PTBSentencePaths
+    .take(30)
+    .flatMap { path =>
+    val sentence = getPTBTokens(path)
+    val wordGroups = splitList(
+      sentence.indices.filter(i =>
+        !reallyUninterestingTokens.contains(sentence(i).toLowerCase)).toList)
+    wordGroups.map(GenerationPrompt(path, _))
+  }
+
+  import config.actorSystem
+
+  lazy val sentenceTracker: ActorRef = actorSystem.actorOf(Props(new SentenceTracker))
+
   lazy val genHelper = new HITManager.Helper(genTaskSpec)
   lazy val genManager: ActorRef = if(config.isProduction) {
-    ??? // actorSystem.actorOf(Props(new QAGenHITManager(hitManagementHelper, 2, 60, sourcePrompts.iterator)))
+    actorSystem.actorOf(
+      Props(new GenerationHITManager(
+              genHelper,
+              valHelper,
+              valManager,
+              sentenceTracker,
+              2, 20, sourcePrompts.iterator)))
   } else {
-    ??? // actorSystem.actorOf(Props(new QAGenHITManager(hitManagementHelper, 1, 4, sourcePrompts.iterator)))
+    actorSystem.actorOf(
+      Props(new GenerationHITManager(
+              genHelper,
+              valHelper,
+              valManager,
+              sentenceTracker,
+              1, 3, sourcePrompts.iterator)))
   }
 
   lazy val valHelper = new HITManager.Helper(valTaskSpec)
   lazy val valManager: ActorRef = if(config.isProduction) {
-    ??? // actorSystem.actorOf(Props(new QAGenHITManager(hitManagementHelper, 2, 60, sourcePrompts.iterator)))
+    actorSystem.actorOf(
+      Props(ValidationHITManager(
+              valHelper,
+              genManager,
+              sentenceTracker,
+              2, 20)))
   } else {
-    ??? // actorSystem.actorOf(Props(new QAGenHITManager(hitManagementHelper, 1, 4, sourcePrompts.iterator)))
+    actorSystem.actorOf(
+      Props(ValidationHITManager(
+              valHelper,
+              genManager,
+              sentenceTracker,
+              1, 3)))
   }
-
-  import config.actorSystem
 
   lazy val server = new Server(List(genTaskSpec, valTaskSpec))
   lazy val genActor = actorSystem.actorOf(Props(new TaskManager(genHelper, genManager)))
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
   import TaskManager._
-  def start(interval: FiniteDuration = 1 minute) = {
+  def start(interval: FiniteDuration = 30 seconds) = {
     server
     genActor ! Start(interval)
     valActor ! Start(interval)
@@ -137,6 +185,11 @@ class FinalExperiment(implicit config: TaskConfig) {
     server
     genActor ! Update
     valActor ! Update
+  }
+  def save() = {
+    sentenceTracker ! SaveData
+    genManager ! SaveData
+    valManager ! SaveData
   }
 
   // convenience functions

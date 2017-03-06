@@ -31,7 +31,7 @@ abstract class HITManager[Prompt, Response](
   }
 
   // can override if you want to process more kinds of messages
-  val receiveAux: PartialFunction[Any, Unit] =
+  def receiveAux: PartialFunction[Any, Unit] =
     PartialFunction.empty[Any, Unit]
 
   def reviewHITs: Unit

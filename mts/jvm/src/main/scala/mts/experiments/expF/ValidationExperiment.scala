@@ -119,7 +119,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
   lazy val qvHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
     qvHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
-    numHITsToKeepActive = (if(config.isProduction) 30 else 3),
+    initNumHITsToKeepActive = (if(config.isProduction) 30 else 3),
     prompts.iterator)))
   lazy val qvActor = actorSystem.actorOf(Props(new TaskManager(qvHelper, qvHITManager)))
 
@@ -127,7 +127,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
   lazy val avHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
     avHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
-    numHITsToKeepActive = (if(config.isProduction) 30 else 3),
+    initNumHITsToKeepActive = (if(config.isProduction) 30 else 3),
     prompts.iterator)))
   lazy val avActor = actorSystem.actorOf(Props(new TaskManager(avHelper, avHITManager)))
 
@@ -137,7 +137,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
   lazy val lavHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
     lavHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
-    numHITsToKeepActive = (if(config.isProduction) 30 else 3),
+    initNumHITsToKeepActive = (if(config.isProduction) 30 else 3),
     prompts.iterator)))
   lazy val lavActor = actorSystem.actorOf(Props(new TaskManager(lavHelper, lavHITManager)))
 

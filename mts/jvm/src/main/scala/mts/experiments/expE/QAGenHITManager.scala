@@ -25,7 +25,7 @@ class QAGenHITManager(
   import config._
   import taskSpec.hitTypeId
 
-  override def reviewAssignment(assignment: Assignment[QAGenResponse]): Unit = {
+  override def reviewAssignment(hit: HIT[QAGenPrompt], assignment: Assignment[QAGenResponse]): Unit = {
     val numQAPairs = assignment.response.qaPairs.filter {
       case (question, answerSet) => !question.isEmpty && !answerSet.isEmpty
     }.size

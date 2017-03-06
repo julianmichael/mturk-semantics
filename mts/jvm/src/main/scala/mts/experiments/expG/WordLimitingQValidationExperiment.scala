@@ -88,7 +88,7 @@ class WordLimitingQValidationExperiment(implicit config: TaskConfig) {
   lazy val hitManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
     helper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
-    numHITsToKeepActive = (if(config.isProduction) 100 else 3),
+    initNumHITsToKeepActive = (if(config.isProduction) 100 else 3),
     prompts.iterator)))
   lazy val actor = actorSystem.actorOf(Props(new TaskManager(helper, hitManager)))
 

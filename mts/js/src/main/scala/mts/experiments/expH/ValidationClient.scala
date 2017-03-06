@@ -2,6 +2,7 @@ package mts.experiments.expH
 
 import mts.experiments._
 import mts.conll._
+import mts.util.dollarsToCents
 import mts.tasks._
 import mts.language._
 import mts.experiments.expF.WebsocketLoadableComponent
@@ -43,16 +44,25 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
   @Lenses case class State(
     curQuestion: Int,
     isInterfaceFocused: Boolean,
-    invalids: Set[Int])
+    answers: List[ValidationAnswer])
+  object State {
+    def initial = State(0, false, questions.map(_ => Answer(Set.empty[Int])))
+  }
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
-    def updateResponse(state: State)(hs: HighlightingState): Callback = Callback {
-      val questionIndices = (0 until questions.length)
-      setSubmitEnabled(questionIndices.forall(qi => state.invalids.contains(qi) || hs.span.exists(_._1 == qi)))
-      setResponse(
-        questionIndices.toList.map(
-          qi => if(state.invalids.contains(qi)) InvalidQuestion
-                else Answer(hs.span.collect { case (`qi`, ai) => ai })
+    def updateResponse: Callback = scope.state.map { state =>
+      setSubmitEnabled(state.answers.forall(_.isComplete))
+      setResponse(state.answers)
+    }
+
+    def updateHighlights(hs: HighlightingState) = {
+      val span = hs.span
+      scope.modState(
+        State.answers.modify(answers =>
+          answers.zipWithIndex.map {
+            case (Answer(_), i) => Answer(span.filter(_._1 == i).map(_._2))
+            case (invalidOrRedundant, _) => invalidOrRedundant
+          }
         )
       )
     }
@@ -66,12 +76,10 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
       } >> e.preventDefaultCB
     }
 
-    def qaField(curQuestion: Int, invalids: Set[Int], sentence: Vector[String], span: Set[(Int, Int)])(index: Int) = {
-      val isFocused = curQuestion == index
-      val answerIndices = span.collect { case (`index`, ai) => ai }
-      val isAnswerEmpty = answerIndices.isEmpty
-      val curAnswer = TextRendering.renderSentence(
-        sentence.zipWithIndex.filter(p => answerIndices.contains(p._2)).map(_._1))
+    def qaField(s: State, sentence: Vector[String], span: Set[(Int, Int)])(index: Int) = {
+      val isFocused = s.curQuestion == index
+      val answer = s.answers(index)
+      def highlightedSpanFor(i: Int) = Answer(span.filter(_._1 == i).map(_._2))
 
       <.div(
         ^.overflow := "hidden",
@@ -85,19 +93,32 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
           ^.borderRadius := "2px",
           ^.textAlign := "center",
           ^.width := "50px",
-          invalids.contains(index) ?= (^.backgroundColor := "#E01010"),
+          answer.isInvalid ?= (^.backgroundColor := "#E01010"),
           ^.onClick --> scope.modState(
-            State.invalids.modify(is => if(is.contains(index)) is - index else is + index)
+            State.answers.modify(answers =>
+              answers.updated(
+                index,
+                if(answers(index).isInvalid) highlightedSpanFor(index)
+                else InvalidQuestion)
+            )
           ),
           "Invalid"
         ),
         <.span(
           isFocused ?= Styles.bolded,
+          s.answers(s.curQuestion).getRedundant.fold(false)(_.other == index) ?= Styles.uncomfortableOrange,
           Styles.unselectable,
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
-          ^.onClick --> scope.modState(State.curQuestion.set(index)),
+          ^.onClick --> scope.modState(s =>
+            if(s.curQuestion == index || s.answers(index).isRedundant) s
+            else if(s.answers(s.curQuestion).getRedundant.fold(false)(_.other == index)) {
+              State.answers.modify(answers => answers.updated(s.curQuestion, highlightedSpanFor(s.curQuestion)))(s)
+            } else {
+              State.answers.modify(answers => answers.updated(s.curQuestion, Redundant(index)))(s)
+            }
+          ),
           questions(index)
         ),
         <.div(
@@ -112,33 +133,35 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
-          (invalids.contains(index) || isAnswerEmpty) ?= (^.color := "#CCCCCC"),
-          if(invalids.contains(index)) {
-            "N/A"
-          } else if(isAnswerEmpty && isFocused) {
-            "Highlight your answer above, switch questions with arrow keys"
-          } else {
-            curAnswer
+          (answer.getAnswer.fold(true)(_.indices.isEmpty)) ?= (^.color := "#CCCCCC"),
+          answer match {
+            case InvalidQuestion => "N/A"
+            case Redundant(other) => <.span("Redundant with ", <.i(questions(other)))
+            case Answer(span) if span.isEmpty && isFocused =>
+              "Highlight answer above, move with arrow keys, or click on a redundant question"
+            case Answer(span) => TextRendering.renderSentence(
+              sentence.zipWithIndex.filter(p => span.contains(p._2)).map(_._1))
           }
         )
       )
     }
 
-    def render(s: State) = {
+    def render(state: State) = {
       WebsocketLoadable(
         WebsocketLoadableProps(
-          websocketURI = websocketUri, request = ValidationApiRequest(prompt.sentenceId), render = {
+          websocketURI = websocketUri, request = ValidationApiRequest(prompt.path), render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
             case Loaded(ValidationApiResponse(sentence), _) =>
               import scalaz.std.list._
+              import state._
               Highlighting(
                 HighlightingProps(
-                  isEnabled = !isNotAssigned && !s.invalids(s.curQuestion), update = updateResponse(s), render = {
-                    case (HighlightingState(spans, status), HighlightingContext(_, startHighlight, startErase, stopHighlight, touchElement)) =>
-                      val showHighlights = !s.invalids(s.curQuestion)
-                      val curSpan = spans.collect { case (questionIndex, i) if questionIndex == s.curQuestion => i }
-                      def touchWord(i: Int) = touchElement((s.curQuestion, i))
+                  isEnabled = !isNotAssigned && answers(curQuestion).isAnswer, update = updateHighlights, render = {
+                    case (hs @ HighlightingState(spans, status), HighlightingContext(_, startHighlight, startErase, stopHighlight, touchElement)) =>
+                      val showHighlights = answers(curQuestion).isAnswer
+                      val curSpan = spans.collect { case (`curQuestion`, i) => i }
+                      def touchWord(i: Int) = touchElement((curQuestion, i))
                       <.div(
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
@@ -151,7 +174,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                           ^.onBlur --> scope.modState(State.isInterfaceFocused.set(false)),
                           ^.onKeyDown ==> handleKey,
                           ^.position := "relative",
-                          !s.isInterfaceFocused ?= <.div(
+                          !isInterfaceFocused ?= <.div(
                             ^.position := "absolute",
                             ^.top := "20px",
                             ^.left := "0px",
@@ -194,8 +217,11 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                           <.ul(
                             Styles.listlessList,
                             (0 until questions.size)
-                              .map(qaField(s.curQuestion, s.invalids, sentence, spans))
+                              .map(qaField(state, sentence, hs.span))
                               .map(field => <.li(^.display := "block", field))
+                          ),
+                          <.p(
+                            s"Bonus: ${dollarsToCents(validationBonusPerQuestion * math.max(0, questions.size - 4))}c"
                           )
                         )
                       )
@@ -209,10 +235,10 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
   }
 
   val FullUI = ReactComponentB[Unit]("Full UI")
-    .initialState(State(0, false, Set.empty[Int]))
+    .initialState(State.initial)
     .renderBackend[FullUIBackend]
+    .componentDidUpdate(context => context.$.backend.updateResponse)
     .build
-
 
   def example(question: String, answer: String, isGood: Boolean, tooltip: String) =
     <.li(
@@ -232,17 +258,19 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.h2("""Task Summary"""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into a list of questions and answers.
-           You will be presented with a selection of English text and a list of at most $numValidationQAs questions prepared by other annotators."""),
-    <.p("""You will highlight the words in the sentence that correctly answer the question.
-           For example, consider the following sentence and questions:"""),
+           You will be presented with a selection of English text and a list of at questions (usually at least four)
+           prepared by other annotators."""),
+    <.p("""You will highlight the words in the sentence that correctly answer the question,
+           as well as mark whether questions are invalid or redundant.
+           For example, for the following sentence and questions, you should respond with the answers in green:"""),
     <.blockquote(<.i("The jubilant protesters celebrated after executive intervention canceled the project.")),
     <.ul(
-      <.li("How did the protesters feel?"),
-      <.li("When did someone celebrate?"),
-      <.li("Who celebrated?")),
-    <.p("""You should answer the first question with """, <.b("jubilant"),
-        """, the second question with """, <.b("after executive intervention canceled the project"),
-        """, and the third question with """, <.b("The jubilant protesters.")),
+      <.li("How did the protesters feel? --> ", <.span(Styles.goodGreen, "jubilant")),
+      <.li("When did someone celebrate? --> ", <.span(Styles.goodGreen, "after executive intervention canceled the project")),
+      <.li("Who celebrated? --> ", <.span(Styles.goodGreen, "The jubilant protesters"))),
+    <.p(s"""You will be paid in accordance with the number of questions shown to you, with a bonus of
+            ${dollarsToCents(validationBonusPerQuestion)}c per question after the first four
+            that will be paid when the assignment is approved."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         Each of your answers must satisfy the following criteria:"""),
@@ -250,13 +278,14 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
       <.li("""It is a correct answer to the question."""),
       <.li("""It is grammatical, to the extent possible.""")),
     <.p("""If there are multiple correct answers, include all of them in your answer if possible.
-        (Skipping over words might help with this.)
-        Instead of providing an answer, you should mark a question as """, <.b("Invalid"), """if it:"""),
+        (Skipping over words might help with this.) """),
+    <.p("""Another part of your job is to identify which questions are """, <.b("invalid"), """.
+        Instead of providing an answer, you should mark a question as invalid if it satisfies any of the following criteria:"""),
     <.ul(
-      <.li("has grammatical or spelling errors or is not fluent English."),
-      <.li("is not answered explicitly in the sentence."),
-      <.li("does not contain any words taken from sentence."),
-      <.li("is a yes/no or either/or question.")
+      <.li("The question has grammatical or spelling errors or is not fluent English."),
+      <.li("The question is not answered explicitly in the sentence."),
+      <.li("The question does not contain any words taken from sentence."),
+      <.li("It is a yes/no question, an either/or question, or some other non-open-ended question.")
     ),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
@@ -283,23 +312,56 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
       example(question = "Who leaked the documents?",
               answer = "I",
               isGood = false,
-              tooltip = """Provide the most complete answer: this answer should be the entire quotation in the sentence
-                        (skipping over "she said")."""),
+              tooltip = """This question does not contain any content words from the sentence, making it invalid."""),
       example(question = "Is it full responsibility or not?",
               answer = "full and complete",
               isGood = false,
-              tooltip = """The answer should directly correspond to what the question is asking. Yes/no questions,
-                        and questions that list the answers explicitly, should be marked invalid.""")
+              tooltip = """Yes/no questions and either/or questions are forbidden; this question should be marked invalid.""")
     ),
-    <.p("""Your answers and validity judgments will be cross-checked with other workers.
-        If your agreement with other annotators drops too low, or we detect you spamming,
-        you will be warned and then blocked from this task and future tasks.
-        Otherwise, your work will be approved within an hour."""),
+    <.h2("Redundancy"),
+    <.p("""Some questions are not invalid, but you should mark them as redundant with others.
+        To clarify what this means, suppose you are given the following sentence:"""),
+    <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
+    <.p("""Consider the following questions:"""),
+    <.ul(
+      <.li("When did someone push someone?"),
+      <.li("On what day did someone push someone?")
+    ),
+    <.p("""The second is just a minor rephrasing of the first, which is not acceptable.
+        One way to notice this is that both questions have the same answer.
+        However, consider the following three question-answer pairs:"""),
+    <.ol(
+      <.li("Where did someone push someone?"),
+      <.li("Where did someone push someone today?"),
+      <.li("Where was Alex today?")
+    ),
+    <.p("""Number 2 is redundant with number 1,
+        because they are asking the same question but with different amounts of detail.
+        Number 3, however, is not redundant, because it is asking about the location of Alex and not the pushing.
+        Finally, consider the following:"""),
+    <.ul(
+      <.li("What did Alex do?"),
+      <.li("Who pushed Chandler?")
+    ),
+    <.p("""These are redundant with each other because they convey the same information,
+        but just reverse the order of the question and answer.
+        One way to notice this is that the answer to one question appears in the other, and vice versa."""),
     <.p("""Sometimes you may not be sure whether to include some words in your answer.
         As a rule of thumb, include only what is necessary for the answer to be completely specified,
         but if all else is equal, prefer longer answers over shorter ones."""),
-    <.p("""Also, you may see the same or very similar questions appear more than once. This is fine: just give the same answer."""),
+    <.h3("Note about the Interface"),
+    <.p("""To mark a question as redundant, while that question is selected,
+           you will click on the question it's redundant with (which will turn orange).
+           For each group of redundant questions, you should provide an answer for exactly one of them,
+           and mark the rest of them redundant with that one.
+           To un-mark a question as redundant, just click on the orange sentence again."""),
     <.p("""If you have any questions, concerns, or points of confusion,
-        please share them in the "Feedback" field so we may improve the task.""")
+        please share them in the "Feedback" field so we may improve the task."""),
+    <.h2("Conditions and payment"),
+    <.p("""Your answers and validity judgments will be cross-checked with other workers.
+        If your agreement with other annotators drops too low or we detect you spamming,
+        you will be warned, and then you will be blocked from this task and future tasks
+        if you continue without improving.
+        Otherwise, your work will be approved and the bonus will be paid within an hour.""")
   )
 }

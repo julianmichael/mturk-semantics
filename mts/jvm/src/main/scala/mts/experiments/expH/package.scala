@@ -1,17 +1,35 @@
 package mts.experiments.expH
 
+import akka.actor.ActorRef
+
 import java.nio.file.Paths
 
 import mts.util._
+import mts.core._
 import mts.conll._
 import mts.ptb._
 import mts.language._
 
 trait PackagePlatformExtensions {
-  def getSentenceById(id: SentenceId): Vector[String] = id match {
-    case CoNLLSentenceId(path) => FileManager.getCoNLLSentence(path).get.words.map(_.token).toVector
-      // TODO wiki case when implemented
+  // def getSentenceById(id: SentenceId): Vector[String] = id match {
+  //   case CoNLLSentenceId(path) => FileManager.getCoNLLSentence(path).get.words.map(_.token).toVector
+  //     // TODO wiki case when implemented
+  // }
+
+  def getPTBTokens(path: PTBSentencePath): Vector[String] = {
+    val sentence = FileManager.getPTBSentence(path).get
+    sentence.words.filter(_.pos != "-NONE-").map(_.token)
   }
+
+  case class ValidationResult(
+    prompt: GenerationPrompt,
+    sourceHITId: String,
+    sourceAssignmentId: String,
+    numValid: Int)
+
+  case class RegisterGenerationActor(genActor: ActorRef)
+  case object SaveData
+  case object Reflect
 
   import PTBFileManager._
 

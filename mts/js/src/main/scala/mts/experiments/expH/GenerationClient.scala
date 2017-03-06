@@ -27,78 +27,67 @@ import monocle._
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
-object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
+object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]] {
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
     ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
-    jQuery(s"#$submitButtonLabel").hide()
   }
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[GenerationApiRequest, GenerationApiResponse]
   import WebsocketLoadableComponent._
-  val HighlightingComponent = new HighlightingComponent[(Int, Int)] // qa index, answer word index
+  val HighlightingComponent = new HighlightingComponent[(Int, Int, Int)] // keyword INDEX among keywords, qa index, answer word index
   import HighlightingComponent._
 
   @Lenses case class State(
-    pastQAGroups: List[List[WordedQAPair]], // each group == 1 keyword
-    curKeyword: Option[Int],
-    curQAs: List[(String, Set[Int])],
-    curFocus: Int) {
-    def wordStats(sentence: Vector[String], admissible: Int => Boolean): WordStats = sentence
-      .indices
-      .filter(admissible).map { i =>
-      val qasForIndex = pastQAGroups.find(g => g.head.wordIndex == i)
-      i -> WordStat(
-        index = i,
-        numPrompted = qasForIndex.size,
-        numQAPairs = qasForIndex.fold(0)(_.size),
-        numQAPairsContaining = pastQAGroups.flatten.filter(wqa =>
-          wqa.wordIndex == i ||
-            wqa.question.toLowerCase.split("\\s+").contains(sentence(i).toLowerCase) ||
-            wqa.answer.contains(i))
-          .size
-      )
-    }.toMap
+    qaGroups: List[List[WordedQAPair]], // each group == 1 keyword
+    curFocus: (Int, Int)) {
   }
   object State {
-    val initial = State(Nil, None, newQAs, 0)
+    val initial = State(prompt.keywords.map(kw => List(emptyQA(kw))), (0, 0))
   }
 
-  val emptyQA = ("", Set.empty[Int])
-  val newQAs = List.fill(numQAs)(emptyQA)
+  def emptyQA(keyword: Int) = WordedQAPair(keyword, "", Set.empty[Int])
 
-  def isComplete(pair: (String, Set[Int])) = !pair._1.isEmpty && !pair._2.isEmpty
+  def isComplete(wqa: WordedQAPair) = !wqa.question.isEmpty && !wqa.answer.isEmpty
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
 
+    def addQAFields: (State => State) =
+      State.qaGroups.modify(groups =>
+        groups.map(group =>
+          if(group.filter(isComplete).size == group.size) group ++ List(emptyQA(group.head.wordIndex))
+          else group
+        )
+      )
+
     def updateHighlights(hs: HighlightingState) =
       scope.modState(
-        State.curQAs.modify(curQAs =>
-          curQAs.zipWithIndex.map {
-            case ((question, _), qaIndex) => (
-              question, hs.span.collect {
-                case (hlQAIndex, aIndex) if hlQAIndex == qaIndex => aIndex
-              }.toSet)
+        State.qaGroups.modify(groups =>
+          groups.zipWithIndex.map {
+            case (group, gIndex) =>
+              group.zipWithIndex.map {
+                case (WordedQAPair(keyword, question, _), qaIndex) => WordedQAPair(
+                  keyword, question, hs.span.collect {
+                    case (`gIndex`, `qaIndex`, aIndex) => aIndex
+                  }.toSet)
+              }
           }
-        )
+        ) andThen addQAFields
       )
 
     def updateResponse: Callback = scope.state.map { st =>
-      val curQAs = st.curKeyword.map(keyword =>
-        st.curQAs.filter(isComplete).map(p =>
-          WordedQAPair(keyword, p._1, p._2)
-        )
-      )
-      val allQAs = curQAs.fold(st.pastQAGroups)(_ :: st.pastQAGroups).flatten
-      setResponse(allQAs)
+      setResponse(st.qaGroups.flatten.filter(isComplete))
     }
 
-    def qaField(s: State, sentence: Vector[String], index: Int, bonus: Double, curNumQAPairs: Int) = s match {
-      case s @ State(_, curKeyword, curQAs, curFocus) =>
-        val isFocused = curFocus == index
-        val charsLeft = questionCharLimit - curQAs(index)._1.length
-        val isAnswerEmpty = curQAs(index)._2.isEmpty
+    def qaField(s: State, sentence: Vector[String], groupIndex: Int, qaIndex: Int) = s match {
+      case State(qaGroups, curFocus) =>
+        val isFocused = curFocus == (groupIndex, qaIndex)
+        val numQAsInGroup = qaGroups(groupIndex).size
+        val WordedQAPair(_, question, answer) = s.qaGroups(groupIndex)(qaIndex)
+        val charsLeft = questionCharLimit - question.length
+        val isAnswerEmpty = answer.isEmpty
+        val nextBonus = bonusFor(qaGroups.map(_.drop(1)).flatten.filter(isComplete).size + 1)
         <.div(
           ^.overflow := "hidden",
           <.div(
@@ -111,25 +100,16 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
             ^.textAlign := "right",
             (charsLeft <= 10 && isFocused) ?= s"$charsLeft"
           ),
-          <.div(
-            curNumQAPairs > index ?= Styles.goodGreen,
-            curNumQAPairs > index ?= Styles.bolded,
-            ^.float := "left",
-            ^.width := "15px",
-            ^.minHeight := "1px",
-            ^.margin := "1px",
-            ^.padding := "1px",
-            ^.textAlign := "right",
-            (bonus != 0.0) ?= s"+${math.round(100 * bonus).toInt}c"
-          ),
           <.input(
-            (curNumQAPairs < index || isNotAssigned) ?= (^.disabled := true),
-            (curNumQAPairs < index || isNotAssigned) ?= (^.backgroundColor := "#EEEEEE"),
+            // ((index - 1) == numQAsInGroup || isNotAssigned) ?= (^.disabled := true),
+            // ((index - 1) == numQAsInGroup || isNotAssigned) ?= (^.backgroundColor := "#EEEEEE"),
             ^.float := "left",
             ^.`type` := "text",
-            ^.placeholder := s"Question",
+            ^.placeholder := (
+              if(qaIndex == 0) "Question (required)"
+              else s"Question (+${math.round(100 * nextBonus).toInt}c)"
+            ),
             ^.margin := "1px",
-            ^.marginLeft := "26px",
             ^.padding := "1px",
             ^.width := "240px",
             ^.maxLength := questionCharLimit,
@@ -137,15 +117,16 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
               (e: ReactEventI) => {
                 val newValue = e.target.value
                 scope.modState(
-                  State.curQAs.modify(
-                    qas => {
-                      val currentQA = qas(index)
-                      val newQA = currentQA.copy(_1 = newValue)
-                      qas.updated(index, newQA)
-                    }))
+                  State.qaGroups.modify(groups =>
+                    groups.updated(
+                      groupIndex,
+                      groups(groupIndex).updated(
+                        qaIndex,
+                        groups(groupIndex)(qaIndex).copy(question = newValue))
+                    )) andThen addQAFields)
               }),
-            ^.onFocus --> scope.modState(State.curFocus.set(index)),
-            ^.value := curQAs(index)._1
+            ^.onFocus --> scope.modState(State.curFocus.set((groupIndex, qaIndex))),
+            ^.value := question
           ),
           <.div(
             Styles.answerIndicator,
@@ -163,7 +144,7 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
               "Highlight your answer above"
             } else {
               TextRendering.renderSentence(
-                sentence.zipWithIndex.filter(p => curQAs(index)._2.contains(p._2)).map(_._1)
+                sentence.zipWithIndex.filter(p => answer.contains(p._2)).map(_._1)
               )
             }
           )
@@ -174,12 +155,11 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
       WebsocketLoadable(
         WebsocketLoadableProps(
           websocketURI = websocketUri,
-          request = GenerationApiRequest(prompt),
-          onLoad = r => scope.modState(State.curKeyword.set(Some(WordStats.indicesByPriority(r.wordStats).head))),
+          request = GenerationApiRequest(prompt.path),
           render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
-            case Loaded(GenerationApiResponse(sentence, wordStats), _) =>
+            case Loaded(GenerationApiResponse(sentence), _) =>
               import scalaz.std.list._
               Highlighting(
                 HighlightingProps(
@@ -187,21 +167,17 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
                     case (HighlightingState(spans, status),
                           HighlightingContext(setSpan, startHighlight, startErase, stopHighlight, touchElement)) =>
 
-                      val maxNumKeywords = math.min(numKeywords, WordStats.indicesByPriority(wordStats).size)
-                      val curKeywordNum = s.pastQAGroups.size + 1
+                      val curCompleteQAPairs = s.qaGroups.flatten.filter(isComplete)
 
-                      val curNumQAPairs = s.curQAs.filter(isComplete).size
+                      val curPotentialBonus = (1 to (curCompleteQAPairs.size - s.qaGroups.size))
+                        .map(bonusFor).sum
 
-                      val curPotentialBonus = (s.curQAs.filter(isComplete) :: s.pastQAGroups)
-                        .flatMap(g => g.zip(bonuses).map(_._2)).sum
+                      val (curGroupIndex, curQAIndex) = s.curFocus
 
                       val curAnswer = spans.collect {
-                        case (qaIndex, ansIndex)
-                            if qaIndex == s.curFocus => ansIndex
+                        case (`curGroupIndex`, `curQAIndex`, ansIndex) => ansIndex
                       }
-                      def touchWord(i: Int) = s.curKeyword.fold(Callback.empty)(curKeyword =>
-                        touchElement((s.curFocus, i))
-                      )
+                      def touchWord(i: Int) = touchElement((curGroupIndex, curQAIndex, i))
                       <.div(
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
@@ -224,8 +200,8 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
                                 " ")),
                             (index: Int) => List(
                               <.span(
-                                s.curKeyword.fold(false)(_ == index) ?= Styles.specialWord,
-                                s.curKeyword.fold(false)(_ == index) ?= Styles.niceBlue,
+                                prompt.keywords.contains(index) ?= Styles.specialWord,
+                                prompt.keywords.contains(index) ?= Styles.niceBlue,
                                 ^.backgroundColor := (
                                   if(curAnswer.contains(index)) {
                                     "#FFFF00"
@@ -245,53 +221,27 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
                                 TextRendering.normalizeToken(sentence(index))
                               ))
                           )),
-                        <.ul(
-                          Styles.listlessList,
-                          (0 until s.curQAs.size).map(i =>
-                            <.li(
-                              ^.display := "block",
-                              qaField(s, sentence, i, bonuses(i), curNumQAPairs)
+                        <.div(
+                          (0 until s.qaGroups.size).map(groupIndex =>
+                            <.div(
+                              <.p(
+                                Styles.bolded,
+                                TextRendering.normalizeToken(sentence(prompt.keywords(groupIndex)))
+                              ),
+                              <.ul(
+                                Styles.listlessList,
+                                (0 until s.qaGroups(groupIndex).size).map(qaIndex =>
+                                  <.li(
+                                    ^.display := "block",
+                                    qaField(s, sentence, groupIndex, qaIndex)
+                                  )
+                                )
+                              )
                             )
                           )
                         ),
-                        <.input(
-                          ^.`type` := (if(curKeywordNum >= maxNumKeywords) "submit" else "button"),
-                          ^.disabled := curNumQAPairs < 1,
-                          ^.margin := "1px",
-                          ^.padding := "5px",
-                          ^.color := "white",
-                          ^.backgroundColor := (
-                            if(curNumQAPairs < 1) "#CCCCCC"
-                            else if(curKeywordNum >= maxNumKeywords) "rgb(48, 140, 20)"
-                            else "rgb(50, 164, 251)"
-                          ),
-                          ^.onClick --> (
-                            if(curNumQAPairs < 1 || curKeywordNum >= maxNumKeywords) Callback.empty else {
-                              s.curKeyword.fold(Callback.empty) { curKeyword =>
-                                val qasFinished = s.curQAs
-                                  .filter(isComplete)
-                                  .map(p => WordedQAPair(curKeyword, p._1, p._2))
-                                val finishedKeywords = s.pastQAGroups.flatten.map(_.wordIndex).toSet + curKeyword
-                                val newKeyword = WordStats
-                                  .indicesByPriority(WordStats.merge(wordStats, s.wordStats(sentence, wordStats.keySet)))
-                                  .filterNot(finishedKeywords)
-                                  .head
-                                scope.setState(State(qasFinished :: s.pastQAGroups, Some(newKeyword), newQAs, 0)) >>
-                                  setSpan(Set.empty[(Int, Int)])
-                              }
-                            }
-                          ),
-                          ^.value := (
-                            if(curKeywordNum >= maxNumKeywords) {
-                              "Submit"
-                            } else {
-                              s"Next word (${curKeywordNum - 1}/$maxNumKeywords complete)"
-                            }
-                          )
-                        ),
-                        <.span(
-                          ^.paddingLeft := "5px",
-                          "Potential bonus: ",
+                        <.p(
+                          "Total potential bonus: ",
                           <.span(
                             curPotentialBonus > 0 ?= Styles.goodGreen,
                             curPotentialBonus > 0 ?= Styles.bolded,
@@ -314,8 +264,8 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
-        You will be presented with a selection of English text with a """), <.b("special word"), " written in bold blue."),
-    <.p("""You will write questions and their answers, where the answer is taken from the sentence and """,
+        You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold blue."),
+    <.p("""For each special word, you will write questions and their answers, where the answer is taken from the sentence and """,
         <.b("""either the question or the answer contains the special word. """),
         """You will earn bonuses by writing more questions and answers.
         For example, consider the sentence:"""),
@@ -332,9 +282,9 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
       <.li("""Either the question or the answer contains the special word."""),
       <.li("""The question contains at least one word from the sentence."""),
       <.li("""The answer is the longest natural, correct, and unique answer to the question."""),
-      <.li("""You do not repeat the same information between multiple question-answer pairs,
+      <.li("""None of your question-answer pairs are redundant with each other,
               even for different special words."""),
-      <.li("""The question is open-ended: no yes/no or either/or questions.""")
+      <.li("""The question is open-ended: yes/no and either/or questions are not allowed.""")
     ),
     <.p("See the examples for further explanation."),
     <.h2("""Good Examples"""),
@@ -359,63 +309,80 @@ object GenerationClient extends TaskClient[SentenceId, List[WordedQAPair]] {
                         """To get descriptive words as answers, you may need to ask "What kind" or similar questions.""")))
     ),
     <.h2("""Bad Examples"""),
-    <.p("Suppose you are given the following sentence:"),
-    <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
-    <.p("""Consider the following question-answer pairs:"""),
-    <.ul(
-      <.li(<.div("What did Alex do? --> ", <.span(Styles.specialWord, "pushed"), " Chandler at school today")),
-      <.li(<.div("Who ", <.span(Styles.specialWord, "pushed"), " Chandler? --> Alex"))
-    ),
-    <.p("These are each acceptable on their own, but ", <.b("you may not provide both, "),
-        """because they convey the same information, just reversing the order of the question and answer.
-        One way to notice this is that the answer to one question ("Alex") appears in the other question."""),
-    <.ul(
-      <.li(<.div("When did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today")),
-      <.li(<.div("On what day did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today"))
-    ),
-    <.p("""Here, the second is just a minor rephrasing of the first, which is not acceptable.
-        One way to notice this is that both questions have the same answer."""),
-    <.p("Mouse over the following examples of ", <.b("bad"), " question-answer pairs for explanations:"),
+    <.p("Mouse over the following examples of ", <.b("bad"), " question-answer pairs for further explanations:"),
     <.ul(
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
-                 <.span("Where did Alex do something? --> at school"),
+                 <.span("Who got hurt? --> Chandler"),
                  <.span(^.className := "tooltiptext",
-                        """This fails to include the special word "push" in either the question or answer."""))),
+                        """The question must include some content word from the sentence, which this fails to do."""))),
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
                  <.span("Did Alex or Chandler push someone? --> Alex"),
                  <.span(^.className := "tooltiptext",
                         """Either/or and yes/no questions are not allowed."""))),
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
-                 <.span("Where did Alex "), <.b("push "), <.span("Chandler? --> at school today"),
+                 <.span("Where did Alex push Chandler? --> at school today"),
                  <.span(^.className := "tooltiptext",
                         """The question asked "where", so including the word "today" is incorrect.""")))
     ),
+    <.h2("Redundancy"),
+    <.p("""None of your question-answer pairs in one HIT should be redundant with each other.
+        To clarify what this means, suppose you are given the following sentence:"""),
+    <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
+    <.p("""Consider the following question-answer pairs:"""),
+    <.ul(
+      <.li(<.div("When did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today")),
+      <.li(<.div("On what day did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today"))
+    ),
+    <.p("""The second is just a minor rephrasing of the first, which is not acceptable.
+        One way to notice this is that both questions have the same answer.
+        However, suppose the special word was """, <.b("school"), """. Consider the following three question-answer pairs:"""),
+    <.ol(
+      <.li(<.div("Where did someone push someone? --> at ", <.b("school"))),
+      <.li(<.div("Where did someone push someone today? --> at ", <.b("school"))),
+      <.li(<.div("Where was Alex today? --> at ", <.b("school")))
+    ),
+    <.p("""Numbers 1 and 2 are redundant with each other,
+        because they are asking the same question but with different amounts of detail.
+        Number 3, however, is not redundant, because it is asking about the location of Alex and not the pushing.
+        Finally, consider the following:"""),
+    <.ul(
+      <.li(<.div("What did Alex do? --> ", <.span(Styles.specialWord, "pushed"), " Chandler at school today")),
+      <.li(<.div("Who ", <.span(Styles.specialWord, "pushed"), " Chandler? --> Alex"))
+    ),
+    <.p("""These are redundant with each other because they convey the same information,
+        but just reverse the order of the question and answer.
+        One way to notice this is that the answer to one question ("Alex") appears in the other question."""),
     <.h2("""Conditions & Bonuses"""),
     <.p("""For each HIT, you will be shown up to four special words from the sentence.
           You are required to write at least one question-answer pair for each special word.
-          However, you will receive progressively increasing bonuses (listed next to each question entry field)
-          if you can come up with more.
-          How long the HIT takes will depend on how many question-answer pairs you write;
-          you should aim to take less than 30 seconds per question-answer pair (so around two minutes per HIT).
+          However, you will receive bonuses if you come up with more.
+          (As you write question-answer pairs, new fields will appear for you to write more.)
+          The bonus per question increases by 1 cent for each one you write;
+          your goal is to, if possible, present the complete non-redundant set of questions and answers
+          that relate the special words to each other and the rest of the sentence.
+          On average, it should take less than 30 seconds per question-answer pair.
           """),
-    <.p(""" Your work will be evaluated by other workers to see whether it meets the requirements outlined here. """,
-          <.b("""You will only be awarded bonuses according to the number of GOOD question-answer pairs you write, """),
+    <.p("""Your work will be evaluated by other workers according to the above criteria. """,
+          <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
           """as judged by other workers.
-          So the bonus you should expect to receive depends on the quality of your responses.
-          Since other workers will occasionally make mistakes, this means you might not always get the full bonus amount
-          indicated as the "potential bonus," even if your responses are valid.
-          Your bonus will be awarded as soon as validators have checked all of your question-answer pairs.
+          This means the "total potential bonus" indicator is just an upper bound on what you may receive,
+          which will depend on the quality of your responses.
+          Since other workers will occasionally make mistakes, you might not always get the full
+          amount even if your responses are valid.
+          Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
+          which will happen shortly after you submit (but will vary depending on worker availability).
           If your responses are too frequently rejected by validators,
-          you will first be warned, then blocked from this task and future tasks."""),
+          you will be sent a warning; if your responses do not improve,
+          then you will be blocked from this task and future tasks."""),
     <.h2("""Tips"""),
     <.ul(
       <.li(s"""To make the task go quickly, make your questions as short as possible.
              (There is a ${questionCharLimit}-character limit.)"""),
-      <.li("It is better to move on to the next word than add an awkward extra question."),
       <.li("""As you work on the task, you will discover some broadly-applicable templates for questions.
               Keep these in mind and it can potentially speed you up."""),
       <.li("""Feel free to use generic words like "someone" and "something" to simplify your questions
-              and make them shorter.""")
+              and make them shorter. This can also help you avoid accidental redundancies."""),
+      <.li("""Start by writing the required questions so you don't end up having to move your responses around.""")
     ),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
