@@ -117,5 +117,6 @@ class NumAssignmentsHITManager[Prompt, Response](
     }
 
     println(s"${queuedPrompts.numManuallyEnqueued} buffered load for HIT type $hitTypeId")
+    println(s"$numActiveHITs active out of $numHITsToKeepActive for HIT type $hitTypeId")
   }
 }
