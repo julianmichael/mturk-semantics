@@ -103,7 +103,7 @@ class GenerationHITManager(
       // award bonuses
       val numSpecialWords = prompt.keywords.size
       val numQAsProvided = assignment.response.size
-      val bonusAwarded = (0 to (numQAsValid - numSpecialWords)).map(bonusFor).sum
+      val bonusAwarded = (1 to (numQAsValid - numSpecialWords)).map(bonusFor).sum
       service.grantBonus(
         assignment.workerId, bonusAwarded, assignment.assignmentId,
         s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
