@@ -5,7 +5,7 @@ import mts.ptb.PTBSentencePath
 package object expH extends PackagePlatformExtensions {
   val finalExperimentName = "h_final"
 
-  def bonusFor(i: Int): Double = 0.01 * i + 0.4
+  def bonusFor(i: Int): Double = 0.01 * i + 0.04
   val numKeywords = 4
   val questionCharLimit = 50
 

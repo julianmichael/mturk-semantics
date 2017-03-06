@@ -78,6 +78,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
 
     def updateResponse: Callback = scope.state.map { st =>
       setResponse(st.qaGroups.flatten.filter(isComplete))
+      setSubmitEnabled(st.qaGroups.forall(_.filter(isComplete).size > 0))
     }
 
     def qaField(s: State, sentence: Vector[String], groupIndex: Int, qaIndex: Int) = s match {
@@ -264,7 +265,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
-        You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold blue."),
+        You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold."),
     <.p("""For each special word, you will write questions and their answers, where the answer is taken from the sentence and """,
         <.b("""either the question or the answer contains the special word. """),
         """You will earn bonuses by writing more questions and answers.
