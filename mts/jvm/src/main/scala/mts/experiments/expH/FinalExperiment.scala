@@ -163,6 +163,24 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val genActor = actorSystem.actorOf(Props(new TaskManager(genHelper, genManager)))
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
+  // used to schedule data-saves
+  private[this] var schedule: List[Cancellable] = Nil
+  def startSaves(interval: FiniteDuration = 5 minutes): Unit = {
+    if(schedule.exists(_.isCancelled) || schedule.isEmpty) {
+      schedule = List(genManager, valManager, sentenceTracker).map(actor =>
+        config.actorSystem.scheduler.schedule(
+          2 seconds, interval, actor, SaveData)(
+          config.actorSystem.dispatcher, actor)
+      )
+    }
+  }
+  def stopSaves = schedule.foreach(_.cancel())
+  def saveData = {
+    genManager ! SaveData
+    valManager ! SaveData
+    sentenceTracker ! SaveData
+  }
+
   import TaskManager._
   def start(interval: FiniteDuration = 30 seconds) = {
     server
