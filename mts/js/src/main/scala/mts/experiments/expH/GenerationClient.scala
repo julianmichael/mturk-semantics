@@ -310,7 +310,9 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                         """To get descriptive words as answers, you may need to ask "What kind" or similar questions.""")))
     ),
     <.h2("""Bad Examples"""),
-    <.p("Mouse over the following examples of ", <.b("bad"), " question-answer pairs for further explanations:"),
+    <.p("""Suppose you are given the following sentence:"""),
+    <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
+    <.p("Mouse over the following examples of ", <.b("bad"), " question-answer pairs for explanations:"),
     <.ul(
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
                  <.span("Who got hurt? --> Chandler"),
@@ -327,9 +329,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     ),
     <.h2("Redundancy"),
     <.p("""None of your question-answer pairs in one HIT should be redundant with each other.
-        To clarify what this means, suppose you are given the following sentence:"""),
-    <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
-    <.p("""Consider the following question-answer pairs:"""),
+        To clarify what this means, consider the following question-answer pairs about the sentence above:"""),
     <.ul(
       <.li(<.div("When did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today")),
       <.li(<.div("On what day did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today"))

@@ -76,7 +76,7 @@ object TaskPage {
           // and here I'll let the client code do its magic
           div(
             id := rootClientDivLabel,
-            "Waiting for task data from server... (If this message does not disappear shortly, the server is down)"
+            "Waiting for task data from server... (If this message does not disappear shortly, the server is down. Try refreshing in a minute or so.)"
           ),
           p(
             input(
