@@ -11,17 +11,13 @@ package object expH extends PackagePlatformExtensions {
 
   val validationBonusPerQuestion = 0.03
 
-  val generationAccuracyThreshold = 0.7
+  val generationAccuracyThreshold = 0.9
   val generationBufferBeforeWarning = 10
   val generationBufferBeforeBlocking = 5
 
-  val validationAgreementThreshold = 0.7
+  val validationAgreementThreshold = 0.85
   val validationBufferBeforeWarning = 10
   val validationBufferBeforeBlocking = 5
-
-  // XXX no longer needed
-  // see WordStats.scala for functions on these
-  type WordStats = Map[Int, WordStat]
 
   // prompt for qa gen
   sealed trait SentenceId

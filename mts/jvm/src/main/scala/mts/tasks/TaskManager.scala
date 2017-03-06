@@ -27,7 +27,7 @@ class TaskManager[Prompt, Response](
   import hitManagementHelper.config._
 
   override def receive = {
-    case Start(interval) => start(interval)
+    case Start(interval, delay) => start(interval, delay)
     case Stop => stop
     case Update => update
     case Expire => expire
@@ -38,9 +38,9 @@ class TaskManager[Prompt, Response](
   private[this] var schedule: Option[Cancellable] = None
 
   // begin updating / polling the MTurk API
-  private[this] def start(interval: FiniteDuration): Unit = {
+  private[this] def start(interval: FiniteDuration, delay: FiniteDuration): Unit = {
     if(schedule.fold(true)(_.isCancelled)) {
-      schedule = Some(context.system.scheduler.schedule(2 seconds, interval, self, Update)(context.system.dispatcher, self))
+      schedule = Some(context.system.scheduler.schedule(delay, interval, self, Update)(context.system.dispatcher, self))
     }
   }
 
@@ -81,7 +81,7 @@ class TaskManager[Prompt, Response](
 
 object TaskManager {
   sealed trait Message
-  case class Start(interval: FiniteDuration) extends Message
+  case class Start(interval: FiniteDuration, delay: FiniteDuration = 2 seconds) extends Message
   case object Stop extends Message
   case object Update extends Message
   case object Expire extends Message

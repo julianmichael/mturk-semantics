@@ -181,7 +181,9 @@ class ValidationExperiment(implicit config: TaskConfig) {
     origAnswer: Set[Int],
     newQuestions: List[Option[String]],
     newShortAnswers: List[Option[Set[Int]]],
-    newLongAnswers: List[Option[Set[Int]]]) {
+    newLongAnswers: List[Option[Set[Int]]],
+    newShortAnswersTagged: List[(String, Option[Set[Int]])],
+    newLongAnswersTagged: List[(String, Option[Set[Int]])]) {
 
     val allAnswers = newShortAnswers ++ newLongAnswers
     val sentenceString = TextRendering.renderSentence(sentence)
@@ -234,6 +236,13 @@ class ValidationExperiment(implicit config: TaskConfig) {
                     val index = hit.prompt.sourcedQAPairs.indexOf(sqa)
                     assignments.map(_.response.answerIndices(index))
                 }.flatten
+                val validationAnswersTagged = aData.iterator
+                  .filter(_._1.prompt.sourcedQAPairs.contains(sqa))
+                  .map {
+                  case (hit, assignments) =>
+                    val index = hit.prompt.sourcedQAPairs.indexOf(sqa)
+                    assignments.map(a => (a.workerId, a.response.answerIndices(index)))
+                }.flatten
                 val longValidationAnswers = laData.iterator
                   .filter(_._1.prompt.sourcedQAPairs.contains(sqa))
                   .map {
@@ -241,8 +250,16 @@ class ValidationExperiment(implicit config: TaskConfig) {
                     val index = hit.prompt.sourcedQAPairs.indexOf(sqa)
                     assignments.map(_.response.answerIndices(index))
                 }.flatten
+                val longValidationAnswersTagged = laData.iterator
+                  .filter(_._1.prompt.sourcedQAPairs.contains(sqa))
+                  .map {
+                  case (hit, assignments) =>
+                    val index = hit.prompt.sourcedQAPairs.indexOf(sqa)
+                    assignments.map(a => (a.workerId, a.response.answerIndices(index)))
+                }.flatten
                 ValidatedQAPair(sentence, specialWord, question, answer, validationQuestions.toList,
-                                validationAnswers.toList, longValidationAnswers.toList)
+                                validationAnswers.toList, longValidationAnswers.toList,
+                                validationAnswersTagged.toList, longValidationAnswersTagged.toList)
             }
             hitId -> validatedQAPairs.toList
         }.toMap
@@ -264,7 +281,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
         hitToQAPairs.foreach {
           case (hit, vQAPairs) =>
             vQAPairs.foreach {
-              case ValidatedQAPair(_, _, question, answerIndices, newQs, newAs, newLAs) =>
+              case ValidatedQAPair(_, _, question, answerIndices, newQs, newAs, newLAs, _, _) =>
                 val answer = expE.renderSpan(sentence, answerIndices)
                 val renderedQs = newQs.map(_.fold("N/A")(q => q))
                 val renderedAs = newAs.map(_.fold("N/A")(a => expE.renderSpan(sentence, a)))
@@ -288,7 +305,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
     (path, hitIdToQAPairs) <- pathToHITToQAPairs.iterator
     sentence = FileManager.getCoNLLSentence(path).get
     (_, validatedQAPairs) <- hitIdToQAPairs.toList
-    ValidatedQAPair(sentence, _, origQuestion, origAnswer, newQuestions, newShortAnswers, newLongAnswers) <- validatedQAPairs
+    ValidatedQAPair(sentence, _, origQuestion, origAnswer, newQuestions, newShortAnswers, newLongAnswers, _, _) <- validatedQAPairs
     lengthDiff <- for {
       longMean <- newLongAnswers.flatten.map(_.size).onlyIf(!_.isEmpty).map(_.mean)
       shortMean <- newShortAnswers.flatten.map(_.size).onlyIf(!_.isEmpty).map(_.mean)
@@ -298,7 +315,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
   lazy val questionsUnchanged = for {
     (path, hitIdToQAPairs) <- pathToHITToQAPairs.toList
     (_, validatedQAPairs) <- hitIdToQAPairs.toList
-    ValidatedQAPair(_, _, origQuestion, _, newQuestions, _, _) <- validatedQAPairs
+    ValidatedQAPair(_, _, origQuestion, _, newQuestions, _, _, _, _) <- validatedQAPairs
   } yield newQuestions.flatten.filter(_.equals(origQuestion)).size
 
   def getWordsInQuestion(sentence: CoNLLSentence, string: String): Set[Int] = {
@@ -527,11 +544,13 @@ class ValidationExperiment(implicit config: TaskConfig) {
       s"=== $k ===\n$specialWordProp${v.allStatsString}"
   }.mkString("\n\n")
 
-  lazy val shortAnswerSets = allQAPairs.map(_.newShortAnswers)
-  lazy val shortIAA = new InterAnnotatorAgreement(shortAnswerSets)
+  lazy val shortIAA = new InterAnnotatorAgreement(
+    allQAPairs.map(_.newShortAnswers),
+    allQAPairs.map(_.newShortAnswersTagged))
 
-  lazy val longAnswerSets = allQAPairs.map(_.newLongAnswers)
-  lazy val longIAA = new InterAnnotatorAgreement(longAnswerSets)
+  lazy val longIAA = new InterAnnotatorAgreement(
+    allQAPairs.map(_.newLongAnswers),
+    allQAPairs.map(_.newLongAnswersTagged))
 
   lazy val iaaReport = s"""
 === Long answer agreement ===

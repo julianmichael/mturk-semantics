@@ -184,8 +184,8 @@ class FinalExperiment(implicit config: TaskConfig) {
   import TaskManager._
   def start(interval: FiniteDuration = 30 seconds) = {
     server
-    genActor ! Start(interval)
-    valActor ! Start(interval)
+    genActor ! Start(interval, delay = 0 seconds)
+    valActor ! Start(interval, delay = 3 seconds)
   }
   def stop() = {
     genActor ! Stop

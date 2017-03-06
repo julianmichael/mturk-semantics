@@ -71,7 +71,7 @@ class GenerationHITManager(
     workerStatsFilename,
     write[Map[String, WorkerStats]](allWorkerStats))
 
-  private[this] var allWorkerStats = {
+  private[this] var allWorkerStats =
     FileManager.loadDataFile(finalExperimentName, workerStatsFilename)
       .map(_.mkString)
       .map(read[Map[String, WorkerStats]])
@@ -79,7 +79,6 @@ class GenerationHITManager(
       // TODO assemble from saved data?
       Map.empty[String, WorkerStats]
     }
-  }
 
   override def reviewAssignment(hit: HIT[GenerationPrompt], assignment: Assignment[List[WordedQAPair]]): Unit = {
     evaluateAssignment(startReviewing(assignment), Approval(""))
