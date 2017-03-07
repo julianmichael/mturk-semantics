@@ -220,4 +220,21 @@ class FinalExperiment(implicit config: TaskConfig) {
   def allGenInfos = FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId)
   def allValInfos = FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId)
 
+  def renderValidation(info: HITInfo[ValidationPrompt, List[ValidationAnswer]]) = {
+    val sentence = FileManager.getPTBSentence(info.hit.prompt.genPrompt.path).get
+    info.assignments.map { assignment =>
+      TextRendering.renderSentence(sentence) + "\n" +
+        info.hit.prompt.qaPairs.zip(assignment.response).map {
+          case (WordedQAPair(kwIndex, question, answerIndices), valAnswer) =>
+            val answerString = TextRendering.renderSpan(sentence, answerIndices)
+            val validationString = valAnswer match {
+              case InvalidQuestion => "<Invalid>"
+              case Redundant(i) => s"Redundant with ${info.hit.prompt.qaPairs(i).question}"
+              case Answer(span) => TextRendering.renderSpan(sentence, span)
+            }
+            s"\t$question --> $answerString \t|$validationString"
+        }.mkString("\n")
+    }.mkString("\n") + "\n"
+  }
+
 }

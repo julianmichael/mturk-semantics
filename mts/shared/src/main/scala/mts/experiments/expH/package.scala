@@ -11,12 +11,12 @@ package object expH extends PackagePlatformExtensions {
 
   val validationBonusPerQuestion = 0.03
 
-  val generationAccuracyThreshold = 0.8
+  val generationAccuracyThreshold = 0.7
   val generationBufferBeforeWarning = 20
   val generationBufferBeforeBlocking = 10
 
-  val validationAgreementThreshold = 0.75
-  val validationBufferBeforeWarning = 15
+  val validationAgreementThreshold = 0.7
+  val validationBufferBeforeWarning = 20
   val validationBufferBeforeBlocking = 10
 
   case class GenerationPrompt(
