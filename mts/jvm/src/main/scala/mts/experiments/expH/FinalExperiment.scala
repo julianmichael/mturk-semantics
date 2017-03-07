@@ -181,6 +181,11 @@ class FinalExperiment(implicit config: TaskConfig) {
     sentenceTracker ! SaveData
   }
 
+  def setGenHITsActive(n: Int) =
+    genManager ! SetNumHITsActive(n)
+  def setValHITsActive(n: Int) =
+    valManager ! SetNumHITsActive(n)
+
   import TaskManager._
   def start(interval: FiniteDuration = 30 seconds) = {
     server
