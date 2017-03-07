@@ -37,6 +37,9 @@ class NumAssignmentsHITManager[Prompt, Response](
   // override for more interesting review policy
   def reviewAssignment(hit: HIT[Prompt], assignment: Assignment[Response]): Unit = {
     evaluateAssignment(startReviewing(assignment), Approval(""))
+    if(!assignment.feedback.isEmpty) {
+      println(s"Feedback: ${assignment.feedback}")
+    }
   }
 
   // override to do something interesting after a prompt finishes
