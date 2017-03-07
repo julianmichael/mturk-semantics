@@ -19,12 +19,6 @@ package object expH extends PackagePlatformExtensions {
   val validationBufferBeforeWarning = 10
   val validationBufferBeforeBlocking = 5
 
-  // prompt for qa gen
-  sealed trait SentenceId
-  case class PTBSentenceId(path: PTBSentencePath)
-  // case class CoNLLSentenceId(path: CoNLLSentencePath) extends SentenceId // TODO remove
-  // case class WikiSentenceId(locator: String) extends SentenceId // TODO
-
   case class GenerationPrompt(
     path: PTBSentencePath,
     keywords: List[Int])

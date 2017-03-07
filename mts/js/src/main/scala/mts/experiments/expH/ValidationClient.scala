@@ -258,7 +258,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.h2("""Task Summary"""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into a list of questions and answers.
-           You will be presented with a selection of English text and a list of at questions (usually at least four)
+           You will be presented with a selection of English text and a list of questions (usually at least four)
            prepared by other annotators."""),
     <.p("""You will highlight the words in the sentence that correctly answer the question,
            as well as mark whether questions are invalid or redundant.
@@ -321,7 +321,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.h2("Redundancy"),
     <.p("""Some questions are not invalid, but you should mark them as redundant with others.
         To clarify what this means, suppose you are given the following sentence:"""),
-    <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
+    <.blockquote(<.i("""Alex pushed Chandler at school today.""")),
     <.p("""Consider the following questions:"""),
     <.ul(
       <.li("When did someone push someone?"),

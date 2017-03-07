@@ -242,7 +242,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                           )
                         ),
                         <.p(
-                          "Total potential bonus: ",
+                          "Potential bonus so far: ",
                           <.span(
                             curPotentialBonus > 0 ?= Styles.goodGreen,
                             curPotentialBonus > 0 ?= Styles.bolded,

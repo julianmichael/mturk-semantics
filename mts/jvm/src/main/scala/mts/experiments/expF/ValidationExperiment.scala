@@ -559,7 +559,28 @@ ${longIAA.report}
 ${shortIAA.report}
 """
 
+
   lazy val completeReport = iaaReport + "\n==Gold==\n" + (allQAPairAnalyses.head._2.goldStatsString) + "\n" + qaPairAnalysisReport
+
+  lazy val workerValidationInstances = for {
+    HITInfo(hit, assignments) <- expEHITInfos
+    assignment <- assignments
+    (question, answer) <- assignment.response.qaPairs
+    if !question.isEmpty
+    validatedQAPair <- pathToHITToQAPairs(hit.prompt.path)(hit.hitId)
+    if validatedQAPair.origQuestion.equals(question)
+    numTotalAnswers = validatedQAPair.newShortAnswers.size + validatedQAPair.newLongAnswers.size
+    numValidAnswers = validatedQAPair.newShortAnswers.flatten.size + validatedQAPair.newLongAnswers.flatten.size
+  } yield (assignment.workerId, numValidAnswers, numTotalAnswers)
+
+  val workerValidityRates = workerValidationInstances
+    .groupBy(_._1)
+    .map {
+    case (workerId, instances) =>
+      val totalValid = instances.map(_._2).sum
+      val total = instances.map(_._3).sum
+      workerId -> (totalValid.toDouble / total, total)
+  }
 
   lazy val goodIndices = manualQARecordsByPath.values.zipWithIndex.filter(_._1.qaGroups.size > 1).map(_._2).toList
   def reportManualGraph(i: Int) = {
