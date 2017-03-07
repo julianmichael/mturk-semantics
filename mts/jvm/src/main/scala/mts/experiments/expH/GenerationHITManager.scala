@@ -103,11 +103,13 @@ class GenerationHITManager(
       val numSpecialWords = prompt.keywords.size
       val numQAsProvided = assignment.response.size
       val bonusAwarded = (1 to (numQAsValid - numSpecialWords)).map(bonusFor).sum
-      service.grantBonus(
-        assignment.workerId, bonusAwarded, assignment.assignmentId,
-        s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
+      if(bonusAwarded > 0.0) {
+        service.grantBonus(
+          assignment.workerId, bonusAwarded, assignment.assignmentId,
+          s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
             where at least $numSpecialWords were required, for a bonus of
             ${dollarsToCents(bonusAwarded)}c.""")
+      }
 
       // warn or block worker if performance is unsatisfactory
       val newStats = stats.blockedAt match {
