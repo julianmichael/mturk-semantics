@@ -30,7 +30,7 @@ class QAGenHITManager(
       case (question, answerSet) => !question.isEmpty && !answerSet.isEmpty
     }.size
     val totalBonus = bonuses.take(numQAPairs).sum
-    helper.evaluateAssignment(helper.startReviewing(assignment), Approval(""))
+    helper.evaluateAssignment(hit, helper.startReviewing(assignment), Approval(""))
     println(s"Approved HIT: ${assignment.hitId}")
     if(!assignment.feedback.isEmpty) {
       println(s"Feedback: ${assignment.feedback}")

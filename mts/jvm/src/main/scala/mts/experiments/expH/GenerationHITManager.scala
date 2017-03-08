@@ -33,7 +33,7 @@ class GenerationHITManager(
   import taskSpec.hitTypeId
 
   override def promptFinished(prompt: GenerationPrompt): Unit = {
-    sentenceTrackingActor ! prompt
+    sentenceTrackingActor ! GenerationFinished(prompt)
   }
 
   // keep track of worker accuracy
@@ -81,7 +81,10 @@ class GenerationHITManager(
     }
 
   override def reviewAssignment(hit: HIT[GenerationPrompt], assignment: Assignment[List[WordedQAPair]]): Unit = {
-    evaluateAssignment(startReviewing(assignment), Approval(""))
+    evaluateAssignment(hit, startReviewing(assignment), Approval(""))
+    if(!assignment.feedback.isEmpty) {
+      println(s"Feedback: ${assignment.feedback}")
+    }
     val validationPrompt = ValidationPrompt(hit.prompt, hit.hitId, assignment.assignmentId, assignment.response)
     validationActor ! validationHelper.Message.AddPrompt(validationPrompt)
     sentenceTrackingActor ! ValidationBegun(validationPrompt)

@@ -94,19 +94,35 @@ object HITManager {
       active
     }
 
-    private[this] val finishedAssignmentsByPrompt = {
-      val result = mutable.Map.empty[Prompt, List[(HIT[Prompt], List[Assignment[Response]])]]
-      FileManager.loadAllData[Prompt, Response](hitTypeId)
-        .filter(hitInfo => !activeHITs.contains(hitInfo._1))
-        .groupBy(_._1.prompt)
-        .foreach { case (k, v) => result.put(k, v) }
-      result
+    private[this] val (finishedHITInfosByPrompt, activeHITInfosByPrompt) = {
+      val finishedRes = mutable.Map.empty[Prompt, List[HITInfo[Prompt, Response]]]
+      val activeRes = mutable.Map.empty[Prompt, List[HITInfo[Prompt, Response]]]
+      FileManager.loadAllHITInfo[Prompt, Response](hitTypeId)
+        .groupBy(_.hit.prompt)
+        .foreach { case (prompt, infos) =>
+          infos.foreach { hitInfo =>
+            if(activeHITs.contains(hitInfo.hit)) {
+              activeRes.put(prompt, hitInfo :: activeRes.get(prompt).getOrElse(Nil))
+            } else {
+              finishedRes.put(prompt, hitInfo :: activeRes.get(prompt).getOrElse(Nil))
+            }
+          }
+      }
+      (finishedRes, activeRes)
     }
 
-    def finishedAssignmentsByPromptIterator: Iterator[(Prompt, List[(HIT[Prompt], List[Assignment[Response]])])] =
-      finishedAssignmentsByPrompt.iterator
-    def finishedAssignments(p: Prompt): List[(HIT[Prompt], List[Assignment[Response]])] =
-      finishedAssignmentsByPrompt.get(p).getOrElse(Nil)
+    def finishedHITInfosByPromptIterator: Iterator[(Prompt, List[HITInfo[Prompt, Response]])] =
+      finishedHITInfosByPrompt.iterator
+    def finishedHITInfos(p: Prompt): List[HITInfo[Prompt, Response]] =
+      finishedHITInfosByPrompt.get(p).getOrElse(Nil)
+    def activeHITInfosByPromptIterator: Iterator[(Prompt, List[HITInfo[Prompt, Response]])] =
+      activeHITInfosByPrompt.iterator
+    def activeHITInfos(p: Prompt): List[HITInfo[Prompt, Response]] =
+      activeHITInfosByPrompt.get(p).getOrElse(Nil)
+    def allCurrentHITInfosByPromptIterator: Iterator[(Prompt, List[HITInfo[Prompt, Response]])] =
+      activeHITInfosByPromptIterator ++ finishedHITInfosByPromptIterator
+    def allCurrentHITInfos(p: Prompt): List[HITInfo[Prompt, Response]] =
+      activeHITInfos(p) ++ finishedHITInfos(p)
 
     def createHIT(prompt: Prompt, numAssignments: Int): Try[HIT[Prompt]] = {
       val attempt = taskSpec.createHIT(prompt, numAssignments)
@@ -130,10 +146,20 @@ object HITManager {
       service.disposeHIT(hit.hitId)
       activeHITs -= hit
       // add to other appropriate data structures
-      val curData = finishedAssignmentsByPrompt.get(hit.prompt).getOrElse(Nil)
-      val assignments = FileManager.loadAssignmentsForHIT[Response](hitTypeId, hit.hitId)
-      val newData = (hit, assignments) :: curData
-      finishedAssignmentsByPrompt.put(hit.prompt, newData)
+      val finishedData = finishedHITInfosByPrompt.get(hit.prompt).getOrElse(Nil)
+      val activeData = activeHITInfosByPrompt.get(hit.prompt).getOrElse(Nil)
+      val curInfo = activeData
+        .find(_.hit.hitId == hit.hitId)
+        .getOrElse {
+        System.err.println("Warning: could not find active HIT to move to finished");
+        HITInfo(
+          hit,
+          FileManager.loadAssignmentsForHIT[Response](hitTypeId, hit.hitId))
+      }
+      val newActiveData = activeData.filterNot(_.hit.hitId == hit.hitId)
+      val newFinishedData = curInfo :: finishedData
+      activeHITInfosByPrompt.put(hit.prompt, newActiveData)
+      finishedHITInfosByPrompt.put(hit.prompt, newFinishedData)
     }
 
     // Assignment reviewing
@@ -154,6 +180,7 @@ object HITManager {
       aInRev
     }
     def evaluateAssignment(
+      hit: HIT[Prompt],
       aInRev: AssignmentInReview,
       evaluation: AssignmentEvaluation
     ): Unit = {
@@ -162,6 +189,12 @@ object HITManager {
         case Approval(message) =>
           service.approveAssignment(assignment.assignmentId, message)
           assignmentsInReview -= aInRev
+          val curData = activeHITInfosByPrompt.get(hit.prompt).getOrElse(Nil)
+          val curInfo = curData.find(_.hit.prompt == hit.prompt)
+            .getOrElse(HITInfo[Prompt, Response](hit, Nil))
+          val filteredData = curData.filterNot(_.hit.prompt == hit.prompt)
+          val newInfo = curInfo.copy(assignments = assignment :: curInfo.assignments)
+          activeHITInfosByPrompt.put(hit.prompt, newInfo :: filteredData)
           println
           println(s"Approved assignment: ${assignment.assignmentId}")
           println(s"HIT for approved assignment: ${assignment.hitId}; $hitTypeId")

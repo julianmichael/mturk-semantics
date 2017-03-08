@@ -190,7 +190,10 @@ class ValidationHITManager private (
 
   // override for more interesting review policy
   override def reviewAssignment(hit: HIT[ValidationPrompt], assignment: Assignment[List[ValidationAnswer]]): Unit = {
-    evaluateAssignment(startReviewing(assignment), Approval(""))
+    evaluateAssignment(hit, startReviewing(assignment), Approval(""))
+    if(!assignment.feedback.isEmpty) {
+      println(s"Feedback: ${assignment.feedback}")
+    }
 
     import assignment.workerId
 

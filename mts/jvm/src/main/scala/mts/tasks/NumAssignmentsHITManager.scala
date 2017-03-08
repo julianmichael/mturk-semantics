@@ -36,7 +36,7 @@ class NumAssignmentsHITManager[Prompt, Response](
 
   // override for more interesting review policy
   def reviewAssignment(hit: HIT[Prompt], assignment: Assignment[Response]): Unit = {
-    evaluateAssignment(startReviewing(assignment), Approval(""))
+    evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
       println(s"Feedback: ${assignment.feedback}")
     }
@@ -55,11 +55,11 @@ class NumAssignmentsHITManager[Prompt, Response](
   private[this] val (finishedPrompts, unfinishedInactivePrompts) = {
     val finished = mutable.Set.empty[Prompt]
     val unfinished = mutable.Queue.empty[Prompt]
-    finishedAssignmentsByPromptIterator.foreach {
+    finishedHITInfosByPromptIterator.foreach {
       case (prompt, hitInfos) =>
-        if(hitInfos.map(_._2.size).sum >= numAssignmentsPerPrompt) {
+        if(hitInfos.map(_.assignments.size).sum >= numAssignmentsPerPrompt) {
           finished += prompt
-        } else {
+        } else if(!activeHITInfos(prompt).isEmpty) {
           unfinished.enqueue(prompt)
         }
     }
@@ -83,7 +83,7 @@ class NumAssignmentsHITManager[Prompt, Response](
       // if the HIT is "reviewable", and all its assignments are reviewed (i.e., no longer "Submitted"), we can dispose
       if(mTurkHIT.getHITStatus == HITStatus.Reviewable && submittedAssignments.isEmpty) {
         finishHIT(hit)
-        val numAssignmentsCompleted = finishedAssignments(hit.prompt).map(_._2.size).sum
+        val numAssignmentsCompleted = finishedHITInfos(hit.prompt).map(_.assignments.size).sum
         if(numAssignmentsCompleted >= numAssignmentsPerPrompt) {
           finishedPrompts += hit.prompt
           promptFinished(hit.prompt)
@@ -98,12 +98,12 @@ class NumAssignmentsHITManager[Prompt, Response](
     for(_ <- 1 to numToUpload) {
       Try(unfinishedInactivePrompts.dequeue).toOption match {
         case Some(nextPrompt) =>
-          val assignmentsDone = finishedAssignments(nextPrompt).map(_._2.size).sum
+          val assignmentsDone = finishedHITInfos(nextPrompt).map(_.assignments.size).sum
           val assignmentsRemaining = numAssignmentsPerPrompt - assignmentsDone
           if(assignmentsRemaining <= 0) {
             // this shouldn't happen
             System.err.println("Thought prompt was unfinished when it was actually finished.")
-            System.err.println(s"Prompt: $nextPrompt; HIT IDs: ${finishedAssignments(nextPrompt).map(_._1.hitId)}")
+            System.err.println(s"Prompt: $nextPrompt; HIT IDs: ${finishedHITInfos(nextPrompt).map(_.hit.hitId)}")
           } else {
             createHIT(nextPrompt, assignmentsRemaining) recover {
               case _ => unfinishedInactivePrompts.enqueue(nextPrompt) // try again later
