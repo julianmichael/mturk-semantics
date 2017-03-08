@@ -61,6 +61,9 @@ trait PackagePlatformExtensions {
   lazy val uninterestingTokens = stopwords ++ punctuation ++ contractions
   lazy val reallyUninterestingTokens = conservativeStopwords ++ punctuation ++ contractions ++ questionWords
 
+  def isReallyUninteresting(t: String) = reallyUninterestingTokens.contains(t) ||
+    reallyUninterestingTokens.contains(t.toLowerCase)
+
   /** Constructs an Inflections object containing all known inflections
     * for a given set of words.
     *

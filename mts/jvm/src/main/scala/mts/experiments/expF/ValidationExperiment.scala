@@ -272,6 +272,33 @@ class ValidationExperiment(implicit config: TaskConfig) {
     vqa <- vqas
   } yield vqa
 
+  def makeExpETSV: String = {
+    val sb = new StringBuilder
+    pathToHITToQAPairs.foreach {
+      case (path, hitToQAPairs) =>
+        val sentence = FileManager.getCoNLLSentence(path).get
+        sb.append("\t\t\t" + TextRendering.renderSentence(sentence) + "\n")
+        hitToQAPairs.foreach {
+          case (hit, vQAPairs) =>
+            vQAPairs.foreach {
+              case ValidatedQAPair(_, specialWord, question, answerIndices, newQs, newAs, newLAs, _, _) =>
+                val answer = expE.renderSpan(sentence, answerIndices)
+                val longAnswerStrings = newLAs.map(_.fold("")(span => expE.renderSpan(sentence, span)))
+                sb.append(s"${path.filePath.get}\t${path.sentenceNum}\t\t")
+                sb.append(s"${TextRendering.normalizeToken(sentence.words(specialWord).token)} ($specialWord)\t$question\t")
+                sb.append(expE.renderSpan(sentence, answerIndices) + s"\t${longAnswerStrings.mkString("\t")}\t")
+                sb.append(s"${answerIndices.mkString(" ")}\t")
+                sb.append(newLAs.map(_.fold("")(_.mkString(" "))).mkString("\t"))
+                sb.append("\n")
+            }
+        }
+        sb.append("\n")
+    }
+    sb.toString
+  }
+
+  def writeExpETSV = FileManager.saveDataFile(experimentName, "readable.tsv", makeExpETSV)
+
   def makeTSV: String = {
     val sb = new StringBuilder
     pathToHITToQAPairs.foreach {
