@@ -94,7 +94,7 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   // hit management --- circularly defined so they can communicate
 
-  val sourcePaths = random250PTBSentencePaths.take(30)
+  val sourcePaths = random250PTBSentencePaths.drop(30).take(30)
 
   val sourcePrompts = sourcePaths
     .flatMap(path => pathSplits(path).map(GenerationPrompt(path, _)))
@@ -130,7 +130,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           valHelper,
           valManager,
           sentenceTracker,
-          2, 20, sourcePrompts.iterator)
+          2, 100, sourcePrompts.iterator)
         genManagerPeek
       })
   } else {
@@ -154,7 +154,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           valHelper,
           genManager,
           sentenceTracker,
-          2, 20)
+          2, 50)
         valManagerPeek
       })
   } else {
