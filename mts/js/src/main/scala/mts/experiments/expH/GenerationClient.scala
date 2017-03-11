@@ -319,11 +319,11 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                  <.span(^.className := "tooltiptext",
                         """The question must include some content word from the sentence, which this fails to do."""))),
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
-                 <.span("Did Alex or Chandler push someone? --> Alex"),
+                 <.span("Did Alex or Chandler ", <.b("push"), " someone? --> Alex"),
                  <.span(^.className := "tooltiptext",
                         """Either/or and yes/no questions are not allowed."""))),
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
-                 <.span("Where did Alex push Chandler? --> at school today"),
+                 <.span("Where did Alex ", <.b("push"), " Chandler? --> at school today"),
                  <.span(^.className := "tooltiptext",
                         """The question asked "where", so including the word "today" is incorrect.""")))
     ),

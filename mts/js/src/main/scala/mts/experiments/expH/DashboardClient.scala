@@ -45,6 +45,8 @@ object DashboardClient extends TaskClient[Unit, Unit] {
     def initial = State(None)
   }
 
+  def percent(n: Int, total: Int) = f"$n%d (${n.toDouble * 100 / total}%.1f%%)"
+
   class FullUIBackend(scope: BackendScope[Unit, State]) {
 
     def render(state: State) = {
@@ -59,8 +61,6 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                 numGenActive, genWorkerStats, genFeedback,
                 numValPromptsWaiting, numValActive, valWorkerInfo, valFeedback,
                 lastFewSentences, aggSentenceStats) =>
-
-                val numSentencesCompleted: Int = 0 // TODO from aggSentenceStats
 
                 val estSentenceCompletionRate =
                   if(lastFewSentences.isEmpty) None
@@ -77,8 +77,7 @@ object DashboardClient extends TaskClient[Unit, Unit] {
 
                 <.div(
                   <.h2("Sentences"),
-                  <.p(s"Completed: $numSentencesCompleted"),
-                  estSentenceCompletionRate.map(r => s"Est. completion rate: $r"),
+                  estSentenceCompletionRate.map(r => f"Est. completion rate (sentences/min): $r%.2f"),
                   aggSentenceStats match {
                     case AggregateSentenceStats(
                       now,
@@ -87,29 +86,30 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                       generationCost, validationCost) =>
 
                       <.div(
-                        <.p(s"Number of sentences completed: $numSentences"),
-                        <.p(s"Number of keywords covered: $numKeywords"),
-                        <.p(s"Number of QA pairs submitted: $numQAPairs"),
-                        <.p(s"Number of QA pairs valid: $numValidQAPairs"),
-                        <.p(s"Total cost of generation: $generationCost"),
-                        <.p(s"Total cost of validation: $validationCost"),
-                        <.p(f"Average cost per sentence: ${(generationCost + validationCost) / numSentences}%.2f"),
+                        <.div(s"Number of sentences completed: $numSentences"),
+                        <.div(s"Number of keywords covered: $numKeywords"),
+                        <.div(f"Number of QA pairs submitted: $numQAPairs%d (${numQAPairs.toDouble / numSentences}%.1f per sentence)"),
+                        <.div(s"Number of QA pairs valid: ${percent(numValidQAPairs, numQAPairs)}"),
                         for {
                           mean <- keywordPromptQAPairHist.mean
                           stdev <- keywordPromptQAPairHist.stdev
-                        } yield <.p(f"QA pairs given per keyword prompt: $mean%.2f, stdev $stdev%.2f"),
+                        } yield <.div(f"QA pairs given per keyword prompt: $mean%.2f, stdev $stdev%.2f"),
                         for {
                           mean <- keywordActualQAPairHist.mean
                           stdev <- keywordActualQAPairHist.stdev
-                        } yield <.p(f"QA pairs expected to contain a keyword: $mean%.2f, stdev $stdev%.2f"),
+                        } yield <.div(f"QA pairs expected to contain a keyword: $mean%.2f, stdev $stdev%.2f"),
                         for {
                           mean <- validationLatencyHist.mean
                           stdev <- validationLatencyHist.stdev
-                        } yield <.p(f"Latency from generation to validation (seconds): $mean%.2f, stdev $stdev%.2f")
+                        } yield <.div(f"Latency from generation to validation (seconds): $mean%.2f, stdev $stdev%.2f"),
+                        <.div(s"Total cost of generation: $generationCost"),
+                        <.div(s"Total cost of validation: $validationCost"),
+                        <.div(f"Average cost per sentence: ${(generationCost + validationCost) / numSentences}%.2f")
                       )
                   },
+                  <.h3("Recently completed sentences"),
                   lastFewSentences.map {
-                    case (sentenceStats, shi @ SentenceHITInfo(_, genHITInfos, valHITInfos)) =>
+                    case (sentenceStats, shi @ SentenceHITInfo(sentence, genHITInfos, valHITInfos)) =>
                       import sentenceStats._
                       <.div(
                         TextRendering.renderSentence(sentence),
@@ -120,34 +120,39 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                         <.p(s"Validation cost: $validationCost"),
                         <.p(s"Validation latencies (s): ${validationLatencies.mkString(", ")}"),
                         <.table(
-                          <.tr(
-                            List(
-                              "Worker ID", "Keyword", "Question", "Answer"
-                            ).map(<.td(_))
+                          ^.borderSpacing := "3px",
+                          <.thead(
+                            <.tr(
+                              List(
+                                "Worker ID", "Keyword", "Question", "Answer"
+                              ).map(<.td(_))
+                            )
                           ),
-                          for {
-                            ValidatedAssignment(genHIT, genAssignment, valAssignments) <- shi.alignValidations
-                            validations = valAssignments.map(_.response).transpose
-                            (WordedQAPair(keywordIndex, question, answer), qaIndex) <- genAssignment.response.zipWithIndex
-                            validationCells = validations(qaIndex).map(va =>
-                              <.td(renderValidationAnswer(sentence, va, genAssignment.response)))
-                          } yield <.tr(
-                            List(
-                              genAssignment.workerId,
-                              TextRendering.normalizeToken(sentence.words(keywordIndex).token),
-                              question, TextRendering.renderSpan(sentence, answer)
-                            ).map(<.td(_)),
-                            validationCells
+                          <.tbody(
+                            for {
+                              ValidatedAssignment(genHIT, genAssignment, valAssignments) <- shi.alignValidations
+                              validations = valAssignments.map(_.response).transpose
+                              (WordedQAPair(keywordIndex, question, answer), qaIndex) <- genAssignment.response.zipWithIndex
+                              validationCells = validations(qaIndex).map(va =>
+                                <.td(renderValidationAnswer(sentence, va, genAssignment.response)))
+                            } yield <.tr(
+                              List(
+                                genAssignment.workerId,
+                                TextRendering.normalizeToken(sentence.words(keywordIndex).token),
+                                question, TextRendering.renderSpan(sentence, answer)
+                              ).map(<.td(_)),
+                              validationCells
+                            )
                           )
                         )
-
                       )
                   },
                   <.h2("Generation"),
-                  <.p(s"Number of HITs active: $numGenActive"),
-                  <.p(s"Recent feedback: ", <.ul(genFeedback.map(<.li(_)))),
+                  <.div(s"Number of HITs active: $numGenActive"),
+                  <.div(s"Recent feedback: ", <.ul(genFeedback.map(<.li(_)))),
                   <.h3("Generation worker stats"),
                   <.table(
+                    ^.borderSpacing := "3px",
                     <.tr(
                       List("Worker ID", "Assignments", "Accuracy",
                            "Earnings", "QA pairs", "Valid QA pairs",
@@ -168,11 +173,12 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                     }
                   ),
                   <.h2("Validation"),
-                  <.p(s"Number of HITs active: $numValActive"),
-                  <.p(s"Number of HITs queued: $numValPromptsWaiting"),
-                  <.p(s"Recent feedback: ", <.ul(valFeedback.map(<.li(_)))),
+                  <.div(s"Number of HITs active: $numValActive"),
+                  <.div(s"Number of HITs queued: $numValPromptsWaiting"),
+                  <.div(s"Recent feedback: ", <.ul(valFeedback.map(<.li(_)))),
                   <.h3("Validation worker stats"),
                   <.table(
+                    ^.borderSpacing := "3px",
                     <.tr(
                       List("Worker ID", "Assignments", "Earnings",
                            "Agreement rate", "Comparisons", "Agreements",
@@ -187,12 +193,12 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                         earnings, warnedAt, blockedAt) =>
 
                         val numTotalAnswers = numAnswerSpans + numInvalids + numRedundants
-                        def percent(n: Int) = f"$n%d (${n.toDouble * 100 / numTotalAnswers}%.1f)"
+                        def percentAs(n: Int) = percent(n, numTotalAnswers)
 
                         <.tr(
                           List(workerId, numAssignmentsCompleted.toString, f"$earnings%.2f",
                                f"${wi.agreement}%.3f", numComparisonInstances.toString, numComparisonAgreements.toString,
-                               percent(numAnswerSpans), percent(numInvalids), percent(numRedundants),
+                               percentAs(numAnswerSpans), percentAs(numInvalids), percentAs(numRedundants),
                                warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
                           ).map(<.td(_))
                         )

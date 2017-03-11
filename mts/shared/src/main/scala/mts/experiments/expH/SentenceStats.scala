@@ -31,7 +31,6 @@ case class SentenceStatus(
 
 case class SentenceStats(
   path: PTBSentencePath,
-  sentence: PTBSentence,
   // numWords: Int // TODO
   numKeywords: Int,
   numQAPairs: Int,

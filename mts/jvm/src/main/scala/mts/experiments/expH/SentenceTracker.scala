@@ -149,7 +149,7 @@ class SentenceTracker(
     val genHITIds = genHITInfos.map(_.hit.hitId).toSet
     val valHITIds = valHITInfos.map(_.hit.hitId).toSet
     SentenceStats(
-      path, sentence,
+      path,
       allKeywords.size,
       numQAPairs,
       numValidQAPairs,

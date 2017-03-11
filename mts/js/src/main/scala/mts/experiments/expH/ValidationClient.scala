@@ -277,6 +277,8 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
       <.li("""It is grammatical, to the extent possible.""")),
     <.p("""If there are multiple correct answers, include all of them in your answer if possible.
         (Skipping over words might help with this.) """),
+    <.p("""In general, include only the words necessary to completely answer the question,
+        but if all else is equal, prefer longer answers over shorter ones."""),
     <.p("""Another part of your job is to identify which questions are """, <.b("invalid"), """.
         Instead of providing an answer, you should mark a question as invalid if it satisfies any of the following criteria:"""),
     <.ul(
@@ -285,9 +287,6 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
       <.li("The question does not contain any words taken from sentence."),
       <.li("It is a yes/no question, an either/or question, or some other non-open-ended question.")
     ),
-    <.p("""Sometimes you may not be sure whether to include some words in your answer.
-        As a rule of thumb, include only what is necessary for the answer to be completely specified,
-        but if all else is equal, prefer longer answers over shorter ones."""),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
     <.blockquote(<.i(""" "I take full and complete responsibility," she said, "for
@@ -320,8 +319,10 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
               tooltip = """Yes/no questions and either/or questions are forbidden; this question should be marked invalid.""")
     ),
     <.h2("Redundancy"),
-    <.p("""Some questions are not invalid, but are redundant with others and you should mark them as such.
-        To clarify what this means, suppose you are given the following sentence and questions:"""),
+    <.p(""" Two questions are """, <.b("redundant "), """if they """,
+        <.b("have the same meaning "), "and they ", <.b("have the same answer. "), """
+        If any question is redundant with another, you should mark it as such.
+        For example, suppose you are given the following sentence and questions:"""),
     <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
     <.ul(
       <.li(<.div("When was something leaked?")),
