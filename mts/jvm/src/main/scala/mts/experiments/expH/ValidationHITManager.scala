@@ -192,7 +192,7 @@ class ValidationHITManager private (
     if(totalBonus > 0.0) {
       service.grantBonus(
         workerId, totalBonus, assignment.assignmentId,
-        s"Bonus of ${dollarsToCents(totalBonus)} awarded for validating $numQuestions questions."
+        s"Bonus of ${dollarsToCents(totalBonus)}c awarded for validating $numQuestions questions."
       )
     }
 

@@ -112,15 +112,16 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                     case (sentenceStats, shi @ SentenceHITInfo(sentence, genHITInfos, valHITInfos)) =>
                       import sentenceStats._
                       <.div(
+                        ^.padding := "10px",
                         TextRendering.renderSentence(sentence),
-                        <.p(s"Num keywords: $numKeywords"),
-                        <.p(s"Num QA pairs: $numQAPairs"),
-                        <.p(s"Num valid QA pairs: $numValidQAPairs"),
-                        <.p(s"Generation cost: $generationCost"),
-                        <.p(s"Validation cost: $validationCost"),
-                        <.p(s"Validation latencies (s): ${validationLatencies.mkString(", ")}"),
+                        <.div(s"Num keywords: $numKeywords"),
+                        <.div(s"Num QA pairs: $numQAPairs"),
+                        <.div(s"Num valid QA pairs: $numValidQAPairs"),
+                        <.div(s"Generation cost: $generationCost"),
+                        <.div(s"Validation cost: $validationCost"),
+                        <.div(s"Validation latencies (s): ${validationLatencies.mkString(", ")}"),
                         <.table(
-                          ^.borderSpacing := "3px",
+                          ^.borderSpacing := "8px",
                           <.thead(
                             <.tr(
                               List(
@@ -152,25 +153,29 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                   <.div(s"Recent feedback: ", <.ul(genFeedback.map(<.li(_)))),
                   <.h3("Generation worker stats"),
                   <.table(
-                    ^.borderSpacing := "3px",
-                    <.tr(
-                      List("Worker ID", "Assignments", "Accuracy",
-                           "Earnings", "QA pairs", "Valid QA pairs",
-                           "Warning", "Block").map(<.th(_))
+                    ^.borderSpacing := "8px",
+                    <.thead(
+                      <.tr(
+                        List("Worker ID", "Assignments", "Accuracy",
+                             "Earnings", "QA pairs", "Valid QA pairs",
+                             "Warning", "Block").map(<.th(_))
+                      )
                     ),
-                    genWorkerStats.values.map {
-                      case ws @ WorkerStats(
-                        workerId, numAssignmentsCompleted,
-                        numQAPairsWritten, numQAPairsValid,
-                        earnings, warnedAt, blockedAt) =>
+                    <.tbody(
+                      genWorkerStats.values.map {
+                        case ws @ WorkerStats(
+                          workerId, numAssignmentsCompleted,
+                          numQAPairsWritten, numQAPairsValid,
+                          earnings, warnedAt, blockedAt) =>
 
-                        <.tr(
-                          List(workerId, numAssignmentsCompleted.toString, f"${ws.accuracy}%.3f",
-                               f"$earnings%.2f", numQAPairsWritten.toString, numQAPairsValid.toString,
-                               warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
-                          ).map(<.td(_))
-                        )
-                    }
+                          <.tr(
+                            List(workerId, numAssignmentsCompleted.toString, f"${ws.accuracy}%.3f",
+                                 f"$earnings%.2f", numQAPairsWritten.toString, numQAPairsValid.toString,
+                                 warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
+                            ).map(<.td(_))
+                          )
+                      }
+                    )
                   ),
                   <.h2("Validation"),
                   <.div(s"Number of HITs active: $numValActive"),
@@ -178,31 +183,35 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                   <.div(s"Recent feedback: ", <.ul(valFeedback.map(<.li(_)))),
                   <.h3("Validation worker stats"),
                   <.table(
-                    ^.borderSpacing := "3px",
-                    <.tr(
-                      List("Worker ID", "Assignments", "Earnings",
-                           "Agreement rate", "Comparisons", "Agreements",
-                           "Answer spans", "Invalids", "Redundants",
-                           "Warning", "Block").map(<.th(_))
+                    ^.borderSpacing := "8px",
+                    <.thead(
+                      <.tr(
+                        List("Worker ID", "Assignments", "Earnings",
+                             "Agreement rate", "Comparisons", "Agreements",
+                             "Answer spans", "Invalids", "Redundants",
+                             "Warning", "Block").map(<.th(_))
+                      )
                     ),
-                    valWorkerInfo.values.map {
-                      case wi @ WorkerInfo(
-                        workerId, numAssignmentsCompleted,
-                        numComparisonInstances, numComparisonAgreements,
-                        numAnswerSpans, numInvalids, numRedundants,
-                        earnings, warnedAt, blockedAt) =>
+                    <.tbody(
+                      valWorkerInfo.values.map {
+                        case wi @ WorkerInfo(
+                          workerId, numAssignmentsCompleted,
+                          numComparisonInstances, numComparisonAgreements,
+                          numAnswerSpans, numInvalids, numRedundants,
+                          earnings, warnedAt, blockedAt) =>
 
-                        val numTotalAnswers = numAnswerSpans + numInvalids + numRedundants
-                        def percentAs(n: Int) = percent(n, numTotalAnswers)
+                          val numTotalAnswers = numAnswerSpans + numInvalids + numRedundants
+                          def percentAs(n: Int) = percent(n, numTotalAnswers)
 
-                        <.tr(
-                          List(workerId, numAssignmentsCompleted.toString, f"$earnings%.2f",
-                               f"${wi.agreement}%.3f", numComparisonInstances.toString, numComparisonAgreements.toString,
-                               percentAs(numAnswerSpans), percentAs(numInvalids), percentAs(numRedundants),
-                               warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
-                          ).map(<.td(_))
-                        )
-                    }
+                          <.tr(
+                            List(workerId, numAssignmentsCompleted.toString, f"$earnings%.2f",
+                                 f"${wi.agreement}%.3f", numComparisonInstances.toString, numComparisonAgreements.toString,
+                                 percentAs(numAnswerSpans), percentAs(numInvalids), percentAs(numRedundants),
+                                 warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
+                            ).map(<.td(_))
+                          )
+                      }
+                    )
                   )
                 )
             }

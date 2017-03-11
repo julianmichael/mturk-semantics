@@ -339,7 +339,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
         these questions are """, <.b(Styles.goodGreen, "not redundant "), """ because they are asking about different things:
         the first is asking about what it is that leaked,
         and the second is asking about a characteristic of the documents."""),
-    <.h3("Interface Controls"),
+    <.h2("Interface Controls"),
     <.ul(
       <.li("Change questions using the arrow keys."),
       <.li("Highlight your answer in the sentence."),
