@@ -5,14 +5,15 @@ import mts.experiments._
 import mts.core._
 import mts.tasks._
 import mts.tasks._
-import mts.conll._
-import mts.ptb._
+import mts.datasets.conll._
+import mts.datasets.ptb._
 import mts.language._
 import mts.util._
 import mts.util.LowerCaseStrings._
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
+import akka.stream.scaladsl.Source
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -46,13 +47,13 @@ class FinalExperiment(implicit config: TaskConfig) {
   }
 
   val genHITType = HITType(
-    title = s"Write questions and answers about a word in context",
+    title = s"Write questions and answers about words in context",
     description = s"""
-      Given a sentence and a succession of words from that sentence,
-      write a questions and answers involving each word.
-      Come up with more question-answer pairs for a bonus!
+      Given a sentence and a set of words from that sentence,
+      write questions and answers involving each word.
+      Write more question-answer pairs for increasing bonuses!
     """.trim,
-    reward = 0.20,
+    reward = generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](approvalRateRequirement))
 
@@ -64,8 +65,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val sampleGenPrompt = GenerationPrompt(origQASRLPaths.head, List(0, 1, 2, 3))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
-    frozenHITTypeId = Some("3ML4SXAKAKLJDQ3U44DJTOOA2IFB92"))
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
 
   // validation task definition
 
@@ -73,9 +73,9 @@ class FinalExperiment(implicit config: TaskConfig) {
     title = s"Answer simple questions about a sentence",
     description = s"""
       Given a sentence and several questions,
-      highlight the part of the sentence that answers the question.
+      highlight the part of the sentence that answers each question.
     """.trim,
-    reward = 0.15,
+    reward = validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](approvalRateRequirement))
 
@@ -90,77 +90,119 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
-    frozenHITTypeId = Some("3KBOIXB475RNG937KWXSCXE72MX5QH"))
-
-  // TODO get the right prompts
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
 
   // hit management --- circularly defined so they can communicate
 
-  def splitNum(n: Int): List[Int] =
-    if(n <= 0) Nil
-    else if(n <= 3) List(n)
-    else if(n == 5) List(2, 3)
-    else if(n == 6) List(3, 3)
-    else if(n == 9) List(3, 3, 3)
-    else 4 :: splitNum(n - 4)
+  val sourcePaths = random250PTBSentencePaths.take(30)
 
-  def splitList(l: List[Int]) = splitNum(l.size)
-    .foldLeft((l, List.empty[List[Int]])) {
-    case ((remaining, groups), groupSize) =>
-      (remaining.drop(groupSize), remaining.take(groupSize) :: groups)
-  }._2
-
-  def pathSplits(path: PTBSentencePath) = {
-    val tokens = getPTBTokens(path)
-    splitList(tokens.indices.filter(i => !isReallyUninteresting(tokens(i))).toList)
-  }
-
-  val sourcePrompts = random250PTBSentencePaths
-    .take(30)
+  val sourcePrompts = sourcePaths
     .flatMap(path => pathSplits(path).map(GenerationPrompt(path, _)))
+
+  implicit val inflections = {
+    val tokens = for {
+      path <- sourcePaths.iterator
+      sentence <- FileManager.getPTBSentence(path).toOptionPrinting.iterator
+      word <- sentence.words.iterator
+    } yield word.token
+    getInflectionsForTokens(tokens)
+  }
 
   import config.actorSystem
 
-  lazy val sentenceTracker: ActorRef = actorSystem.actorOf(Props(new SentenceTracker))
+  var sentenceTrackerPeek: SentenceTracker = null
+
+  lazy val sentenceTracker: ActorRef = actorSystem.actorOf(
+    Props {
+      sentenceTrackerPeek = new SentenceTracker(genTaskSpec.hitTypeId, valTaskSpec.hitTypeId)
+      sentenceTrackerPeek
+    })
+
+  var genManagerPeek: GenerationHITManager = null
+  var valManagerPeek: ValidationHITManager = null
 
   lazy val genHelper = new HITManager.Helper(genTaskSpec)
   lazy val genManager: ActorRef = if(config.isProduction) {
     actorSystem.actorOf(
-      Props(new GenerationHITManager(
-              genHelper,
-              valHelper,
-              valManager,
-              sentenceTracker,
-              2, 20, sourcePrompts.iterator)))
+      Props {
+        genManagerPeek = new GenerationHITManager(
+          genHelper,
+          valHelper,
+          valManager,
+          sentenceTracker,
+          2, 20, sourcePrompts.iterator)
+        genManagerPeek
+      })
   } else {
     actorSystem.actorOf(
-      Props(new GenerationHITManager(
-              genHelper,
-              valHelper,
-              valManager,
-              sentenceTracker,
-              1, 3, sourcePrompts.iterator)))
+      Props {
+        genManagerPeek = new GenerationHITManager(
+          genHelper,
+          valHelper,
+          valManager,
+          sentenceTracker,
+          1, 3, sourcePrompts.iterator)
+        genManagerPeek
+      })
   }
 
   lazy val valHelper = new HITManager.Helper(valTaskSpec)
   lazy val valManager: ActorRef = if(config.isProduction) {
     actorSystem.actorOf(
-      Props(ValidationHITManager(
-              valHelper,
-              genManager,
-              sentenceTracker,
-              2, 20)))
+      Props {
+        valManagerPeek = ValidationHITManager(
+          valHelper,
+          genManager,
+          sentenceTracker,
+          2, 20)
+        valManagerPeek
+      })
   } else {
     actorSystem.actorOf(
-      Props(ValidationHITManager(
-              valHelper,
-              genManager,
-              sentenceTracker,
-              1, 3)))
+      Props {
+        valManagerPeek = ValidationHITManager(
+          valHelper,
+          genManager,
+          sentenceTracker,
+          1, 3)
+        valManagerPeek
+      })
   }
 
-  lazy val server = new Server(List(genTaskSpec, valTaskSpec))
+  val dashboardApiFlow = Flow[Unit]
+    .merge(Source.tick(initialDelay = 0.seconds, interval = 1.minute, ()))
+    .filter(_ => genManagerPeek != null && valManagerPeek != null && sentenceTrackerPeek != null)
+    .map { _ =>
+    val last5Sentences = sentenceTrackerPeek.finishedSentenceStats.take(5).map(stats =>
+      stats -> SentenceHITInfo(
+        stats.sentence,
+        stats.genHITIds.toList
+          .map(FileManager.getHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId, _))
+          .map(_.get),
+        stats.valHITIds.toList
+          .map(FileManager.getHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId, _))
+          .map(_.get))
+    ).toMap
+    SummaryInfo(
+      // generation
+      numGenActive = genHelper.numActiveHITs,
+      genWorkerStats = genManagerPeek.allWorkerStats,
+      genFeedback = genManagerPeek.feedbacks.take(20),
+      // validation
+      numValPromptsWaiting = valManagerPeek.queuedPrompts.numManuallyEnqueued,
+      numValActive = valHelper.numActiveHITs,
+      valWorkerInfo = valManagerPeek.allWorkerInfo,
+      valFeedback = valManagerPeek.feedbacks.take(20),
+      // final results
+      lastFewSentences = last5Sentences,
+      aggSentenceStats = sentenceTrackerPeek.aggregateSentenceStats)
+  }
+
+  lazy val dashboardTaskSpec = TaskSpecification[Unit, Unit, Unit, SummaryInfo](
+    TaskIndex.expHDashboardTaskKey, null, dashboardApiFlow, (),
+    frozenHITTypeId = null)
+
+  lazy val server = new Server(List(genTaskSpec, valTaskSpec, dashboardTaskSpec))
   lazy val genActor = actorSystem.actorOf(Props(new TaskManager(genHelper, genManager)))
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
@@ -220,12 +262,6 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   def allGenInfos = FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId)
   def allValInfos = FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId)
-
-  def renderValidationAnswer(sentence: PTBSentence, va: ValidationAnswer, referenceQAs: List[WordedQAPair]): String = va match {
-    case InvalidQuestion => "<Invalid>"
-    case Redundant(i) => s"<Redundant with ${referenceQAs(i).question}>"
-    case Answer(span) => TextRendering.renderSpan(sentence, span)
-  }
 
   def renderValidation(info: HITInfo[ValidationPrompt, List[ValidationAnswer]]) = {
     val sentence = FileManager.getPTBSentence(info.hit.prompt.genPrompt.path).get

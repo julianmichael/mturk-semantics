@@ -1,7 +1,7 @@
 package mts.experiments.expG
 
 import mts.util._
-import mts.conll._
+import mts.datasets.conll._
 
 trait PackagePlatformExtensions {
   case class SavedManualQARecord(

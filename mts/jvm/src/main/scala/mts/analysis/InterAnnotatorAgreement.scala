@@ -1,6 +1,6 @@
 package mts.analysis
 
-import mts.conll._
+import mts.datasets.conll._
 import mts.util._
 import mts.language._
 

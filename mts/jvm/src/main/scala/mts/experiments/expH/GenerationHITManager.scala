@@ -36,53 +36,44 @@ class GenerationHITManager(
     sentenceTrackingActor ! GenerationFinished(prompt)
   }
 
-  // keep track of worker accuracy
-  case class WorkerStats(
-    workerId: String,
-    numAssignmentsCompleted: Int,
-    numQAPairsWritten: Int,
-    numQAPairsValid: Int,
-    warnedAt: Option[Int],
-    blockedAt: Option[Int]) {
-
-    def accuracy = numQAPairsValid.toDouble / numQAPairsWritten
-
-    def addAssignment(
-      numWritten: Int,
-      numValid: Int
-    ) = WorkerStats(
-      workerId,
-      numAssignmentsCompleted + 1,
-      numQAPairsWritten + numWritten,
-      numQAPairsValid + numValid,
-      warnedAt, blockedAt)
-
-    def warned = this.copy(warnedAt = Some(numAssignmentsCompleted))
-    def blocked = this.copy(blockedAt = Some(numAssignmentsCompleted))
-  }
-  object WorkerStats {
-    def empty(workerId: String) = WorkerStats(workerId, 0, 0, 0, None, None)
-  }
-
   val workerStatsFilename = "generationWorkerStats"
 
-  private[this] def saveData = FileManager.saveDataFile(
-    finalExperimentName,
-    workerStatsFilename,
-    write[Map[String, WorkerStats]](allWorkerStats))
-
-  private[this] var allWorkerStats =
+  var allWorkerStats =
     FileManager.loadDataFile(finalExperimentName, workerStatsFilename)
       .map(_.mkString)
       .map(read[Map[String, WorkerStats]])
       .toOption.getOrElse {
-      // TODO assemble from saved data?
+      // TODO assemble from saved data
       Map.empty[String, WorkerStats]
     }
+
+  val feedbackFilename = "genFeedback"
+
+  var feedbacks =
+    FileManager.loadDataFile(finalExperimentName, feedbackFilename)
+      .map(_.mkString)
+      .map(read[List[String]])
+      .toOption.getOrElse {
+      // TODO assemble from saved data
+      List.empty[String]
+    }
+
+  private[this] def saveData = {
+    FileManager.saveDataFile(
+      finalExperimentName,
+      workerStatsFilename,
+      write[Map[String, WorkerStats]](allWorkerStats))
+    FileManager.saveDataFile(
+      finalExperimentName,
+      feedbackFilename,
+      write[List[String]](feedbacks))
+  }
+
 
   override def reviewAssignment(hit: HIT[GenerationPrompt], assignment: Assignment[List[WordedQAPair]]): Unit = {
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
+      feedbacks = assignment.feedback :: feedbacks
       println(s"Feedback: ${assignment.feedback}")
     }
     val validationPrompt = ValidationPrompt(hit.prompt, hit.hitId, assignment.assignmentId, assignment.response)
@@ -91,21 +82,16 @@ class GenerationHITManager(
   }
 
   override lazy val receiveAux2: PartialFunction[Any, Unit] = {
-    case Reflect => sender ! this // for debugging
     case SaveData => saveData
     case ValidationResult(prompt, hitId, assignmentId, numQAsValid) =>
       val hit = FileManager.getHIT[GenerationPrompt](hitTypeId, hitId).get
       val assignment = FileManager.loadAssignmentsForHIT[List[WordedQAPair]](hitTypeId, hitId)
         .find(_.assignmentId == assignmentId).get
-      val stats = allWorkerStats
-        .get(assignment.workerId)
-        .getOrElse(WorkerStats.empty(assignment.workerId))
-        .addAssignment(assignment.response.size, numQAsValid)
 
       // award bonuses
       val numSpecialWords = prompt.keywords.size
       val numQAsProvided = assignment.response.size
-      val bonusAwarded = (1 to (numQAsValid - numSpecialWords)).map(bonusFor).sum
+      val bonusAwarded = generationBonus(numSpecialWords, numQAsValid)
       if(bonusAwarded > 0.0) {
         service.grantBonus(
           assignment.workerId, bonusAwarded, assignment.assignmentId,
@@ -113,6 +99,12 @@ class GenerationHITManager(
             where at least $numSpecialWords were required, for a bonus of
             ${dollarsToCents(bonusAwarded)}c.""")
       }
+
+      val stats = allWorkerStats
+        .get(assignment.workerId)
+        .getOrElse(WorkerStats.empty(assignment.workerId))
+        .addAssignment(assignment.response.size, numQAsValid,
+                       taskSpec.hitType.reward + bonusAwarded)
 
       // warn or block worker if performance is unsatisfactory
       val newStats = stats.blockedAt match {

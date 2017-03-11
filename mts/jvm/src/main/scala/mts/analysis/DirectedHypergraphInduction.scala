@@ -1,7 +1,7 @@
 package mts.analysis
 
 import mts.language._
-import mts.conll._
+import mts.datasets.conll._
 import mts.util._
 import LowerCaseStrings._
 
@@ -10,7 +10,7 @@ import mts.experiments.expE.renderSpan
 
 object DirectedHypergraphInduction {
 
-  def getPASHypergraph(sentence: CoNLLSentence): DirectedHypergraph[CoNLLWord, String] = {
+  def getPASHypergraph(sentence: CoNLLSentence): DirectedHypergraph[Word, String] = {
     val nodes = sentence.words.toSet
     val hyperedges = for {
       PredicateArgumentStructure(pred, args) <- sentence.predicateArgumentStructures

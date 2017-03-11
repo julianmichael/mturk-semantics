@@ -3,8 +3,7 @@ package mts.experiments.expE
 import mts.experiments._
 import mts.core._
 import mts.tasks._
-import mts.tasks._
-import mts.conll._
+import mts.datasets.conll._
 import mts.language._
 import mts.util._
 import mts.util.LowerCaseStrings._
@@ -173,7 +172,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   def specialWordStats = {
     var specialWordAnswers = 0
     var specialWordVerbatimQuestions = 0
-    var badQAPairs = List.empty[(String, String, CoNLLWord, String, String)]
+    var badQAPairs = List.empty[(String, String, Word, String, String)]
 
     for {
       (hit, assignments) <- loadQAGenData
@@ -327,7 +326,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   //   import molt.syntax.cnf._
   //   import SyncCNFProduction._
 
-  //   val tokenCoNLLWords = sentence.words.map(w => write(w))
+  //   val tokenWords = sentence.words.map(w => write(w))
 
   //   val spanRanges = spans.map(span => (span.min, span.max))
   //   def treeRange(tree: SyntaxTree) = tree.fold(w => (w.index, w.index)) {
@@ -359,7 +358,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   //   }
 
   //   val lex = CNFLexical[ScoredOption, SyntaxTree](
-  //     TreeSymbol, token => ScoredSome[SyntaxTree](SyntaxTreeLeaf(read[CoNLLWord](token)), 0.0))
+  //     TreeSymbol, token => ScoredSome[SyntaxTree](SyntaxTreeLeaf(read[Word](token)), 0.0))
   //   val combine = CNFBinary[ScoredOption, SyntaxTree, SyntaxTree, SyntaxTree](
   //     TreeSymbol, TreeSymbol, TreeSymbol, (children: ScoredOption[(SyntaxTree, SyntaxTree)]) => children.flatMap {
   //       case (left, right) =>
@@ -368,7 +367,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   //         ScoredSome(result, crossingPenalty(treeRange(result)) + rightBranchingPenalty)
   //     })
   //   val parser = new GeneralizedCKYParser(lex :: combine :: Nil)
-  //   parser.parse(tokenCoNLLWords.toVector, TreeSymbol)
+  //   parser.parse(tokenWords.toVector, TreeSymbol)
   // }
 
   // lazy val turkSentenceAnswerSpans = for {
@@ -502,11 +501,11 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   sealed trait Index {
     def printable = this match {
       case Root => "root"
-      case Word(w) => printableWord(w)
+      case WordIndex(w) => printableWord(w)
     }
   }
   case object Root extends Index
-  case class Word(word: CoNLLWord) extends Index
+  case class WordIndex(word: Word) extends Index
 
   // def induceTree(sentence: CoNLLSentence, qaPairs: List[(String, Set[Int])]): DependencyTree[Index, Unit] = {
   //   import gurobi._
@@ -517,13 +516,13 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   //   try {
   //     // Construct the ARBORESCENCE POLYTOPE!!!!!
 
-  //     val allIndices: List[Index] = Root :: sentence.words.map(Word(_))
+  //     val allIndices: List[Index] = Root :: sentence.words.map(WordIndex(_))
   //     val n = sentence.words.size.toDouble
 
   //     case class Arc(parent: Index, child: Index) {
   //       private[this] def shortIndex(i: Index) = i match {
   //         case Root => "$"
-  //         case Word(w) => w.index
+  //         case WordIndex(w) => w.index
   //       }
   //       // not sure if variable names have to be unique...?
   //       override def toString: String = s"${shortIndex(parent)}-${shortIndex(child)}"
@@ -638,11 +637,11 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   //     for((qis, ais) <- qaPairIndices) {
   //       // ask for question words to be connected
   //       for(p <- qis; c <- qis) {
-  //         if(p != c) arcScores.add(Arc(Word(p), Word(c)), 1.0)
+  //         if(p != c) arcScores.add(Arc(WordIndex(p), WordIndex(c)), 1.0)
   //       }
   //       // ask for answer words to be connected
   //       for(p <- ais; c <- ais) {
-  //         if(p != c) arcScores.add(Arc(Word(p), Word(c)), 1.0)
+  //         if(p != c) arcScores.add(Arc(WordIndex(p), WordIndex(c)), 1.0)
   //       }
 
   //       // ask for question words to be connected to answer words (weighted down)
@@ -650,8 +649,8 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   //       // val aToQScore = 0.2 / (qis.size * ais.size)
   //       for(q <- qis; a <- ais) {
   //         if(q != a) {
-  //           arcScores.add(Arc(Word(q), Word(a)), qToAScore)
-  //           // arcScores.add(Arc(Word(a), Word(q)), aToQScore)
+  //           arcScores.add(Arc(WordIndex(q), WordIndex(a)), qToAScore)
+  //           // arcScores.add(Arc(WordIndex(a), WordIndex(q)), aToQScore)
   //         }
   //       }
   //     }
@@ -661,7 +660,7 @@ class QuestionWordExperiment(implicit config: TaskConfig) {
   //     // // ask for question words to be connected to answer words (disjunctive)
   //     // val qaPairConnectionWeight = 0.5
   //     // for((qis, ais) <- qaPairIndices) {
-  //     //   val qaArcs = (for(p <- qis; c <- ais) yield Arc(Word(p), Word(c))).toList
+  //     //   val qaArcs = (for(p <- qis; c <- ais) yield Arc(WordIndex(p), WordIndex(c))).toList
   //     //   val disjVar = DisjunctiveVar(qaArcs)
   //     //   val disjGRBVar = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, disjVar.toString)
   //     //   vars.put(disjVar, disjGRBVar)

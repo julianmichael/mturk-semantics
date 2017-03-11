@@ -102,6 +102,11 @@ package object util extends PackagePlatformExtensions {
   // TODO make this return an option
   implicit class RichSeq[A](val a: Seq[A]) extends AnyVal {
     def mean(implicit N: Numeric[A]) = N.toDouble(a.sum) / a.size
+    def variance(implicit N: Numeric[A]) = {
+      val m = a.mean
+      a.map(x => math.pow(N.toDouble(x) - m, 2)).mean
+    }
+    def stdev(implicit N: Numeric[A]) = math.sqrt(a.variance)
   }
 
   implicit class RichList[A](val a: List[A]) extends AnyVal {

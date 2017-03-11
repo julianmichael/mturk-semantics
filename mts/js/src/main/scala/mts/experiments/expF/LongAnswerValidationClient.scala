@@ -1,7 +1,7 @@
 package mts.experiments.expF
 
 import mts.experiments._
-import mts.conll._
+import mts.datasets.conll._
 import mts.tasks._
 import mts.language._
 
@@ -163,15 +163,15 @@ object LongAnswerValidationClient extends TaskClient[ValidationPrompt, AnswerVal
                             Styles.unselectable,
                             TextRendering.renderSentence(
                               sentence.words,
-                              getToken = (word: CoNLLWord) => word.token,
-                              spaceFromNextWord = (nextWord: CoNLLWord) => List(
+                              getToken = (word: Word) => word.token,
+                              spaceFromNextWord = (nextWord: Word) => List(
                                 <.span(
                                   ^.backgroundColor := (
                                     if(showHighlights && curSpan.contains(nextWord.index) && curSpan.contains(nextWord.index - 1)) {
                                       "#FFFF00"
                                     } else "transparent"),
                                   " ")),
-                              renderWord = (word: CoNLLWord) => List(
+                              renderWord = (word: Word) => List(
                                 <.span(
                                   ^.backgroundColor := (
                                     if(showHighlights && curSpan.contains(word.index)) "#FFFF00"

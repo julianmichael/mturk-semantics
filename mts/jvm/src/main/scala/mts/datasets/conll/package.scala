@@ -1,4 +1,4 @@
-package mts.conll
+package mts.datasets.conll
 
 import mts.util._
 
@@ -46,7 +46,7 @@ trait PackagePlatformExtensions {
       val fullPath = conllAnnotationPath.resolve(path.get)
       val fileResource = for {
         lines <- FileManager.loadResource(fullPath)
-        file = CoNLLFile.readFromLines(lines)
+        file = Parsing.readFile(lines)
       } yield file
       fileResource.tried.get
     }

@@ -1,3 +1,3 @@
-package mts.conll
+package mts.datasets.conll
 
 trait PackagePlatformExtensions

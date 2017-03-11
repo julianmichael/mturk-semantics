@@ -2,8 +2,8 @@ package mts.experiments
 
 import mts.util.LowerCaseStrings._
 
-import mts.conll.CoNLLSentencePath
-import mts.conll.CoNLLSentence
+import mts.datasets.conll.CoNLLSentencePath
+import mts.datasets.conll.CoNLLSentence
 
 import mts.language._
 

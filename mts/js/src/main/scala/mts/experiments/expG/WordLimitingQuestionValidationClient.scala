@@ -1,7 +1,7 @@
 package mts.experiments.expG
 
 import mts.experiments._
-import mts.conll._
+import mts.datasets.conll._
 import mts.tasks._
 import mts.language._
 
@@ -202,9 +202,9 @@ object WordLimitingQuestionValidationClient extends TaskClient[TokenizedValidati
                         Styles.unselectable,
                         TextRendering.renderSentence(
                           sentence.words,
-                          getToken = (word: CoNLLWord) => word.token,
-                          spaceFromNextWord = (nextWord: CoNLLWord) => List(<.span(" ")),
-                          renderWord = (word: CoNLLWord) => List(
+                          getToken = (word: Word) => word.token,
+                          spaceFromNextWord = (nextWord: Word) => List(<.span(" ")),
+                          renderWord = (word: Word) => List(
                             <.span(
                               Styles.hoverBold,
                               ^.color := (

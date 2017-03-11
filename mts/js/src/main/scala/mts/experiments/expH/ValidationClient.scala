@@ -1,7 +1,7 @@
 package mts.experiments.expH
 
 import mts.experiments._
-import mts.conll._
+import mts.datasets.conll._
 import mts.util.dollarsToCents
 import mts.tasks._
 import mts.language._
@@ -112,7 +112,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
           ^.margin := "1px",
           ^.padding := "1px",
           ^.onClick --> scope.modState(s =>
-            if(s.curQuestion == index || s.answers(index).isRedundant) s
+            if(s.curQuestion == index || !s.answers(index).isAnswer) s
             else if(s.answers(s.curQuestion).getRedundant.fold(false)(_.other == index)) {
               State.answers.modify(answers => answers.updated(s.curQuestion, highlightedSpanFor(s.curQuestion)))(s)
             } else {
@@ -220,9 +220,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                               .map(qaField(state, sentence, hs.span))
                               .map(field => <.li(^.display := "block", field))
                           ),
-                          <.p(
-                            s"Bonus: ${dollarsToCents(validationBonusPerQuestion * math.max(0, questions.size - 4))}c"
-                          )
+                          <.p(s"Bonus: ${dollarsToCents(validationBonus(questions.size))}c")
                         )
                       )
                   }
@@ -282,11 +280,14 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.p("""Another part of your job is to identify which questions are """, <.b("invalid"), """.
         Instead of providing an answer, you should mark a question as invalid if it satisfies any of the following criteria:"""),
     <.ul(
-      <.li("The question has grammatical or spelling errors or is not fluent English."),
+      <.li("It is not an English question or it has serious grammatical or spelling errors."),
       <.li("The question is not answered explicitly in the sentence."),
       <.li("The question does not contain any words taken from sentence."),
       <.li("It is a yes/no question, an either/or question, or some other non-open-ended question.")
     ),
+    <.p("""Sometimes you may not be sure whether to include some words in your answer.
+        As a rule of thumb, include only what is necessary for the answer to be completely specified,
+        but if all else is equal, prefer longer answers over shorter ones."""),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
     <.blockquote(<.i(""" "I take full and complete responsibility," she said, "for
@@ -319,49 +320,41 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
               tooltip = """Yes/no questions and either/or questions are forbidden; this question should be marked invalid.""")
     ),
     <.h2("Redundancy"),
-    <.p("""Some questions are not invalid, but you should mark them as redundant with others.
-        To clarify what this means, suppose you are given the following sentence:"""),
-    <.blockquote(<.i("""Alex pushed Chandler at school today.""")),
-    <.p("""Consider the following questions:"""),
+    <.p("""Some questions are not invalid, but are redundant with others and you should mark them as such.
+        To clarify what this means, suppose you are given the following sentence and questions:"""),
+    <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
     <.ul(
-      <.li("When did someone push someone?"),
-      <.li("On what day did someone push someone?")
+      <.li(<.div("When was something leaked?")),
+      <.li(<.div("On what day was something leaked?"))
     ),
-    <.p("""The second is just a minor rephrasing of the first, which is not acceptable.
-        One way to notice this is that both questions have the same answer.
-        However, consider the following three question-answer pairs:"""),
-    <.ol(
-      <.li("Where did someone push someone?"),
-      <.li("Where did someone push someone today?"),
-      <.li("Where was Alex today?")
-    ),
-    <.p("""Number 2 is redundant with number 1,
-        because they are asking the same question but with different amounts of detail.
-        Number 3, however, is not redundant, because it is asking about the location of Alex and not the pushing.
-        Finally, consider the following:"""),
+    <.p("""They have the same answer (""", <.i("today"), """) and the second question is just a minor rephrasing of the first, so """,
+        <.b(Styles.badRed, "these are redundant. "), """
+        However, consider the following:"""),
     <.ul(
-      <.li("What did Alex do?"),
-      <.li("Who pushed Chandler?")
+      <.li(<.div("What was leaked today?")),
+      <.li(<.div("What kind of documents?"))
     ),
-    <.p("""These are redundant with each other because they convey the same information,
-        but just reverse the order of the question and answer.
-        One way to notice this is that the answer to one question appears in the other, and vice versa."""),
-    <.p("""Sometimes you may not be sure whether to include some words in your answer.
-        As a rule of thumb, include only what is necessary for the answer to be completely specified,
-        but if all else is equal, prefer longer answers over shorter ones."""),
-    <.h3("Note about the Interface"),
-    <.p("""To mark a question as redundant, while that question is selected,
-           you will click on the question it's redundant with (which will turn orange).
-           For each group of redundant questions, you should provide an answer for exactly one of them,
-           and mark the rest of them redundant with that one.
-           To un-mark a question as redundant, just click on the orange sentence again."""),
-    <.p("""If you have any questions, concerns, or points of confusion,
-        please share them in the "Feedback" field so we may improve the task."""),
+    <.p("""While these both may be answered with the same phrase, """, <.i("intelligence documents"), """,
+        these questions are """, <.b(Styles.goodGreen, "not redundant "), """ because they are asking about different things:
+        the first is asking about what it is that leaked,
+        and the second is asking about a characteristic of the documents."""),
+    <.h3("Interface Controls"),
+    <.ul(
+      <.li("Change questions using the arrow keys."),
+      <.li("Highlight your answer in the sentence."),
+      <.li("""To mark the selected question as redundant, just click the question it's redundant with (which will turn orange).
+              To unmark it, click the orange question again."""),
+      <.li("""You can only mark a question as redundant with a question that has an answer.
+              (If more than two questions are mutually redundant, answer one of them and mark the others as redundant with that one.)""")
+    ),
     <.h2("Conditions and payment"),
     <.p("""Your answers and validity judgments will be cross-checked with other workers.
-        If your agreement with other annotators drops too low or we detect you spamming,
+        If your agreement with other annotators drops too low,
         you will be warned, and then you will be blocked from this task and future tasks
         if you continue without improving.
-        Otherwise, your work will be approved and the bonus will be paid within an hour.""")
+        If we find you spamming, your work will be rejected and you will be blocked without warning.
+        Otherwise, your work will be approved and the bonus will be paid within an hour."""),
+    <.p("""If you have any questions, concerns, or points of confusion,
+        please share them in the "Feedback" field so we may improve the task.""")
   )
 }

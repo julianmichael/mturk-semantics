@@ -1,6 +1,6 @@
 package mts.analysis
 
-import mts.conll._
+import mts.datasets.conll._
 import mts.util._
 import mts.util.LowerCaseStrings._
 import mts.language._
@@ -14,7 +14,7 @@ import mts.experiments.expG.AlignedKeywordedQAPair
 class QAPairAnalysis(
   goldAnnotations: Map[CoNLLSentencePath, AlignedManualQARecord], // TODO change all analysis to accommodate
   turkAnnotations: Map[CoNLLSentencePath, AnnotatedSentence],
-  makeHypergraph: AnnotatedSentence => DirectedHypergraph[CoNLLWord, List[String]]//,
+  makeHypergraph: AnnotatedSentence => DirectedHypergraph[Word, List[String]]//,
   // makeTree: AnnotatedSentence => DependencyTree[Index, Unit]
 ) {
 
@@ -102,7 +102,7 @@ class QAPairAnalysis(
   import scala.concurrent.duration._
 
   @memoize(maxSize = 50, expiresAfter = 1 hour)
-  def getSaturatedGoldHypergraph(path: CoNLLSentencePath): DirectedHypergraph[CoNLLWord, List[String]] = {
+  def getSaturatedGoldHypergraph(path: CoNLLSentencePath): DirectedHypergraph[Word, List[String]] = {
     val sentence = FileManager.getCoNLLSentence(path).get
     val edges = goldAnnotations(path).qaGroups.flatten.groupBy(akqa => (akqa.keywordIndex, akqa.answerIndices)).map {
       case ((keywordIndex, answer), akqas) =>
@@ -116,7 +116,7 @@ class QAPairAnalysis(
   }
 
   @memoize(maxSize = 50, expiresAfter = 1 hour)
-  def getGoldHypergraph(path: CoNLLSentencePath): DirectedHypergraph[CoNLLWord, List[String]] =
+  def getGoldHypergraph(path: CoNLLSentencePath): DirectedHypergraph[Word, List[String]] =
     makeHypergraph(
       goldAnnotations(path) match {
         case AlignedManualQARecord(path, sentence, groups) =>
@@ -127,7 +127,7 @@ class QAPairAnalysis(
       })
 
   @memoize(maxSize = 50, expiresAfter = 1 hour)
-  def getTurkHypergraph(path: CoNLLSentencePath): DirectedHypergraph[CoNLLWord, List[String]] =
+  def getTurkHypergraph(path: CoNLLSentencePath): DirectedHypergraph[Word, List[String]] =
     makeHypergraph(turkAnnotations(path))
 
   // the pred itself, discourse markers, negations, and auxiliaries we don't care about
@@ -138,8 +138,8 @@ class QAPairAnalysis(
 
   def getHypergraphArgStats(
     sentence: CoNLLSentence,
-    annotationHypergraph: DirectedHypergraph[CoNLLWord, List[String]],
-    argsMatch: (Set[CoNLLWord], Set[CoNLLWord]) => Boolean) = {
+    annotationHypergraph: DirectedHypergraph[Word, List[String]],
+    argsMatch: (Set[Word], Set[Word]) => Boolean) = {
     val trues = for {
       pas <- sentence.predicateArgumentStructures.toList
       if !copulas.contains(pas.pred.head.token)
@@ -194,21 +194,21 @@ class QAPairAnalysis(
     //       numCovered = covered.size)
     // }
 
-  def saturatedGoldHypergraphArgStats(argsMatch: (Set[CoNLLWord], Set[CoNLLWord]) => Boolean) =
+  def saturatedGoldHypergraphArgStats(argsMatch: (Set[Word], Set[Word]) => Boolean) =
     goldAnnotations.keys.toList.map { path =>
       val hypergraph = getSaturatedGoldHypergraph(path)
       val sentence = FileManager.getCoNLLSentence(path).get
       getHypergraphArgStats(sentence, hypergraph, argsMatch)
     }
 
-  def goldHypergraphArgStats(argsMatch: (Set[CoNLLWord], Set[CoNLLWord]) => Boolean) =
+  def goldHypergraphArgStats(argsMatch: (Set[Word], Set[Word]) => Boolean) =
     goldAnnotations.keys.toList.map { path =>
       val hypergraph = getGoldHypergraph(path)
       val sentence = FileManager.getCoNLLSentence(path).get
       getHypergraphArgStats(sentence, hypergraph, argsMatch)
     }
 
-  def turkHypergraphArgStats(argsMatch: (Set[CoNLLWord], Set[CoNLLWord]) => Boolean) =
+  def turkHypergraphArgStats(argsMatch: (Set[Word], Set[Word]) => Boolean) =
     turkAnnotations.toList.map {
       case (path, annotatedSentence) =>
         val hypergraph = getTurkHypergraph(path)

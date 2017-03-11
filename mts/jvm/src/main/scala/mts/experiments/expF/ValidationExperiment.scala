@@ -5,7 +5,7 @@ import mts.experiments._
 import mts.core._
 import mts.tasks._
 import mts.tasks._
-import mts.conll._
+import mts.datasets.conll._
 import mts.language._
 import mts.util._
 import mts.util.LowerCaseStrings._
@@ -478,13 +478,13 @@ class ValidationExperiment(implicit config: TaskConfig) {
   @memoize(maxSize = 5, expiresAfter = 1 hour)
   def pathToHypergraph(
     annotations: Map[CoNLLSentencePath, AnnotatedSentence]
-  ): Map[CoNLLSentencePath, DirectedHypergraph[CoNLLWord, (List[String], Double)]] =
+  ): Map[CoNLLSentencePath, DirectedHypergraph[Word, (List[String], Double)]] =
     annotations.map {
       case (path, annotation) =>
         path -> getHypergraph(annotation).mapNodes(annotation.sentence.words)
     }
 
-  def hypergraphString(sentence: CoNLLSentence, hg: DirectedHypergraph[CoNLLWord, (List[String], Double)]) =
+  def hypergraphString(sentence: CoNLLSentence, hg: DirectedHypergraph[Word, (List[String], Double)]) =
     hg.edges.toList.sortBy(-_.label._2).map {
       case Hyperedge((questions, maxCorr), qWord, aWords) =>
         val printableQWord = expE.printableWord(sentence, qWord.index)
@@ -492,7 +492,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
         f"$printableQWord%15s --> $answer%20s ($maxCorr%.4f)\n\t\t$questions"
     }.mkString("\n")
 
-  def hypergraphStrings(annotations: Map[CoNLLSentencePath, DirectedHypergraph[CoNLLWord, (List[String], Double)]]) =
+  def hypergraphStrings(annotations: Map[CoNLLSentencePath, DirectedHypergraph[Word, (List[String], Double)]]) =
     annotations.map {
       case (path, hg) => hypergraphString(FileManager.getCoNLLSentence(path).get, hg)
     }

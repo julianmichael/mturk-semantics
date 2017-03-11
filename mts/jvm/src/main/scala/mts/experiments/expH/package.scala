@@ -5,9 +5,10 @@ import akka.actor.ActorRef
 import java.nio.file.Paths
 
 import mts.util._
+import mts.util.LowerCaseStrings._
 import mts.core._
-import mts.conll._
-import mts.ptb._
+import mts.datasets.conll._
+import mts.datasets.ptb._
 import mts.language._
 
 trait PackagePlatformExtensions {
@@ -16,9 +17,36 @@ trait PackagePlatformExtensions {
   //     // TODO wiki case when implemented
   // }
 
+  def getWordsInQuestion(sentence: PTBSentence, string: String)(implicit inflections: Inflections): Set[Int] = {
+    val tokens = tokenize(string).filterNot(isReallyUninteresting)
+    val moreTokens = tokens.map(t => TextRendering.normalizeToken(t).lowerCase).flatMap(inflections.getAllForms)
+    val generalizedTokens = tokens.map(_.lowerCase) ++ moreTokens
+    sentence.words.filter(w => generalizedTokens.contains(w.token.lowerCase)).map(_.index).toSet
+  }
+
+  def splitNum(n: Int): List[Int] =
+    if(n <= 0) Nil
+    else if(n <= 3) List(n)
+    else if(n == 5) List(2, 3)
+    else if(n == 6) List(3, 3)
+    else if(n == 9) List(3, 3, 3)
+    else 4 :: splitNum(n - 4)
+
+  def splitList(l: List[Int]) = splitNum(l.size)
+    .foldLeft((l, List.empty[List[Int]])) {
+    case ((remaining, groups), groupSize) =>
+      (remaining.drop(groupSize), remaining.take(groupSize) :: groups)
+  }._2
+
+  def pathSplits(path: PTBSentencePath) = {
+    val tokens = getPTBTokens(path)
+    splitList(tokens.indices.filter(i => !isReallyUninteresting(tokens(i))).toList)
+  }
+
+
   def getPTBTokens(path: PTBSentencePath): Vector[String] = {
     val sentence = FileManager.getPTBSentence(path).get
-    sentence.words.filter(_.pos != "-NONE-").map(_.token)
+    getPTBSentenceTokens(sentence)
   }
 
   case class ValidationResult(
@@ -27,9 +55,7 @@ trait PackagePlatformExtensions {
     sourceAssignmentId: String,
     numValid: Int)
 
-  case class RegisterGenerationActor(genActor: ActorRef)
   case object SaveData
-  case object Reflect
 
   import PTBFileManager._
 

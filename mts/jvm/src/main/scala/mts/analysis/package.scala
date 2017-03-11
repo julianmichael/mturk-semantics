@@ -1,7 +1,7 @@
 package mts
 
 import mts.util._
-import mts.conll._
+import mts.datasets.conll._
 
 package object analysis {
   case class QuestionAnswerPair(question: String, answer: Set[Int])

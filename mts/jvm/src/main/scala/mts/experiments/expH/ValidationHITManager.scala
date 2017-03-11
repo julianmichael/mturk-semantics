@@ -54,14 +54,13 @@ class ValidationHITManager private (
   import taskSpec.hitTypeId
 
   override lazy val receiveAux2: PartialFunction[Any, Unit] = {
-    case Reflect => sender ! this // for debugging
     case SaveData => saveData
   }
 
   override def promptFinished(prompt: ValidationPrompt): Unit = {
-    sentenceTrackingActor ! ValidationFinished(prompt)
     val assignments = promptToAssignments(prompt)
-    val numValid = math.round(assignments.map(_.response.filter(_.isAnswer).size).mean - 0.01).toInt
+    sentenceTrackingActor ! ValidationFinished(prompt, assignments)
+    val numValid = numValidQuestions(assignments.map(_.response))
     generationActor ! ValidationResult(prompt.genPrompt, prompt.sourceHITId, prompt.sourceAssignmentId, numValid)
     promptToAssignments = promptToAssignments - prompt
   }
@@ -77,77 +76,15 @@ class ValidationHITManager private (
     a1: Assignment[List[ValidationAnswer]],
     a2: Assignment[List[ValidationAnswer]]
   ) = {
-    a1.response.zip(a2.response).filter {
+    def resolveRedundancy(va: ValidationAnswer, answers: List[ValidationAnswer]) =
+      va.getRedundant.fold(va)(r => answers(r.other))
+
+    a1.response.map(resolveRedundancy(_, a1.response)).zip(
+      a2.response.map(resolveRedundancy(_, a2.response))).filter {
       case (InvalidQuestion, InvalidQuestion) => true
       case (Answer(span1), Answer(span2)) => !span1.intersect(span2).isEmpty
-      // TODO: a better solution for agreement in the presence of redundancy.
-      // for now, I'll just be nice.
-      case (Redundant(_), Redundant(_)) => true
-      case (Answer(_), Redundant(_)) => true
-      case (Redundant(_), Answer(_)) => true
       case _ => false
     }.size
-  }
-
-  // keep track of worker accuracy
-  case class WorkerInfo(
-    workerId: String,
-    numAssignmentsCompleted: Int,
-    numComparisonInstances: Int,
-    numComparisonAgreements: Int,
-    warnedAt: Option[Int],
-    blockedAt: Option[Int]) {
-
-    def agreement = numComparisonAgreements.toDouble / numComparisonInstances
-
-    def addAssignment = this.copy(
-      numAssignmentsCompleted = this.numAssignmentsCompleted + 1
-    )
-
-    def addComparison(numTotal: Int, numAgreed: Int) = this.copy(
-      numComparisonInstances = this.numComparisonInstances + numTotal,
-      numComparisonAgreements = this.numComparisonAgreements + numAgreed
-    )
-
-    def warned = this.copy(warnedAt = Some(numAssignmentsCompleted))
-    def blocked = this.copy(blockedAt = Some(numAssignmentsCompleted))
-
-    def tryWarnOrBlock: WorkerInfo = blockedAt match {
-      case Some(_) => this // already blocked
-      case None => warnedAt match {
-        case None => // decide whether to warn
-          if(agreement < validationAgreementThreshold &&
-               numAssignmentsCompleted >= validationBufferBeforeWarning) {
-
-            service.notifyWorkers(
-              "Warning: your performance on the question answering task",
-              s"""The answer judgments that you have provided so far agree with other annotators less than
-                  ${math.round(validationAgreementThreshold * 100).toInt}% of the time.
-                  We suggest you stop working on the task;
-                  if you continue and your performance does not improve, you will be blocked.""",
-              Array(workerId)
-            )
-
-            warned
-
-          } else this
-        case Some(numWhenWarned) => // decide whether to block
-          if(agreement < validationAgreementThreshold &&
-               numAssignmentsCompleted - numWhenWarned >= validationBufferBeforeBlocking) {
-
-            service.blockWorker(
-              workerId,
-              f"Agreement with other annotators failed to improve above ${agreement}%.2f after warning.")
-
-            blocked
-
-          } else this
-      }
-    }
-  }
-
-  object WorkerInfo {
-    def empty(workerId: String) = WorkerInfo(workerId, 0, 0, 0, None, None)
   }
 
   val workerInfoFilename = "validationWorkerInfo"
@@ -166,9 +103,13 @@ class ValidationHITManager private (
       finalExperimentName,
       validationPromptsFilename,
       write[List[ValidationPrompt]](allPrompts))
+    FileManager.saveDataFile(
+      finalExperimentName,
+      feedbackFilename,
+      write[List[String]](feedbacks))
   }
 
-  private[this] var allWorkerInfo = {
+  var allWorkerInfo = {
     FileManager.loadDataFile(finalExperimentName, workerInfoFilename)
       .map(_.mkString)
       .map(read[Map[String, WorkerInfo]])
@@ -188,10 +129,58 @@ class ValidationHITManager private (
     }
   }
 
+  val feedbackFilename = "valFeedback"
+
+  var feedbacks =
+    FileManager.loadDataFile(finalExperimentName, feedbackFilename)
+      .map(_.mkString)
+      .map(read[List[String]])
+      .toOption.getOrElse {
+      // TODO assemble from saved data
+      List.empty[String]
+    }
+
+  def tryWarnOrBlock(worker: WorkerInfo): WorkerInfo = {
+    import worker._
+    blockedAt match {
+      case Some(_) => worker // already blocked
+      case None => warnedAt match {
+        case None => // decide whether to warn
+          if(agreement < validationAgreementThreshold &&
+               numAssignmentsCompleted >= validationBufferBeforeWarning) {
+
+            service.notifyWorkers(
+              "Warning: your performance on the question answering task",
+              s"""The answer judgments that you have provided so far agree with other annotators less than
+                  ${math.round(validationAgreementThreshold * 100).toInt}% of the time.
+                  We suggest you stop working on the task;
+                  if you continue and your performance does not improve, you will be blocked.""",
+              Array(workerId)
+            )
+
+            warned
+
+          } else worker
+        case Some(numWhenWarned) => // decide whether to block
+          if(agreement < validationAgreementThreshold &&
+               numAssignmentsCompleted - numWhenWarned >= validationBufferBeforeBlocking) {
+
+            service.blockWorker(
+              workerId,
+              f"Agreement with other annotators failed to improve above ${agreement}%.2f after warning.")
+
+            blocked
+
+          } else worker
+      }
+    }
+  }
+
   // override for more interesting review policy
   override def reviewAssignment(hit: HIT[ValidationPrompt], assignment: Assignment[List[ValidationAnswer]]): Unit = {
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
+      feedbacks = assignment.feedback :: feedbacks
       println(s"Feedback: ${assignment.feedback}")
     }
 
@@ -199,7 +188,7 @@ class ValidationHITManager private (
 
     // grant bonus as appropriate
     val numQuestions = hit.prompt.qaPairs.size
-    val totalBonus = validationBonusPerQuestion * (numQuestions - 4)
+    val totalBonus = validationBonus(numQuestions)
     if(totalBonus > 0.0) {
       service.grantBonus(
         workerId, totalBonus, assignment.assignmentId,
@@ -210,7 +199,7 @@ class ValidationHITManager private (
     var newWorkerInfo = allWorkerInfo
       .get(workerId)
       .getOrElse(WorkerInfo.empty(workerId))
-      .addAssignment
+      .addAssignment(assignment.response, taskSpec.hitType.reward + totalBonus)
     // do comparisons with other workers
     promptToAssignments.get(hit.prompt).getOrElse(Nil).foreach { otherAssignment =>
       val otherWorkerId = otherAssignment.workerId
@@ -219,13 +208,13 @@ class ValidationHITManager private (
       newWorkerInfo = newWorkerInfo
         .addComparison(numQuestions, nAgreed)
       // update the other one and put back in data structure (warning/blocking if necessary)
-      val otherWorkerInfo = allWorkerInfo(otherWorkerId)
-        .addComparison(numQuestions, nAgreed)
-        .tryWarnOrBlock
+      val otherWorkerInfo = tryWarnOrBlock(
+        allWorkerInfo(otherWorkerId).addComparison(numQuestions, nAgreed)
+      )
       allWorkerInfo = allWorkerInfo.updated(otherWorkerId, otherWorkerInfo)
     }
     // now try just once warning or blocking the current worker before adding everything in
-    newWorkerInfo = newWorkerInfo.tryWarnOrBlock
+    newWorkerInfo = tryWarnOrBlock(newWorkerInfo)
     allWorkerInfo = allWorkerInfo.updated(workerId, newWorkerInfo)
     promptToAssignments = promptToAssignments.updated(
       hit.prompt,

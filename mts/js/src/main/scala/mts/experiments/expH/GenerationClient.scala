@@ -1,7 +1,7 @@
 package mts.experiments.expH
 
 import mts.experiments._
-import mts.conll._
+import mts.datasets.conll._
 import mts.tasks._
 import mts.language._
 import mts.util.dollarsToCents
@@ -328,39 +328,35 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                         """The question asked "where", so including the word "today" is incorrect.""")))
     ),
     <.h2("Redundancy"),
-    <.p("""None of your question-answer pairs in one HIT should be redundant with each other.
-        To clarify what this means, consider the following question-answer pairs about the sentence above:"""),
+    <.p(""" Two question-answer pairs are """, <.b("redundant "), """if they are both """,
+        <.b("asking the same question "), "and they ", <.b("have the same answer. "), """
+        None of your question-answer pairs in one HIT should be redundant with each other.
+        For example, consider the following sentence and questions:"""),
+    <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
     <.ul(
-      <.li(<.div("When did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today")),
-      <.li(<.div("On what day did someone  ", <.span(Styles.specialWord, "push"), " someone? --> today"))
+      <.li(<.div("When was something leaked?")),
+      <.li(<.div("On what day was something leaked?"))
     ),
-    <.p("""The second is just a minor rephrasing of the first, which is not acceptable.
-        One way to notice this is that both questions have the same answer.
-        However, suppose the special word was """, <.b("school"), """. Consider the following three question-answer pairs:"""),
-    <.ol(
-      <.li(<.div("Where did someone push someone? --> at ", <.b("school"))),
-      <.li(<.div("Where did someone push someone today? --> at ", <.b("school"))),
-      <.li(<.div("Where was Alex today? --> at ", <.b("school")))
-    ),
-    <.p("""Numbers 1 and 2 are redundant with each other,
-        because they are asking the same question but with different amounts of detail.
-        Number 3, however, is not redundant, because it is asking about the location of Alex and not the pushing.
-        Finally, consider the following:"""),
+    <.p("""They have the same answer (""", <.i("today"), """) and the second question is just a minor rephrasing of the first, so """,
+        <.b(Styles.badRed, "these are redundant. "), """
+        However, consider the following:"""),
     <.ul(
-      <.li(<.div("What did Alex do? --> ", <.span(Styles.specialWord, "pushed"), " Chandler at school today")),
-      <.li(<.div("Who ", <.span(Styles.specialWord, "pushed"), " Chandler? --> Alex"))
+      <.li(<.div("What was leaked today?")),
+      <.li(<.div("What kind of documents?"))
     ),
-    <.p("""These are redundant with each other because they convey the same information,
-        but just reverse the order of the question and answer.
-        One way to notice this is that the answer to one question ("Alex") appears in the other question."""),
+    <.p("""While these both may be answered with the same phrase, """, <.i("intelligence documents"), """,
+        these questions are """, <.b(Styles.goodGreen, "not redundant "), """ because they are asking about different things:
+        the first is asking about what it is that leaked,
+        and the second is asking about a characteristic of the documents."""),
     <.h2("""Conditions & Bonuses"""),
     <.p("""For each HIT, you will be shown up to four special words from the sentence.
           You are required to write at least one question-answer pair for each special word.
           However, you will receive bonuses if you come up with more.
-          (As you write question-answer pairs, new fields will appear for you to write more.)
+          (As you complete each one, new fields will appear for you to write more.)
           The bonus per question increases by 1 cent for each one you write;
-          your goal is to, if possible, present the complete non-redundant set of questions and answers
-          that relate the special words to each other and the rest of the sentence.
+          your reward will be greatest if you can present """,
+          <.b("the complete set of possible questions and answers "),
+          """that relate the special words to each other and the rest of the sentence.
           On average, it should take less than 30 seconds per question-answer pair.
           """),
     <.p("""Your work will be evaluated by other workers according to the above criteria. """,
@@ -379,10 +375,10 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.ul(
       <.li(s"""To make the task go quickly, make your questions as short as possible.
              (There is a ${questionCharLimit}-character limit.)"""),
-      <.li("""As you work on the task, you will discover some broadly-applicable templates for questions.
-              Keep these in mind and it can potentially speed you up."""),
       <.li("""Feel free to use generic words like "someone" and "something" to simplify your questions
               and make them shorter. This can also help you avoid accidental redundancies."""),
+      <.li("""As you work on the task, you will discover some broadly-applicable templates for questions.
+              Keep these in mind and it can potentially speed you up."""),
       <.li("""Start by writing the required questions so you don't end up having to move your responses around.""")
     ),
     <.p("""If you have any questions, concerns, or points of confusion,

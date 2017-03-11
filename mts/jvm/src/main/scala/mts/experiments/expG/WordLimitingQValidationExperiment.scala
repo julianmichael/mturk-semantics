@@ -5,7 +5,7 @@ import mts.experiments._
 import mts.core._
 import mts.tasks._
 import mts.tasks._
-import mts.conll._
+import mts.datasets.conll._
 import mts.language._
 import mts.util._
 import mts.util.LowerCaseStrings._

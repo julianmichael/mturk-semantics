@@ -3,7 +3,7 @@ package mts.analysis
 import mts.util._
 import mts.language.Graph
 import mts.language.Edge
-import mts.conll._
+import mts.datasets.conll._
 
 import scala.collection.immutable.SortedSet
 import scala.language.higherKinds

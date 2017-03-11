@@ -14,4 +14,5 @@ object TaskIndex {
   val expGManualQATaskKey = "expGManualQA"
   val expHGenerationTaskKey = "expHGeneration"
   val expHValidationTaskKey = "expHValidation"
+  val expHDashboardTaskKey = "expHDashboard"
 }

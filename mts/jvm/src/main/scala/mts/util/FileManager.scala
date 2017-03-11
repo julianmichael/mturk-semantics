@@ -201,6 +201,13 @@ object FileManager {
     allData.toList
   }
 
+  def getHITInfo[Prompt: Reader, Response : Reader](
+    hitTypeId: String, hitId: String
+  )(implicit config: TaskConfig): Try[HITInfo[Prompt, Response]] = for {
+    hit <- getHIT[Prompt](hitTypeId, hitId)
+    assignments = loadAssignmentsForHIT[Response](hitTypeId, hitId)
+  } yield HITInfo(hit, assignments)
+
   // updated version of the above
   def loadAllHITInfo[Prompt: Reader, Response : Reader](
     hitTypeId: String

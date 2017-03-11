@@ -1,23 +1,49 @@
 package mts.experiments
 
-import mts.ptb.PTBSentencePath
+import mts.datasets.ptb._
+import mts.language._
+import mts.util._
 
 package object expH extends PackagePlatformExtensions {
+  def getPTBSentenceTokens(sentence: PTBSentence): Vector[String] = {
+    sentence.words.filter(_.pos != "-NONE-").map(_.token)
+  }
+
+  def renderValidationAnswer(
+    sentence: PTBSentence,
+    va: ValidationAnswer,
+    referenceQAs: List[WordedQAPair]
+  ): String = va match {
+    case InvalidQuestion => "<Invalid>"
+    case Redundant(i) => s"<Redundant with ${referenceQAs(i).question}>"
+    case Answer(span) => TextRendering.renderSpan(sentence, span)
+  }
+
   val finalExperimentName = "h_final"
 
+  val generationReward = 0.20
   def bonusFor(i: Int): Double = 0.01 * i + 0.04
+  def generationBonus(nKeywords: Int, nValidQAs: Int) =
+    math.max(0.0, (1 to (nValidQAs - nKeywords)).map(bonusFor).sum)
   val numKeywords = 4
   val questionCharLimit = 50
 
+  val validationReward = 0.15
   val validationBonusPerQuestion = 0.03
+  val validationBonusThreshold = numKeywords
+  def validationBonus(numQuestions: Int) =
+    math.max(0.0, validationBonusPerQuestion * (numQuestions - validationBonusThreshold))
+
+  def numValidQuestions(responses: List[List[ValidationAnswer]]) =
+    math.round(responses.map(_.filter(_.isAnswer).size).mean - 0.01).toInt
 
   val generationAccuracyThreshold = 0.7
-  val generationBufferBeforeWarning = 20
-  val generationBufferBeforeBlocking = 10
+  val generationBufferBeforeWarning = 30
+  val generationBufferBeforeBlocking = 15
 
   val validationAgreementThreshold = 0.7
-  val validationBufferBeforeWarning = 20
-  val validationBufferBeforeBlocking = 10
+  val validationBufferBeforeWarning = 30
+  val validationBufferBeforeBlocking = 15
 
   case class GenerationPrompt(
     path: PTBSentencePath,

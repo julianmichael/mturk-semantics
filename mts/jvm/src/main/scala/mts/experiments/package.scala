@@ -1,7 +1,7 @@
 package mts.experiments
 
 import mts.core._
-import mts.conll._
+import mts.datasets.conll._
 import mts.util._
 import mts.language._
 

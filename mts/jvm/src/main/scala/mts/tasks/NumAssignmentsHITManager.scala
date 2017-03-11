@@ -50,7 +50,7 @@ class NumAssignmentsHITManager[Prompt, Response](
     queuedPrompts.enqueue(prompt)
   }
 
-  private[this] val queuedPrompts = new LazyStackQueue[Prompt](_promptSource)
+  val queuedPrompts = new LazyStackQueue[Prompt](_promptSource)
 
   private[this] val (finishedPrompts, unfinishedInactivePrompts) = {
     val finished = mutable.Set.empty[Prompt]

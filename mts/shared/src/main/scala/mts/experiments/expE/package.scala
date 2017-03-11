@@ -1,8 +1,8 @@
 package mts.experiments
 
-import mts.conll.CoNLLSentencePath
-import mts.conll.CoNLLSentence
-import mts.conll.CoNLLWord
+import mts.datasets.conll.CoNLLSentencePath
+import mts.datasets.conll.CoNLLSentence
+import mts.datasets.conll.Word
 
 package object expE extends PackagePlatformExtensions {
   case class QAGenPrompt(path: CoNLLSentencePath, wordIndex: Int)
@@ -18,7 +18,7 @@ package object expE extends PackagePlatformExtensions {
     mts.language.TextRendering.renderSentence(spanTokens(sentence, span))
 
   def printableWord(sentence: CoNLLSentence, index: Int) = s"${sentence.words(index).index}:${sentence.words(index).token}"
-  def printableWord(word: CoNLLWord) = s"${word.index}:${word.token}"
+  def printableWord(word: Word) = s"${word.index}:${word.token}"
 
   sealed trait ApiRequest
   case class SentenceRequest(path: CoNLLSentencePath) extends ApiRequest

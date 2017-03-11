@@ -1,3 +1,3 @@
-package mts.ptb
+package mts.datasets.propbank
 
 trait PackagePlatformExtensions

@@ -1,7 +1,7 @@
-package mts.ptb
+package mts.datasets.ptb
 
 import mts.util._
-import mts.conll._
+import mts.datasets.conll._
 import mts.language._
 
 import scala.util.Try
@@ -25,7 +25,7 @@ trait PackagePlatformExtensions {
       val fullPath = ptbAnnotationPath.resolve(path.suffix)
       val fileResource = for {
         lines <- FileManager.loadResource(fullPath)
-        file = PTBFile.readFromLines(lines)
+        file = Parsing.readFile(lines)
       } yield file
       fileResource.tried.get
     }

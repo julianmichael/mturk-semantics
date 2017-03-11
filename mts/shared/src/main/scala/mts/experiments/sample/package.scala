@@ -1,7 +1,7 @@
 package mts.experiments
 
-import mts.conll.CoNLLSentencePath
-import mts.conll.CoNLLSentence
+import mts.datasets.conll.CoNLLSentencePath
+import mts.datasets.conll.CoNLLSentence
 
 package object sample extends PackagePlatformExtensions {
   case class SamplePrompt(path: CoNLLSentencePath)

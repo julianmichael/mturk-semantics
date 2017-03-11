@@ -1,6 +1,6 @@
 package mts.analysis
 
-import mts.conll._
+import mts.datasets.conll._
 import mts.language._
 import mts.util._
 import scala.collection.mutable
@@ -13,10 +13,10 @@ object TreeInduction {
 
   sealed trait Index
   case object Root extends Index
-  case class Word(word: CoNLLWord) extends Index
+  case class WordIndex(word: Word) extends Index
 
   @memoize(maxSize = 10, expiresAfter = 1 hour)
-  def getAllIndices(sentence: CoNLLSentence): List[Index] = Root :: sentence.words.map(Word(_))
+  def getAllIndices(sentence: CoNLLSentence): List[Index] = Root :: sentence.words.map(WordIndex(_))
 
   def incoming(sentence: CoNLLSentence, index: Index): List[Arc] = getAllIndices(sentence).map(Arc(_, index))
   def outgoing(sentence: CoNLLSentence, index: Index): List[Arc] = getAllIndices(sentence).map(Arc(index, _))
@@ -24,7 +24,7 @@ object TreeInduction {
   case class Arc(parent: Index, child: Index) {
     private[this] def shortIndex(i: Index) = i match {
       case Root => "$"
-      case Word(w) => w.index
+      case WordIndex(w) => w.index
     }
     // not sure if variable names have to be unique...?
     override def toString: String = s"${shortIndex(parent)}-${shortIndex(child)}"
@@ -165,11 +165,11 @@ object TreeInduction {
   //     for((qis, ais) <- qaPairIndices) {
   //       // ask for question words to be connected
   //       for(p <- qis; c <- qis) {
-  //         if(p != c) arcScores.add(Arc(Word(p), Word(c)), 1.0)
+  //         if(p != c) arcScores.add(Arc(WordIndex(p), WordIndex(c)), 1.0)
   //       }
   //       // ask for answer words to be connected
   //       for(p <- ais; c <- ais) {
-  //         if(p != c) arcScores.add(Arc(Word(p), Word(c)), 1.0)
+  //         if(p != c) arcScores.add(Arc(WordIndex(p), WordIndex(c)), 1.0)
   //       }
 
   //       // ask for question words to be connected to answer words (weighted down)
@@ -177,8 +177,8 @@ object TreeInduction {
   //       // val aToQScore = 0.2 / (qis.size * ais.size)
   //       for(q <- qis; a <- ais) {
   //         if(q != a) {
-  //           arcScores.add(Arc(Word(q), Word(a)), qToAScore)
-  //           // arcScores.add(Arc(Word(a), Word(q)), aToQScore)
+  //           arcScores.add(Arc(WordIndex(q), WordIndex(a)), qToAScore)
+  //           // arcScores.add(Arc(WordIndex(a), WordIndex(q)), aToQScore)
   //         }
   //       }
   //     }
@@ -188,7 +188,7 @@ object TreeInduction {
   //     // // ask for question words to be connected to answer words (disjunctive)
   //     // val qaPairConnectionWeight = 0.5
   //     // for((qis, ais) <- qaPairIndices) {
-  //     //   val qaArcs = (for(p <- qis; c <- ais) yield Arc(Word(p), Word(c))).toList
+  //     //   val qaArcs = (for(p <- qis; c <- ais) yield Arc(WordIndex(p), WordIndex(c))).toList
   //     //   val disjVar = DisjunctiveVar(qaArcs)
   //     //   val disjGRBVar = model.addVar(0.0, 1.0, 0.0, GRB.BINARY, disjVar.toString)
   //     //   vars.put(disjVar, disjGRBVar)

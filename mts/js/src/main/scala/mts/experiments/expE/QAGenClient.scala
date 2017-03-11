@@ -1,7 +1,7 @@
 package mts.experiments.expE
 
 import mts.experiments._
-import mts.conll._
+import mts.datasets.conll._
 import mts.tasks._
 import mts.language._
 import mts.util.dollarsToCents
@@ -201,8 +201,8 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                 Styles.unselectable,
                 TextRendering.renderSentence(
                   sentence.words,
-                  (word: CoNLLWord) => word.token,
-                  (nextWord: CoNLLWord) => List(
+                  (word: Word) => word.token,
+                  (nextWord: Word) => List(
                     <.span(
                       ^.backgroundColor := (
                         if(curAnswer.contains(nextWord.index) && curAnswer.contains(nextWord.index - 1)) {
@@ -214,7 +214,7 @@ object QAGenClient extends TaskClient[QAGenPrompt, QAGenResponse] {
                           "transparent"
                         }),
                       " ")),
-                  (word: CoNLLWord) => List(
+                  (word: Word) => List(
                     <.span(
                       word.index == prompt.wordIndex ?= Styles.specialWord,
                       ^.backgroundColor := (

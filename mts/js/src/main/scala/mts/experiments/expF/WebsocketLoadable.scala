@@ -1,7 +1,7 @@
 package mts.experiments.expF
 
 import mts.experiments._
-import mts.conll._
+import mts.datasets.conll._
 import mts.tasks._
 import mts.language._
 import mts.util.dollarsToCents
