@@ -41,7 +41,7 @@ class SentenceTracker(
       .map(_.mkString)
       .map(read[AggregateSentenceStats])
       .toOption.getOrElse {
-      AggregateSentenceStats.aggregate(finishedSentenceStats, System.nanoTime())
+      AggregateSentenceStats.aggregate(finishedSentenceStats, System.nanoTime() / 1000000L)
     }
 
   val sentenceStatusesFilename = "sentenceStatuses"
@@ -84,7 +84,7 @@ class SentenceTracker(
     if(newStatus.isFinished) {
       val newStats = makeStats(newStatus)
       finishedSentenceStats =  newStats :: finishedSentenceStats
-      aggregateSentenceStats = aggregateSentenceStats.add(newStats, System.nanoTime())
+      aggregateSentenceStats = aggregateSentenceStats.add(newStats, newStats.completionTime)
       sentenceStatuses = sentenceStatuses - path
     } else {
       sentenceStatuses = sentenceStatuses.updated(path, newStatus)
@@ -137,7 +137,7 @@ class SentenceTracker(
         if valHIT.prompt.sourceAssignmentId == assignment.assignmentId
       } yield valAssignments.map(_.submitTime).max
       completion = validations.max
-    } yield ((completion - assignment.submitTime) / 1000000000L).toInt  // seconds
+    } yield ((completion - assignment.submitTime) / 1000L).toInt  // seconds
 
     val numQAPairs = genHITInfos.flatMap(_.assignments).flatMap(_.response).size
     val numValidQAPairs = alignedValidations
