@@ -104,6 +104,7 @@ class GenerationHITManager(
         .get(assignment.workerId)
         .getOrElse(WorkerStats.empty(assignment.workerId))
         .addAssignment(assignment.response.size, numQAsValid,
+                       assignment.submitTime - assignment.acceptTime,
                        taskSpec.hitType.reward + bonusAwarded)
 
       // warn or block worker if performance is unsatisfactory

@@ -394,11 +394,11 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
         the first is asking about what it is that leaked,
         and the second is asking about a characteristic of the documents."""),
     <.h2("""Conditions & Bonuses"""),
-    <.p("""For each HIT, you will be shown up to four special words from the sentence.
+    <.p(s"""For each HIT, you will be shown up to four special words from the sentence.
           You are required to write at least one question-answer pair for each special word.
           However, you will receive bonuses if you come up with more.
           (As you complete each one, new fields will appear for you to write more.)
-          The bonus per question increases by 1 cent for each one you write;
+          The bonus per question increases by ${dollarsToCents(bonusIncrement)}c for each one you write;
           your reward will be greatest if you can present """,
           <.b("the complete set of possible questions and answers "),
           """that relate the special words to each other and the rest of the sentence.

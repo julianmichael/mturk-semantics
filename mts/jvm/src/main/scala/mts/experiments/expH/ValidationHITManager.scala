@@ -184,7 +184,9 @@ class ValidationHITManager private (
     var newWorkerInfo = allWorkerInfo
       .get(workerId)
       .getOrElse(WorkerInfo.empty(workerId))
-      .addAssignment(assignment.response, taskSpec.hitType.reward + totalBonus)
+      .addAssignment(assignment.response,
+                     assignment.submitTime - assignment.acceptTime,
+                     taskSpec.hitType.reward + totalBonus)
     // do comparisons with other workers
     promptToAssignments.get(hit.prompt).getOrElse(Nil).foreach { otherAssignment =>
       val otherWorkerId = otherAssignment.workerId

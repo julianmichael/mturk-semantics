@@ -157,7 +157,7 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                     <.thead(
                       <.tr(
                         List("Worker ID", "Assignments", "Accuracy",
-                             "Earnings", "QA pairs", "Valid QA pairs",
+                             "Earnings", "Time spent (min)", "$ / hr", "Min / assignment", "QA pairs", "Valid QA pairs",
                              "Warning", "Block").map(<.th(_))
                       )
                     ),
@@ -166,11 +166,16 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                         case ws @ WorkerStats(
                           workerId, numAssignmentsCompleted,
                           numQAPairsWritten, numQAPairsValid,
-                          earnings, warnedAt, blockedAt) =>
+                          timeSpent, earnings, warnedAt, blockedAt) =>
+
+                          val minutesSpent = timeSpent.toDouble / 1000.0 / 60.0
+                          val dollarsPerHour = earnings * 60.0 / minutesSpent
+                          val minPerAssignment = minutesSpent / numAssignmentsCompleted
 
                           <.tr(
                             List(workerId, numAssignmentsCompleted.toString, f"${ws.accuracy}%.3f",
-                                 f"$earnings%.2f", numQAPairsWritten.toString, numQAPairsValid.toString,
+                                 f"$earnings%.2f", f"$minutesSpent%.2f", f"$dollarsPerHour%.2f", f"$minPerAssignment%.2f",
+                                 numQAPairsWritten.toString, numQAPairsValid.toString,
                                  warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
                             ).map(<.td(_))
                           )
@@ -187,6 +192,7 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                     <.thead(
                       <.tr(
                         List("Worker ID", "Assignments", "Earnings",
+                             "Time spent (min)", "$ / hr", "Min / assignment",
                              "Agreement rate", "Comparisons", "Agreements",
                              "Answer spans", "Invalids", "Redundants",
                              "Warning", "Block").map(<.th(_))
@@ -198,13 +204,18 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                           workerId, numAssignmentsCompleted,
                           numComparisonInstances, numComparisonAgreements,
                           numAnswerSpans, numInvalids, numRedundants,
-                          earnings, warnedAt, blockedAt) =>
+                          timeSpent, earnings, warnedAt, blockedAt) =>
+
+                          val minutesSpent = timeSpent.toDouble / 1000.0 / 60.0
+                          val dollarsPerHour = earnings * 60.0 / minutesSpent
+                          val minPerAssignment = minutesSpent / numAssignmentsCompleted
 
                           val numTotalAnswers = numAnswerSpans + numInvalids + numRedundants
                           def percentAs(n: Int) = percent(n, numTotalAnswers)
 
                           <.tr(
                             List(workerId, numAssignmentsCompleted.toString, f"$earnings%.2f",
+                                 f"$minutesSpent%.2f", f"$dollarsPerHour%.2f", f"$minPerAssignment%.2f",
                                  f"${wi.agreement}%.3f", numComparisonInstances.toString, numComparisonAgreements.toString,
                                  percentAs(numAnswerSpans), percentAs(numInvalids), percentAs(numRedundants),
                                  warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
