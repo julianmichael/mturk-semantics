@@ -149,7 +149,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     def render(state: State) = {
       WebsocketLoadable(
         WebsocketLoadableProps(
-          websocketURI = websocketUri, request = ValidationApiRequest(prompt.path), render = {
+          websocketURI = websocketUri, request = ValidationApiRequest(prompt.id), render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
             case Loaded(ValidationApiResponse(sentence), _) =>
@@ -258,6 +258,8 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
            We wish to deconstruct the meanings of English sentences into a list of questions and answers.
            You will be presented with a selection of English text and a list of questions (usually at least four)
            prepared by other annotators."""),
+    <.p(<.b("Note: "), """While there may be few HITs available at any one time, more will be continuously uploaded
+           as other workers write questions for you to validate."""),
     <.p("""You will highlight the words in the sentence that correctly answer the question,
            as well as mark whether questions are invalid or redundant.
            For example, for the following sentence and questions, you should respond with the answers in green:"""),
@@ -271,54 +273,78 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
             that will be paid when the assignment is approved."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
-        Each of your answers must satisfy the following criteria:"""),
+        For each question, you will highlight an answer, mark it invalid, or mark it redundant."""),
+    <.h3("Answers"),
+    <.p("""Each of your answers must satisfy the following criteria:"""),
     <.ol(
       <.li("""It is a correct answer to the question."""),
       <.li("""It is grammatical, to the extent possible.""")),
     <.p("""If there are multiple correct answers, include all of them in your answer if possible.
-        (Skipping over words might help with this.) """),
-    <.p("""In general, include only the words necessary to completely answer the question,
+        (Skipping over words might help with this.)
+        In general, include only the words necessary to completely answer the question,
         but if all else is equal, prefer longer answers over shorter ones."""),
-    <.p("""Another part of your job is to identify which questions are """, <.b("invalid"), """.
-        Instead of providing an answer, you should mark a question as invalid if it satisfies any of the following criteria:"""),
+    <.h3("When a Question is Invalid"),
+    <.p("""A question should be marked invalid if it fails to meet any of the following criteria:"""),
     <.ul(
-      <.li("It is not an English question or it has serious grammatical or spelling errors."),
-      <.li("The question is not answered explicitly in the sentence."),
-      <.li("The question does not contain any words taken from sentence."),
+      <.li("It must be an English question about the meaning of the sentence (and not, for example, the positions of the words)."),
+      <.li("It has no serious grammatical or spelling errors."),
+      <.li("Its answer is obvious and explicitly stated in the sentence."),
+      <.li("It contains at least one word taken from sentence."),
       <.li("It is a yes/no question, an either/or question, or some other non-open-ended question.")
     ),
-    <.h2("""Examples"""),
+    <.h3("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
+    <.blockquote(<.i(""" In the year since the regulations were enacted,
+                         the Director of the Environmental Protection Agency (EPA),
+                         Gina McCarthy, has been aggressive in enforcing them.""")),
+    <.p("""Here are examples of questions others might write, and how you should answer them.
+           Mouse over each for an explanation."""),
+    <.ul(
+      example(question = "What was enacted?", answer = "the regulations", isGood = true,
+              tooltip = """This is a standard, straightforward question that is answered literally by the sentence.
+                           Most questions should look something like this."""),
+      example(question = "In the what since?", answer = "<Invalid>", isGood = false,
+              tooltip = """The question writer simply replaced a word with "what"
+                           instead of using it to form a proper English question."""),
+      example(question = "How long was it since the regulations were enacted?", answer = "the year", isGood = true,
+              tooltip = """While "a year" is a more natural answer, "the year" is the closest you can get
+                           and the question is answered in the sentence so it is still acceptable."""),
+      example(question = "What does EPA stand for?", answer = "Environmental Protection Agency", isGood = true,
+              tooltip = """Asking about the meanings of words or acronyms, when they are explicitly defined
+                           in the sentence, is acceptable."""),
+      example(question = "What pronoun refers to the regulations?", answer = "<Invalid>", isGood = false,
+              tooltip = """The question writer may have had the word "them" in mind, but this question
+                           is about the words in the sentence instead of the sentence's meaning,
+                           so it is unacceptable."""),
+      example(question = "Who enacted the regulations?", answer = "<Invalid>", isGood = false,
+              tooltip = """The question writer may have been thinking it was the EPA, but that is not
+                           stated explicitly in the sentence, so the question is invalid.
+                           (In fact, they were also wrong: it is Congress which enacts regulations, and not the EPA.)"""),
+      example(question = "What is Gina's last name?", answer = "McCarthy", isGood = true,
+              tooltip = """This is an acceptable question much like "What does EPA stand for?" """),
+      example(question = "Was McCarthy aggressive or lax?", answer = "<Invalid>", isGood = false,
+              tooltip = """This is an either/or question, which is disallowed.""")
+    ),
+    <.p("Now suppose you are given the following sentence:"),
     <.blockquote(<.i(""" "I take full and complete responsibility," she said, "for
                         my decision to disclose these materials to the public." """)),
-    <.p("""Here are examples of answers someone might give to several questions.
-           Good answers are in """, <.span(Styles.goodGreen, "green "), """and bad answers
-           are in """, <.span(Styles.badRed, "red"), ". Mouse over each for an explanation."),
+    <.p("""Here are some more examples:"""),
     <.ul(
       example(question = "Who decided to disclose materials to the public?", answer = "I", isGood = true,
               tooltip = """To deal with pronouns like "I", you should choose answers from the perspective of the speaker."""),
-      example(question = "What is someone responsible for?", answer = "my decision", isGood = false,
+      example(question = "What is someone responsible for?", answer = "my decision to disclose these materials to the public", isGood = true,
               tooltip = """If shorter and longer answers both suffice, favor the longer one.
-                        This answer should be "my decision to disclose these materials to the public"."""),
+                           Provide this answer instead of just "my decision"."""),
       example(question = "What did someone take?",
               answer = "responsibility for my decision to disclose these materials to the public",
               isGood = true,
               tooltip = """Skip over words if necessary to produce a complete and grammatical answer."""),
-      example(question = "What did she say?",
-              answer = "I take full and complete responsibility",
-              isGood = false,
-              tooltip = """Provide the most complete answer: this answer should be the entire quotation in the sentence
-                        (skipping over "she said")."""),
       example(question = "Who leaked the documents?",
-              answer = "I",
+              answer = "<Invalid>",
               isGood = false,
-              tooltip = """This question does not contain any content words from the sentence, making it invalid."""),
-      example(question = "Is it full responsibility or not?",
-              answer = "full and complete",
-              isGood = false,
-              tooltip = """Yes/no questions and either/or questions are forbidden; this question should be marked invalid.""")
+              tooltip = """This question does not contain any content words from the sentence.""")
     ),
-    <.h2("Redundancy"),
+    <.h3("Redundancy"),
     <.p(""" Two questions are """, <.b("redundant "), """if they """,
         <.b("have the same meaning "), "and they ", <.b("have the same answer. "), """
         If any question is redundant with another, you should mark it as such.

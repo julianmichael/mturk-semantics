@@ -139,7 +139,7 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                             } yield <.tr(
                               List(
                                 genAssignment.workerId,
-                                TextRendering.normalizeToken(sentence.words(keywordIndex).token),
+                                TextRendering.normalizeToken(sentence(keywordIndex)),
                                 question, TextRendering.renderSpan(sentence, answer)
                               ).map(<.td(_)),
                               validationCells

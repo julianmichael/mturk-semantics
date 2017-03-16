@@ -15,7 +15,7 @@ case class ValidatedAssignment(
 }
 
 case class SentenceHITInfo(
-  sentence: PTBSentence,
+  tokens: Vector[String],
   genHITInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]],
   valHITInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]]) {
 

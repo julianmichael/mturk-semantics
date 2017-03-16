@@ -7,6 +7,7 @@ import mts.tasks._
 import mts.tasks._
 import mts.datasets.conll._
 import mts.datasets.ptb._
+import mts.datasets.wiki1k._
 import mts.language._
 import mts.util._
 import mts.util.LowerCaseStrings._
@@ -46,6 +47,31 @@ class FinalExperiment(implicit config: TaskConfig) {
       .take(250)
   }
 
+  lazy val sampled1000WikipediaParagraphSentences = {
+    val shuffleRand = new util.Random(329358L)
+    val paragraphPaths = for {
+      path <- FileManager.wiki1kPathsForDomain("wikipedia")
+      i <- FileManager.getWiki1kFile(path).get.paragraphs.indices
+    } yield (path, i)
+    for {
+      (path, pNum) <- shuffleRand.shuffle(paragraphPaths).take(1000)
+      sentence <- FileManager.getWiki1kFile(path).get.paragraphs(pNum)
+    } yield sentence.path
+  }
+
+  lazy val sampled250WikiNewsArticleSentences = {
+    val shuffleRand = new util.Random(1846178L)
+    shuffleRand.shuffle(
+      FileManager.wiki1kPathsForDomain("wikinews"))
+      .iterator
+      .take(50)
+      .map(p => FileManager.getWiki1kFile(p).get)
+      .flatMap(_.paragraphs)
+      .flatten
+      .map(_.path)
+    .toVector
+  }
+
   val genHITType = HITType(
     title = s"Write questions and answers about words in context",
     description = s"""
@@ -58,14 +84,15 @@ class FinalExperiment(implicit config: TaskConfig) {
     qualRequirements = Array[QualificationRequirement](approvalRateRequirement))
 
   lazy val genApiFlow = Flow[GenerationApiRequest].map {
-    case GenerationApiRequest(path) =>
-      GenerationApiResponse(getPTBTokens(path))
+    case GenerationApiRequest(id) =>
+      GenerationApiResponse(getTokensForId(id))
   }
 
-  val sampleGenPrompt = GenerationPrompt(origQASRLPaths.head, List(0, 1, 2, 3))
+  val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    frozenHITTypeId = Some("3R9DAV8FBGC1IY6SCJDZTMA4OCZQLS"))
 
   // validation task definition
 
@@ -80,8 +107,8 @@ class FinalExperiment(implicit config: TaskConfig) {
     qualRequirements = Array[QualificationRequirement](approvalRateRequirement))
 
   lazy val valApiFlow = Flow[ValidationApiRequest].map {
-    case ValidationApiRequest(path) =>
-      ValidationApiResponse(getPTBTokens(path))
+    case ValidationApiRequest(id) =>
+      ValidationApiResponse(getTokensForId(id))
   }
 
   val sampleValPrompt = ValidationPrompt(
@@ -90,21 +117,22 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    frozenHITTypeId = Some("3AJI21MF7BNLOGODCVEETZPTOHPQMU"))
 
   // hit management --- circularly defined so they can communicate
 
-  val sourcePaths = random250PTBSentencePaths.drop(30).take(30)
+  val sourceIds = random250PTBSentencePaths.drop(30).take(30)
+    .map(PTBSentenceId.apply)
 
-  val sourcePrompts = sourcePaths
-    .flatMap(path => pathSplits(path).map(GenerationPrompt(path, _)))
+  val sourcePrompts = sourceIds
+    .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
 
   implicit val inflections = {
     val tokens = for {
-      path <- sourcePaths.iterator
-      sentence <- FileManager.getPTBSentence(path).toOptionPrinting.iterator
-      word <- sentence.words.iterator
-    } yield word.token
+      id <- sourceIds.iterator
+      word <- getTokensForId(id).iterator
+    } yield word
     getInflectionsForTokens(tokens)
   }
 
@@ -174,7 +202,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     .filter(_ => genManagerPeek != null && valManagerPeek != null && sentenceTrackerPeek != null)
     .map { _ =>
     val last5Sentences = sentenceTrackerPeek.finishedSentenceStats.take(5).map { stats =>
-      val sentence = FileManager.getPTBSentence(stats.path).get
+      val sentence = getTokensForId(stats.id)
       stats -> SentenceHITInfo(
         sentence,
         stats.genHITIds.toList
@@ -265,7 +293,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   def allValInfos = FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId)
 
   def renderValidation(info: HITInfo[ValidationPrompt, List[ValidationAnswer]]) = {
-    val sentence = FileManager.getPTBSentence(info.hit.prompt.genPrompt.path).get
+    val sentence = getTokensForId(info.hit.prompt.genPrompt.id)
     info.assignments.map { assignment =>
       TextRendering.renderSentence(sentence) + "\n" +
         info.hit.prompt.qaPairs.zip(assignment.response).map {
@@ -279,7 +307,7 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   lazy val makeTSV: String = {
     val sb = new StringBuilder
-    val paths = sourcePrompts.map(_.path).toSet.toList
+    val ids = sourcePrompts.map(_.id).toSet.toList
     val genInfos = allGenInfos; val valInfos = allValInfos
     import scalaz._
     import Scalaz._
@@ -289,33 +317,35 @@ class FinalExperiment(implicit config: TaskConfig) {
     def append(s: String): Printing[Unit] = State.modify[List[String]](s :: _).liftM[ListT]
     def iter[A](l: List[A]): Printing[A] = ListT.fromList[PrintingState, A](State.state[List[String], List[A]](l))
     val processor = for {
-      path <- iter(paths)
-      sentence = FileManager.getPTBSentence(path).get
-      sentenceTokens = TextRendering.getTokens(sentence)
+      id <- iter(ids)
+      sentence = getTokensForId(id)
       _ <- append("\t\t\t" + TextRendering.renderSentence(sentence) + "\n")
-      (genWorkerId, WordedQAPair(keywordIndex, question, answerIndices), valAnswers, valAnswersString) <- iter {
+      (genWorkerId, WordedQAPair(keywordIndex, question, answerIndices), valAnswers, valAnswersString, valFeedback) <- iter {
         val qaPairs = for {
           HITInfo(genHIT, genAssignments) <- genInfos
-          if genHIT.prompt.path == path
+          if genHIT.prompt.id == id
           genAssignment <- genAssignments
-          chosenValInfo = valInfos.find(_.hit.prompt.sourceAssignmentId.equals(genAssignment.assignmentId)).get
+          chosenValInfo <- valInfos.find(_.hit.prompt.sourceAssignmentId.equals(genAssignment.assignmentId)).toList
           (wqa, qaIndex) <- genAssignment.response.zipWithIndex
           valAnswers = chosenValInfo.assignments.map(a => a.response(qaIndex))
+          valFeedback = chosenValInfo.assignments.map(a => a.feedback).filterNot(_.isEmpty)
         } yield (
           genAssignment.workerId,
           wqa,
           valAnswers,
           valAnswers.map(valAnswer =>
             renderValidationAnswer(sentence, valAnswer, genAssignment.response)
-          ).mkString("\t")
-          )
+          ).mkString("\t"),
+          valFeedback.mkString("\t")
+        )
         qaPairs.sortBy(_._2.wordIndex)
       }
-      _ <- append(s"${path.filePath.suffix}\t${path.sentenceNum}\t${genWorkerId}\t")
-      _ <- append(s"${sentenceTokens(keywordIndex)} ($keywordIndex)\t$question\t")
+      _ <- append(s"${id.readableFileString}\t${id.readableSentenceIndex}\t${genWorkerId}\t")
+      _ <- append(s"${sentence(keywordIndex)} ($keywordIndex)\t$question\t")
       _ <- append(TextRendering.renderSpan(sentence, answerIndices) + s"\t$valAnswersString\t")
       _ <- append(s"${answerIndices.mkString(" ")}\t")
       _ <- append(valAnswers.map(_.getAnswer.map(_.indices.mkString(" ")).getOrElse("")).mkString("\t"))
+      _ <- append(s"\t$valFeedback")
       _ <- append("\n")
     } yield ()
     processor.run.exec(Nil).reverse.mkString
@@ -346,4 +376,45 @@ class FinalExperiment(implicit config: TaskConfig) {
     case HITInfo(hit, assignments) =>
       math.round(assignments.map(_.response.filter(_.isRedundant).size).mean).toInt
   }
+
+  lazy val numBothAnswered = allValInfos.map(
+    _.assignments
+      .map(a => a.response.map(resolveRedundancy(_, a.response)))
+      .transpose
+      .filter(_.forall(_.isAnswer))
+      .size
+  )
+
+  lazy val numBothAnsweredAndNoIntersection = allValInfos.map(
+    _.assignments
+      .map(a => a.response.map(resolveRedundancy(_, a.response)))
+      .transpose
+      .filter(_.forall(_.isAnswer))
+      .filter(_.flatMap(_.getAnswer).map(_.indices).reduce(_ intersect _).isEmpty)
+      .size
+  ).sum
+
+  lazy val numAgreements = allValInfos.map(hi => numAgreed(hi.assignments(0), hi.assignments(1)))
+
+  lazy val numQAPairsEachSpecialWordInHIT = for {
+    HITInfo(hit, assignments) <- allGenInfos
+    sentence = getTokensForId(hit.prompt.id)
+    assignment <- assignments
+    keyword <- hit.prompt.keywords
+  } yield assignment.response
+    .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
+    .filter(_.contains(keyword)).size
+
+  lazy val assignmentsMissingSpecialWords = for {
+    HITInfo(hit, assignments) <- allGenInfos
+    sentence = getTokensForId(hit.prompt.id)
+    assignment <- assignments
+    keyword <- hit.prompt.keywords
+    if assignment.response
+    .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
+    .filter(_.contains(keyword)).isEmpty
+  } yield (sentence, TextRendering.renderSentence(sentence), keyword,
+           TextRendering.normalizeToken(sentence(keyword)),
+           assignment.response)
 }
+

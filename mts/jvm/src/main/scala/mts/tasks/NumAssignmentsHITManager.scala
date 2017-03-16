@@ -52,19 +52,8 @@ class NumAssignmentsHITManager[Prompt, Response](
 
   val queuedPrompts = new LazyStackQueue[Prompt](_promptSource)
 
-  private[this] val (finishedPrompts, unfinishedInactivePrompts) = {
-    val finished = mutable.Set.empty[Prompt]
-    val unfinished = mutable.Queue.empty[Prompt]
-    finishedHITInfosByPromptIterator.foreach {
-      case (prompt, hitInfos) =>
-        if(hitInfos.map(_.assignments.size).sum >= numAssignmentsPerPrompt) {
-          finished += prompt
-        } else if(!activeHITInfos(prompt).isEmpty) {
-          unfinished.enqueue(prompt)
-        }
-    }
-    (finished, unfinished)
-  }
+  def isFinished(prompt: Prompt) =
+    finishedHITInfos(prompt).map(_.assignments.size).sum >= numAssignmentsPerPrompt
 
   final override def reviewHITs: Unit = {
     for {
@@ -83,12 +72,8 @@ class NumAssignmentsHITManager[Prompt, Response](
       // if the HIT is "reviewable", and all its assignments are reviewed (i.e., no longer "Submitted"), we can dispose
       if(mTurkHIT.getHITStatus == HITStatus.Reviewable && submittedAssignments.isEmpty) {
         finishHIT(hit)
-        val numAssignmentsCompleted = finishedHITInfos(hit.prompt).map(_.assignments.size).sum
-        if(numAssignmentsCompleted >= numAssignmentsPerPrompt) {
-          finishedPrompts += hit.prompt
+        if(isFinished(hit.prompt)) {
           promptFinished(hit.prompt)
-        } else {
-          unfinishedInactivePrompts += hit.prompt
         }
       }
     }
@@ -96,26 +81,16 @@ class NumAssignmentsHITManager[Prompt, Response](
     // refresh: upload new hits to fill gaps
     val numToUpload = numHITsToKeepActive - numActiveHITs
     for(_ <- 1 to numToUpload) {
-      Try(unfinishedInactivePrompts.dequeue).toOption match {
+      queuedPrompts.filterPop(p => !isFinished(p)) match {
+        case None => () // we're finishing off, woo
         case Some(nextPrompt) =>
-          val assignmentsDone = finishedHITInfos(nextPrompt).map(_.assignments.size).sum
-          val assignmentsRemaining = numAssignmentsPerPrompt - assignmentsDone
-          if(assignmentsRemaining <= 0) {
-            // this shouldn't happen
-            System.err.println("Thought prompt was unfinished when it was actually finished.")
-            System.err.println(s"Prompt: $nextPrompt; HIT IDs: ${finishedHITInfos(nextPrompt).map(_.hit.hitId)}")
-          } else {
-            createHIT(nextPrompt, assignmentsRemaining) recover {
-              case _ => unfinishedInactivePrompts.enqueue(nextPrompt) // try again later
-            }
+          if(isActive(nextPrompt)) {
+            // if this prompt is already active, queue it for later
+            // TODO probably want to delay it by a constant factor instead
+            queuedPrompts.enqueue(nextPrompt)
+          } else createHIT(nextPrompt, numAssignmentsPerPrompt) recover {
+            case _ => queuedPrompts.enqueue(nextPrompt) // put it back at the bottom to try later
           }
-        case None => queuedPrompts.filterPop(p => !finishedPrompts.contains(p)) match {
-          case None => () // we're finishing off, woo
-          case Some(nextPrompt) =>
-            createHIT(nextPrompt, numAssignmentsPerPrompt) recover {
-              case _ => queuedPrompts.enqueue(nextPrompt) // put it back at the bottom to try later
-            }
-        }
       }
     }
   }

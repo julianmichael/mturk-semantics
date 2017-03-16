@@ -9,6 +9,7 @@ import mts.util.LowerCaseStrings._
 import mts.core._
 import mts.datasets.conll._
 import mts.datasets.ptb._
+import mts.datasets.wiki1k._
 import mts.language._
 
 trait PackagePlatformExtensions {
@@ -17,11 +18,19 @@ trait PackagePlatformExtensions {
   //     // TODO wiki case when implemented
   // }
 
-  def getWordsInQuestion(sentence: PTBSentence, string: String)(implicit inflections: Inflections): Set[Int] = {
+  def getTokensForId(id: SentenceId): Vector[String] = id match {
+    case PTBSentenceId(path) => getPTBSentenceTokens(
+      FileManager.getPTBSentence(path).get
+    )
+    case WikiSentenceId(path) =>
+      FileManager.getWiki1kSentence(path).get.tokens
+  }
+
+  def getWordsInQuestion(sentence: Vector[String], string: String)(implicit inflections: Inflections): Set[Int] = {
     val tokens = tokenize(string).filterNot(isReallyUninteresting)
     val moreTokens = tokens.map(t => TextRendering.normalizeToken(t).lowerCase).flatMap(inflections.getAllForms)
     val generalizedTokens = tokens.map(_.lowerCase) ++ moreTokens
-    sentence.words.filter(w => generalizedTokens.contains(w.token.lowerCase)).map(_.index).toSet
+    sentence.zipWithIndex.filter(p => generalizedTokens.contains(p._1.lowerCase)).map(_._2).toSet
   }
 
   def splitNum(n: Int): List[Int] =
@@ -38,15 +47,9 @@ trait PackagePlatformExtensions {
       (remaining.drop(groupSize), remaining.take(groupSize) :: groups)
   }._2
 
-  def pathSplits(path: PTBSentencePath) = {
-    val tokens = getPTBTokens(path)
+  def idSplits(id: SentenceId) = {
+    val tokens = getTokensForId(id)
     splitList(tokens.indices.filter(i => !isReallyUninteresting(tokens(i))).toList)
-  }
-
-
-  def getPTBTokens(path: PTBSentencePath): Vector[String] = {
-    val sentence = FileManager.getPTBSentence(path).get
-    getPTBSentenceTokens(sentence)
   }
 
   case class ValidationResult(

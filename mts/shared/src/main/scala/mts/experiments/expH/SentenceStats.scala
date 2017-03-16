@@ -5,7 +5,7 @@ import mts.util._
 import mts.datasets.ptb._
 
 case class SentenceStatus(
-  path: PTBSentencePath,
+  id: SentenceId,
   allKeywords: Set[Int],
   keywordsFinished: Set[Int],
   ongoingValidations: Set[ValidationPrompt],
@@ -30,7 +30,7 @@ case class SentenceStatus(
 }
 
 case class SentenceStats(
-  path: PTBSentencePath,
+  id: SentenceId,
   // numWords: Int // TODO
   numKeywords: Int,
   numQAPairs: Int,

@@ -129,6 +129,8 @@ object HITManager {
       attempt match {
         case Success(hit) =>
           activeHITs += hit
+          val newHITInfo = HITInfo[Prompt, Response](hit, Nil)
+          activeHITInfosByPrompt.put(prompt, newHITInfo :: activeHITInfos(prompt))
           println(s"Created HIT: ${hit.hitId}")
           println(s"${service.getWebsiteURL}/mturk/preview?groupId=${hit.hitTypeId}")
         case Failure(e) =>
@@ -138,16 +140,20 @@ object HITManager {
       attempt
     }
 
+    def isActive(prompt: Prompt): Boolean = activeHITInfosByPrompt.contains(prompt)
     def isActive(hit: HIT[Prompt]): Boolean = activeHITs.contains(hit)
     def isActive(hitId: String): Boolean = activeHITs.exists(_.hitId == hitId)
     def numActiveHITs = activeHITs.size
 
     def finishHIT(hit: HIT[Prompt]): Unit = {
       service.disposeHIT(hit.hitId)
+      if(!isActive(hit)) {
+        System.err.println(s"Trying to finish HIT that isn't active? $hit")
+      }
       activeHITs -= hit
       // add to other appropriate data structures
-      val finishedData = finishedHITInfosByPrompt.get(hit.prompt).getOrElse(Nil)
-      val activeData = activeHITInfosByPrompt.get(hit.prompt).getOrElse(Nil)
+      val finishedData = finishedHITInfos(hit.prompt)
+      val activeData = activeHITInfos(hit.prompt)
       val curInfo = activeData
         .find(_.hit.hitId == hit.hitId)
         .getOrElse {
@@ -189,10 +195,13 @@ object HITManager {
         case Approval(message) =>
           service.approveAssignment(assignment.assignmentId, message)
           assignmentsInReview -= aInRev
-          val curData = activeHITInfosByPrompt.get(hit.prompt).getOrElse(Nil)
-          val curInfo = curData.find(_.hit.prompt == hit.prompt)
-            .getOrElse(HITInfo[Prompt, Response](hit, Nil))
-          val filteredData = curData.filterNot(_.hit.prompt == hit.prompt)
+          val curData = activeHITInfos(hit.prompt)
+          val curInfo = curData.find(_.hit.hitId == hit.hitId)
+            .getOrElse {
+            System.err.println(s"Could not find active data for hit $hit")
+            HITInfo[Prompt, Response](hit, Nil)
+          }
+          val filteredData = curData.filterNot(_.hit.hitId == hit.hitId)
           val newInfo = curInfo.copy(assignments = assignment :: curInfo.assignments)
           activeHITInfosByPrompt.put(hit.prompt, newInfo :: filteredData)
           println

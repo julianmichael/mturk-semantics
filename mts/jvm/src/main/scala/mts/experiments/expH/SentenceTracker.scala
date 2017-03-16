@@ -45,13 +45,13 @@ class SentenceTracker(
     }
 
   val sentenceStatusesFilename = "sentenceStatuses"
-  var sentenceStatuses: Map[PTBSentencePath, SentenceStatus] =
+  var sentenceStatuses: Map[SentenceId, SentenceStatus] =
     FileManager.loadDataFile(finalExperimentName, sentenceStatusesFilename)
       .map(_.mkString)
-      .map(read[Map[PTBSentencePath, SentenceStatus]])
+      .map(read[Map[SentenceId, SentenceStatus]])
       .toOption.getOrElse {
       // TODO assemble from saved data?
-      Map.empty[PTBSentencePath, SentenceStatus]
+      Map.empty[SentenceId, SentenceStatus]
     }
 
   def saveData = {
@@ -62,18 +62,18 @@ class SentenceTracker(
     FileManager.saveDataFile(
       finalExperimentName,
       sentenceStatusesFilename,
-      write[Map[PTBSentencePath, SentenceStatus]](sentenceStatuses))
+      write[Map[SentenceId, SentenceStatus]](sentenceStatuses))
     FileManager.saveDataFile(
       finalExperimentName,
       aggregateSentenceStatsFilename,
       write[AggregateSentenceStats](aggregateSentenceStats))
   }
 
-  def processUpdate(path: PTBSentencePath, update: TrackingUpdate) = {
+  def processUpdate(id: SentenceId, update: TrackingUpdate) = {
     val newStatus = {
       val res = sentenceStatuses
-        .get(path)
-        .getOrElse(emptyStatus(path))
+        .get(id)
+        .getOrElse(emptyStatus(id))
       update match {
         case GenerationFinished(gPrompt) => res.withKeywords(gPrompt.keywords.toSet)
         case ValidationBegun(vPrompt) => res.beginValidation(vPrompt)
@@ -85,23 +85,23 @@ class SentenceTracker(
       val newStats = makeStats(newStatus)
       finishedSentenceStats =  newStats :: finishedSentenceStats
       aggregateSentenceStats = aggregateSentenceStats.add(newStats, newStats.completionTime)
-      sentenceStatuses = sentenceStatuses - path
+      sentenceStatuses = sentenceStatuses - id
     } else {
-      sentenceStatuses = sentenceStatuses.updated(path, newStatus)
+      sentenceStatuses = sentenceStatuses.updated(id, newStatus)
     }
   }
 
   override def receive = {
     case SaveData => saveData
-    case u @ GenerationFinished(gPrompt) => processUpdate(gPrompt.path, u)
-    case u @ ValidationBegun(vPrompt) => processUpdate(vPrompt.genPrompt.path, u)
-    case u @ ValidationFinished(vPrompt, _) => processUpdate(vPrompt.genPrompt.path, u)
+    case u @ GenerationFinished(gPrompt) => processUpdate(gPrompt.id, u)
+    case u @ ValidationBegun(vPrompt) => processUpdate(vPrompt.genPrompt.id, u)
+    case u @ ValidationFinished(vPrompt, _) => processUpdate(vPrompt.genPrompt.id, u)
   }
 
   def makeStats(status: SentenceStatus)(implicit config: TaskConfig): SentenceStats = {
     val allValidations = status.finishedAssignments
-    val path = status.path
-    val sentence = FileManager.getPTBSentence(path).get
+    val id = status.id
+    val sentence = getTokensForId(id)
     val allValHITIds = allValidations.map(_.hitId).toSet
     val valHITInfos = allValHITIds.toList
       .map(hitId => FileManager.getHITInfo[ValidationPrompt, List[ValidationAnswer]](valHITTypeId, hitId).get)
@@ -149,7 +149,7 @@ class SentenceTracker(
     val genHITIds = genHITInfos.map(_.hit.hitId).toSet
     val valHITIds = valHITInfos.map(_.hit.hitId).toSet
     SentenceStats(
-      path,
+      id,
       allKeywords.size,
       numQAPairs,
       numValidQAPairs,
@@ -161,11 +161,11 @@ class SentenceTracker(
       genHITIds, valHITIds)
   }
 
-  def emptyStatus(path: PTBSentencePath) = {
-    val sentence = getPTBTokens(path)
+  def emptyStatus(id: SentenceId) = {
+    val sentence = getTokensForId(id)
     val allKeywords = sentence.indices
       .filter(i => !reallyUninterestingTokens.contains(sentence(i)))
       .toSet
-    SentenceStatus(path, allKeywords, Set.empty[Int], Set.empty[ValidationPrompt], List.empty[Assignment[List[ValidationAnswer]]])
+    SentenceStatus(id, allKeywords, Set.empty[Int], Set.empty[ValidationPrompt], List.empty[Assignment[List[ValidationAnswer]]])
   }
 }

@@ -144,9 +144,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
             if(isAnswerEmpty && isFocused) {
               "Highlight your answer above"
             } else {
-              TextRendering.renderSentence(
-                sentence.zipWithIndex.filter(p => answer.contains(p._2)).map(_._1)
-              )
+              TextRendering.renderSpan(sentence, answer)
             }
           )
         )
@@ -156,7 +154,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
       WebsocketLoadable(
         WebsocketLoadableProps(
           websocketURI = websocketUri,
-          request = GenerationApiRequest(prompt.path),
+          request = GenerationApiRequest(prompt.id),
           render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
@@ -261,11 +259,27 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     .componentDidUpdate(context => context.$.backend.updateResponse)
     .build
 
+  def example(question: String, answer: String, isGood: Boolean, tooltip: String) =
+    <.li(
+      <.div(
+        ^.className := "tooltip",
+        <.span(question),
+        <.span(" --> "),
+        <.span(
+          isGood ?= Styles.goodGreen,
+          !isGood ?= Styles.badRed,
+          answer),
+        <.span(^.className := "tooltiptext", tooltip)
+      )
+    )
+
   private[this] val instructions = <.div(
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
         You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold."),
+    <.p(<.b("Note: "), """While there may be few HITs available at any one time, more will be continuously uploaded
+           as they are completed by workers."""),
     <.p("""For each special word, you will write questions and their answers, where the answer is taken from the sentence and """,
         <.b("""either the question or the answer contains the special word. """),
         """You will earn bonuses by writing more questions and answers.
@@ -282,18 +296,50 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.ol(
       <.li("""Either the question or the answer contains the special word."""),
       <.li("""The question contains at least one word from the sentence."""),
-      <.li("""The answer is the longest natural, correct, and unique answer to the question."""),
+      <.li("The question is about the meaning of the sentence (and not, for example, the positions of the words)."),
+      <.li("""The question is answered obviously and explicitly in the sentence."""),
+      <.li("""The question is open-ended: yes/no and either/or questions are not allowed."""),
       <.li("""None of your question-answer pairs are redundant with each other,
-              even for different special words."""),
-      <.li("""The question is open-ended: yes/no and either/or questions are not allowed.""")
+              even for different special words.""")
     ),
     <.p("See the examples for further explanation."),
-    <.h2("""Good Examples"""),
+    <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
+    <.blockquote(<.i(""" In the year since the regulations were enacted,
+                         the Director of the Environmental Protection Agency (EPA),
+                         Gina McCarthy, has been aggressive in enforcing them.""")),
+    <.p("""Here are questions and answers that someone may write
+        (ignoring the special word requirement for now).
+        Good ones are green while examples of bad questions are in red.
+        Mouse over each example to see an explanation."""),
+    <.ul(
+      example(question = "What was enacted?", answer = "the regulations", isGood = true,
+              tooltip = """This is a standard, straightforward question that is answered literally by the sentence.
+                           Most questions should look something like this."""),
+      example(question = "In the what since?", answer = "year", isGood = false,
+              tooltip = """This simply replaces a word with "what"
+                           instead of using it to form a proper English question."""),
+      example(question = "How long was it since the regulations were enacted?", answer = "the year", isGood = true,
+              tooltip = """While "a year" is a more natural answer, "the year" is the closest you can get
+                           and the question is answered in the sentence so it is still acceptable."""),
+      example(question = "What does EPA stand for?", answer = "Environmental Protection Agency", isGood = true,
+              tooltip = """Asking about the meanings of words or acronyms, when they are explicitly defined
+                           in the sentence, is acceptable."""),
+      example(question = "What pronoun refers to the regulations?", answer = "them", isGood = false,
+              tooltip = """This question is about the words in the sentence instead of the sentence's meaning,
+                           so it is unacceptable."""),
+      example(question = "Who enacted the regulations?", answer = "the Environmental Protection Agency (EPA)", isGood = false,
+              tooltip = """This is not answered explicitly in the sentence, so the question is invalid.
+                           (In fact, it is also wrong: it is Congress which enacts regulations, not the EPA.)"""),
+      example(question = "What is Gina's last name?", answer = "McCarthy", isGood = true,
+              tooltip = """This is an acceptable question much like "What does EPA stand for?" """),
+      example(question = "Was McCarthy aggressive or lax?", answer = "aggressive", isGood = false,
+              tooltip = """This is an either/or question, which is disallowed.""")
+    ),
+    <.p("Now consider the following sentence, with the special word ", <.b("decision. ")),
     <.blockquote(<.i("""I take full and complete responsibility for my thoughtless """, <.span(Styles.specialWord, """decision"""),
                      """ to disclose these materials to the public. """)),
-    <.p("""Acceptable questions and answers include, but are not limited to, the following.
-        Mouse over each example to see an explanation."""),
+    <.p("Here are examples of some good question-answer pairs:"),
     <.ul(
       <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
                  <.span("Who "), <.b("decided "), <.span("something? --> I"),
@@ -309,10 +355,9 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                  <.span(^.className := "tooltiptext",
                         """To get descriptive words as answers, you may need to ask "What kind" or similar questions.""")))
     ),
-    <.h2("""Bad Examples"""),
-    <.p("""Suppose you are given the following sentence:"""),
+    <.p("""Now suppose you are given the following sentence, with the special word """, <.b("pushed. ")),
     <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
-    <.p("Mouse over the following examples of ", <.b("bad"), " question-answer pairs for explanations:"),
+    <.p("Mouse over the following examples of bad question-answer pairs for explanations:"),
     <.ul(
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
                  <.span("Who got hurt? --> Chandler"),

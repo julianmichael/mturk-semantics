@@ -33,7 +33,8 @@ object TextRendering {
     case "-RSB-" => "]"
     case "/." => "."
     case "/?" => "?"
-    case w => w.replaceAll("\\/", "/")
+    case "--" => "-"
+    case w => w.replaceAll("\\\\/", "/")
   }
 
   // TODO restrict to just monoid imports
@@ -64,4 +65,7 @@ object TextRendering {
   /** Convenience method for rendering a sequence of PTB tokens directly to a string. */
   def renderSentence(words: Seq[String]): String =
     renderSentence[String, String](words, identity, _ => " ", normalizeToken)
+
+  def renderSpan(reference: Seq[String], span: Set[Int]) =
+    renderSentence(reference.zipWithIndex.filter(p => span.contains(p._2)).map(_._1))
 }

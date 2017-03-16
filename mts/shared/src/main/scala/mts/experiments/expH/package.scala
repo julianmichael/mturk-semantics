@@ -1,16 +1,30 @@
 package mts.experiments
 
 import mts.datasets.ptb._
+import mts.datasets.wiki1k._
 import mts.language._
 import mts.util._
 
 package object expH extends PackagePlatformExtensions {
+  sealed trait SentenceId {
+    def readableFileString = this match {
+      case PTBSentenceId(path) => s"PTB:${path.filePath.suffix}"
+      case WikiSentenceId(path) => s"Wiki1k:${path.filePath.get}"
+    }
+    def readableSentenceIndex = this match {
+      case PTBSentenceId(path) => s"${path.sentenceNum}"
+      case WikiSentenceId(path) => s"${path.paragraphNum}:${path.sentenceNum}"
+    }
+  }
+  case class PTBSentenceId(path: PTBSentencePath) extends SentenceId
+  case class WikiSentenceId(path: Wiki1kSentencePath) extends SentenceId
+
   def getPTBSentenceTokens(sentence: PTBSentence): Vector[String] = {
     sentence.words.filter(_.pos != "-NONE-").map(_.token)
   }
 
   def renderValidationAnswer(
-    sentence: PTBSentence,
+    sentence: Vector[String],
     va: ValidationAnswer,
     referenceQAs: List[WordedQAPair]
   ): String = va match {
@@ -46,13 +60,13 @@ package object expH extends PackagePlatformExtensions {
   val validationBufferBeforeBlocking = 15
 
   case class GenerationPrompt(
-    path: PTBSentencePath,
+    id: SentenceId,
     keywords: List[Int])
 
   // List[WordedQAPair] is response for qa gen
   case class WordedQAPair(wordIndex: Int, question: String, answer: Set[Int])
 
-  case class GenerationApiRequest(path: PTBSentencePath)
+  case class GenerationApiRequest(id: SentenceId)
   case class GenerationApiResponse(tokens: Vector[String])
 
   // prompt for validation
@@ -62,7 +76,7 @@ package object expH extends PackagePlatformExtensions {
     sourceAssignmentId: String,
     qaPairs: List[WordedQAPair]
   ) {
-    def path = genPrompt.path
+    def id = genPrompt.id
   }
 
   // List[ValidationAnswer] is response for validation
@@ -94,6 +108,23 @@ package object expH extends PackagePlatformExtensions {
   case class Redundant(other: Int) extends ValidationAnswer
   case class Answer(indices: Set[Int]) extends ValidationAnswer
 
-  case class ValidationApiRequest(path: PTBSentencePath)
+  def resolveRedundancy(va: ValidationAnswer, answers: List[ValidationAnswer]) =
+    va.getRedundant.fold(va)(r => answers(r.other))
+
+  import mts.core._
+  def numAgreed(
+    a1: Assignment[List[ValidationAnswer]],
+    a2: Assignment[List[ValidationAnswer]]
+  ) = {
+    a1.response.map(resolveRedundancy(_, a1.response)).zip(
+      a2.response.map(resolveRedundancy(_, a2.response))).filter {
+      case (InvalidQuestion, InvalidQuestion) => true
+      case (Answer(span1), Answer(span2)) => !span1.intersect(span2).isEmpty
+      case _ => false
+    }.size
+  }
+
+
+  case class ValidationApiRequest(id: SentenceId)
   case class ValidationApiResponse(sentence: Vector[String])
 }

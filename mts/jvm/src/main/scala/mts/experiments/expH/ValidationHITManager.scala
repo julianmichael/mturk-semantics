@@ -72,21 +72,6 @@ class ValidationHITManager private (
     allPrompts = prompt :: allPrompts
   }
 
-  private[this] def numAgreed(
-    a1: Assignment[List[ValidationAnswer]],
-    a2: Assignment[List[ValidationAnswer]]
-  ) = {
-    def resolveRedundancy(va: ValidationAnswer, answers: List[ValidationAnswer]) =
-      va.getRedundant.fold(va)(r => answers(r.other))
-
-    a1.response.map(resolveRedundancy(_, a1.response)).zip(
-      a2.response.map(resolveRedundancy(_, a2.response))).filter {
-      case (InvalidQuestion, InvalidQuestion) => true
-      case (Answer(span1), Answer(span2)) => !span1.intersect(span2).isEmpty
-      case _ => false
-    }.size
-  }
-
   val workerInfoFilename = "validationWorkerInfo"
   val promptToAssignmentsFilename = "promptToAssignments"
 
