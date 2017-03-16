@@ -91,8 +91,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
-    frozenHITTypeId = Some("3R9DAV8FBGC1IY6SCJDZTMA4OCZQLS"))
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
 
   // validation task definition
 
@@ -117,8 +116,7 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
-    frozenHITTypeId = Some("3AJI21MF7BNLOGODCVEETZPTOHPQMU"))
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
 
   // hit management --- circularly defined so they can communicate
 
