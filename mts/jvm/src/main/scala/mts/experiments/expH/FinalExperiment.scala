@@ -198,7 +198,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           valHelper,
           valManager,
           sentenceTracker,
-          2, 100, sourcePrompts.iterator)
+          1, 30, sourcePrompts.iterator)
         genManagerPeek
       })
   } else {
