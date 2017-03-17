@@ -41,36 +41,76 @@ class FinalExperiment(implicit config: TaskConfig) {
     FileManager.loadDataFile(experimentName, "origQASRLPaths.txt").get.head
   )
 
-  lazy val random250PTBSentencePaths = {
+
+  val numPTB = 10 // up to 250
+
+  lazy val (ptbTrain, ptbDev, ptbTest) = {
     val shuffleRand = new util.Random(987654321L)
-    shuffleRand.shuffle(origQASRLPaths)
-      .take(250)
+    val (train, devTestRest) = shuffleRand.shuffle(origQASRLPaths).splitAt(numPTB * 4 / 5)
+    val (dev, testRest) = devTestRest.splitAt(numPTB / 10)
+    val test = testRest.take(numPTB / 10)
+    (train, dev, test)
   }
 
-  lazy val sampled1000WikipediaParagraphSentences = {
+  def getWikiSentences(rand: util.Random, filePaths: Vector[Wiki1kPath], numSentences: Int) = {
+    rand.shuffle(
+      filePaths.flatMap(p => FileManager.getWiki1kFile(p).get.paragraphs)
+    ).filter(p =>
+      !p.exists(sentence => TextRendering.renderSentence(sentence).contains("formula_"))
+    ).flatten.map(s => s.path).take(numSentences)
+  }
+
+  val numWikipedia = 10
+
+  lazy val (wikipediaTrain, wikipediaDev, wikipediaTest) = {
     val shuffleRand = new util.Random(329358L)
-    val paragraphPaths = for {
-      path <- FileManager.wiki1kPathsForDomain("wikipedia")
-      i <- FileManager.getWiki1kFile(path).get.paragraphs.indices
-    } yield (path, i)
-    for {
-      (path, pNum) <- shuffleRand.shuffle(paragraphPaths).take(1000)
-      sentence <- FileManager.getWiki1kFile(path).get.paragraphs(pNum)
-    } yield sentence.path
+    val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
+      FileManager.wiki1kPathsForDomain("wikipedia")
+    ).splitAt(640)
+    val (devFiles, testRestFiles) = devTestRestFiles.splitAt(80)
+    val testFiles = testRestFiles.take(80)
+
+    val train = getWikiSentences(shuffleRand, trainFiles, numWikipedia * 4 / 5)
+    val dev = getWikiSentences(shuffleRand, devFiles, numWikipedia / 10)
+    val test = getWikiSentences(shuffleRand, testFiles, numWikipedia / 10)
+    (train, dev, test)
   }
 
-  lazy val sampled250WikiNewsArticleSentences = {
+  val numWikinews = 10 // up to 2500
+
+  lazy val (wikinewsTrain, wikinewsDev, wikinewsTest) = {
     val shuffleRand = new util.Random(1846178L)
-    shuffleRand.shuffle(
-      FileManager.wiki1kPathsForDomain("wikinews"))
-      .iterator
-      .take(50)
-      .map(p => FileManager.getWiki1kFile(p).get)
-      .flatMap(_.paragraphs)
-      .flatten
-      .map(_.path)
-    .toVector
+    val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
+      FileManager.wiki1kPathsForDomain("wikinews")
+        .sortBy(-_.suffix.toInt) // XXX relies on wikinews IDs being ints... make typeful
+        .take(1000)
+    ).splitAt(800)
+    val (devFiles, testRestFiles) = devTestRestFiles.splitAt(80)
+    val testFiles = testRestFiles.take(80)
+
+    val train = getWikiSentences(shuffleRand, trainFiles, numWikinews * 4 / 5)
+    val dev = getWikiSentences(shuffleRand, devFiles, numWikinews / 10)
+    val test = getWikiSentences(shuffleRand, testFiles, numWikinews / 10)
+    (train, dev, test)
   }
+
+  lazy val trainIds = ptbTrain.map(PTBSentenceId(_): SentenceId) ++
+    wikipediaTrain.map(WikiSentenceId(_): SentenceId) ++
+    wikinewsTrain.map(WikiSentenceId(_): SentenceId)
+  lazy val trainIDSet = trainIds.toSet
+  def isTrain(id: SentenceId) = trainIDSet.contains(id)
+
+  lazy val devIds = ptbDev.map(PTBSentenceId(_): SentenceId) ++
+    wikipediaDev.map(WikiSentenceId(_): SentenceId) ++
+    wikinewsDev.map(WikiSentenceId(_): SentenceId)
+  lazy val devIDSet = devIds.toSet
+  def isDev(id: SentenceId) = devIDSet.contains(id)
+
+  lazy val testIds = ptbTest.map(PTBSentenceId(_): SentenceId) ++
+    wikipediaTest.map(WikiSentenceId(_): SentenceId) ++
+    wikinewsTest.map(WikiSentenceId(_): SentenceId)
+  lazy val testIDSet = testIds.toSet
+  def isTest(id: SentenceId) = testIDSet.contains(id)
 
   val genHITType = HITType(
     title = s"Write questions and answers about words in context",
@@ -120,8 +160,8 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   // hit management --- circularly defined so they can communicate
 
-  val sourceIds = random250PTBSentencePaths.drop(30).take(30)
-    .map(PTBSentenceId.apply)
+  val idShuffleRand = new util.Random(218469L)
+  val sourceIds = idShuffleRand.shuffle(trainIds ++ devIds ++ testIds)
 
   val sourcePrompts = sourceIds
     .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))

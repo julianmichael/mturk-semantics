@@ -43,7 +43,7 @@ package object expH extends PackagePlatformExtensions {
   val numKeywords = 4
   val questionCharLimit = 50
 
-  val validationReward = 0.12
+  val validationReward = 0.10
   val validationBonusPerQuestion = 0.02
   val validationBonusThreshold = numKeywords
   def validationBonus(numQuestions: Int) =

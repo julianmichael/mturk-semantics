@@ -273,7 +273,8 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
             that will be paid when the assignment is approved."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
-        For each question, you will highlight an answer, mark it invalid, or mark it redundant."""),
+        For each question, you will either """,
+        <.b("answer it, "), "mark it ", <.b("invalid, "), "or mark it ", <.b("redundant.")),
     <.h3("Answers"),
     <.p("""Each of your answers must satisfy the following criteria:"""),
     <.ol(
@@ -286,11 +287,11 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.h3("When a Question is Invalid"),
     <.p("""A question should be marked invalid if it fails to meet any of the following criteria:"""),
     <.ul(
-      <.li("It must be an English question about the meaning of the sentence (and not, for example, the positions of the words)."),
+      <.li("It is an English question about the meaning of the sentence (and not, for example, the positions of the words)."),
       <.li("It has no serious grammatical or spelling errors."),
       <.li("Its answer is obvious and explicitly stated in the sentence."),
       <.li("It contains at least one word taken from sentence."),
-      <.li("It is a yes/no question, an either/or question, or some other non-open-ended question.")
+      <.li("It is open-ended, i.e., not a yes/no or either/or question.")
     ),
     <.h3("""Examples"""),
     <.p("Suppose you are given the following sentence:"),

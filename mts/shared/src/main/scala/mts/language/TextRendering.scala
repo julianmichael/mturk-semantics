@@ -6,6 +6,7 @@ object TextRendering {
   val noSpaceBefore = Set(
     ".", ",", "!", "?", ";", ":", "''",
     "n't", "'s", "'re", "'ve", "'ll", "na", "'m", "'d",
+    // "''", // TODO hmm maybe, maybe not
     "%", "-", "+",
     "-RRB-", "-RCB-", "-RSB-",
     ")", "]", "}",

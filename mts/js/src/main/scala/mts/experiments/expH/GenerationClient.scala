@@ -262,13 +262,12 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
   def example(question: String, answer: String, isGood: Boolean, tooltip: String) =
     <.li(
       <.div(
+        isGood ?= Styles.goodGreen,
+        !isGood ?= Styles.badRed,
         ^.className := "tooltip",
         <.span(question),
         <.span(" --> "),
-        <.span(
-          isGood ?= Styles.goodGreen,
-          !isGood ?= Styles.badRed,
-          answer),
+        <.span(answer),
         <.span(^.className := "tooltiptext", tooltip)
       )
     )
@@ -278,8 +277,6 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into a list of questions and answers.
         You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold."),
-    <.p(<.b("Note: "), """While there may be few HITs available at any one time, more will be continuously uploaded
-           as they are completed by workers."""),
     <.p("""For each special word, you will write questions and their answers, where the answer is taken from the sentence and """,
         <.b("""either the question or the answer contains the special word. """),
         """You will earn bonuses by writing more questions and answers.
@@ -290,6 +287,8 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.ul(
       <.li("How did the ", <.b("protesters "), "feel? --> jubilant"),
       <.li("Who celebrated? --> the ", <.b("protesters"))),
+    // <.p(<.b("Note: "), """While there may be few HITs available at any one time, more will be continuously uploaded
+    //        as they are completed by workers."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         Your response must be grammatical, fluent English that satisfies the following criteria:"""),
@@ -409,12 +408,11 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
           """as judged by other workers.
           This means the "total potential bonus" indicator is just an upper bound on what you may receive,
           which will depend on the quality of your responses.
-          Since other workers will occasionally make mistakes, you might not always get the full
-          amount even if your responses are valid.
           Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
           which will happen shortly after you submit (but will vary depending on worker availability).
-          If your responses are too frequently rejected by validators,
-          you will be sent a warning; if your responses do not improve,
+          High quality responses, on average, are judged valid about 90 percent of the time.
+          If your question-answer pairs are judged valid at a rate lower than 80 percent,
+          you will be sent a warning; if after that your work does not improve,
           then you will be blocked from this task and future tasks."""),
     <.h2("""Tips"""),
     <.ul(

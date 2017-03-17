@@ -91,7 +91,7 @@ class ValidationHITManager private (
     FileManager.saveDataFile(
       finalExperimentName,
       feedbackFilename,
-      write[List[String]](feedbacks))
+      write[List[Assignment[List[ValidationAnswer]]]](feedbacks))
   }
 
   var allWorkerInfo = {
@@ -109,7 +109,6 @@ class ValidationHITManager private (
       .map(_.mkString)
       .map(read[Map[ValidationPrompt, List[Assignment[List[ValidationAnswer]]]]])
       .toOption.getOrElse {
-      // TODO assemble from saved data?
       Map.empty[ValidationPrompt, List[Assignment[List[ValidationAnswer]]]]
     }
   }
@@ -119,10 +118,9 @@ class ValidationHITManager private (
   var feedbacks =
     FileManager.loadDataFile(finalExperimentName, feedbackFilename)
       .map(_.mkString)
-      .map(read[List[String]])
+      .map(read[List[Assignment[List[ValidationAnswer]]]])
       .toOption.getOrElse {
-      // TODO assemble from saved data
-      List.empty[String]
+      List.empty[Assignment[List[ValidationAnswer]]]
     }
 
   def tryWarnOrBlock(worker: WorkerInfo): WorkerInfo = {
@@ -165,7 +163,7 @@ class ValidationHITManager private (
   override def reviewAssignment(hit: HIT[ValidationPrompt], assignment: Assignment[List[ValidationAnswer]]): Unit = {
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
-      feedbacks = assignment.feedback :: feedbacks
+      feedbacks = assignment :: feedbacks
       println(s"Feedback: ${assignment.feedback}")
     }
 

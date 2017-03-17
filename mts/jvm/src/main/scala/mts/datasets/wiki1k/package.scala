@@ -73,10 +73,38 @@ trait PackagePlatformExtensions {
       var curProps: FileProps = null
       var curLines: List[String] = Nil
       import scala.collection.JavaConverters._
+
+      // For NEW below.
+      // import edu.stanford.nlp.ling.CoreLabel
+      // import edu.stanford.nlp.process.PTBTokenizer
+      // import edu.stanford.nlp.process.WordToSentenceProcessor
+      // val tokenizerFactory = PTBTokenizer.factory(false, true)
+      // val sentenceSplitter = new WordToSentenceProcessor[CoreLabel]
+
       def tryWriteFile = {
         if(!curLines.isEmpty) {
+
+
           val FileProps(id, url, title) = curProps
           val paragraphs = curLines.iterator.map { pLine =>
+            // NEW: sentences printed as non-tokenized strings. need to change reader code to re-tokenize then
+            // val allTokenListJ = tokenizerFactory.getTokenizer(new StringReader(pLine), "untokenizable=firstKeep").tokenize
+            // val sentences = sentenceSplitter.wordsToSentences(allTokenListJ).iterator.asScala
+            //   .map(_.iterator.asScala.toVector)
+            //   .toVector
+            // val rendered = sentences.map(sentence =>
+            //   sentence.map { w =>
+            //     val bf = if(w.originalText.trim.equals(",") || w.originalText.trim.equals(".")) ""
+            //              else w.before
+            //     bf + w.originalText
+            //   }.mkString.trim
+            // ).mkString(" ")
+            // if(!pLine.equals(rendered)) {
+            //   println("Non-equal:\noriginal:\n" + pLine)
+            //   println("New:\n" + rendered)
+            // }
+            // sentences
+            // OLD: tokens split by spaces
             new DocumentPreprocessor(
               new BufferedReader(new StringReader(pLine))
             ).iterator.asScala.map { tokenListJava =>

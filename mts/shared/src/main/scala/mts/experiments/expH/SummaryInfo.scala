@@ -31,12 +31,12 @@ case class SummaryInfo(
   // generation
   val numGenActive: Int,
   val genWorkerStats: Map[String, WorkerStats],
-  val genFeedback: List[String],
+  val genFeedback: List[Assignment[List[WordedQAPair]]],
   // validation
   val numValPromptsWaiting: Int,
   val numValActive: Int,
   val valWorkerInfo: Map[String, WorkerInfo],
-  val valFeedback: List[String],
+  val valFeedback: List[Assignment[List[ValidationAnswer]]],
   // final results
   val lastFewSentences: Map[SentenceStats, SentenceHITInfo],
   val aggSentenceStats: AggregateSentenceStats)

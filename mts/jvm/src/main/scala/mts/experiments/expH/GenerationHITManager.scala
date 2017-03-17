@@ -52,10 +52,9 @@ class GenerationHITManager(
   var feedbacks =
     FileManager.loadDataFile(finalExperimentName, feedbackFilename)
       .map(_.mkString)
-      .map(read[List[String]])
+      .map(read[List[Assignment[List[WordedQAPair]]]])
       .toOption.getOrElse {
-      // TODO assemble from saved data
-      List.empty[String]
+      List.empty[Assignment[List[WordedQAPair]]]
     }
 
   private[this] def saveData = {
@@ -66,14 +65,13 @@ class GenerationHITManager(
     FileManager.saveDataFile(
       finalExperimentName,
       feedbackFilename,
-      write[List[String]](feedbacks))
+      write[List[Assignment[List[WordedQAPair]]]](feedbacks))
   }
-
 
   override def reviewAssignment(hit: HIT[GenerationPrompt], assignment: Assignment[List[WordedQAPair]]): Unit = {
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
-      feedbacks = assignment.feedback :: feedbacks
+      feedbacks = assignment :: feedbacks
       println(s"Feedback: ${assignment.feedback}")
     }
     val validationPrompt = ValidationPrompt(hit.prompt, hit.hitId, assignment.assignmentId, assignment.response)
