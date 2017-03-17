@@ -161,9 +161,9 @@ class FinalExperiment(implicit config: TaskConfig) {
   // hit management --- circularly defined so they can communicate
 
   val idShuffleRand = new util.Random(218469L)
-  val sourceIds = idShuffleRand.shuffle(trainIds ++ devIds ++ testIds)
+  lazy val sourceIds = idShuffleRand.shuffle(trainIds ++ devIds ++ testIds)
 
-  val sourcePrompts = sourceIds
+  lazy val sourcePrompts = sourceIds
     .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
 
   implicit val inflections = {
