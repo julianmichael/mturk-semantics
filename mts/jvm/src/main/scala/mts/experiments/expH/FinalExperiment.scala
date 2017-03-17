@@ -128,7 +128,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       GenerationApiResponse(getTokensForId(id))
   }
 
-  val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
+  lazy val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
     TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
@@ -150,7 +150,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       ValidationApiResponse(getTokensForId(id))
   }
 
-  val sampleValPrompt = ValidationPrompt(
+  lazy val sampleValPrompt = ValidationPrompt(
     sampleGenPrompt, "", "",
     List(WordedQAPair(0, "Who is awesome?", Set(1, 2, 3, 4)),
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
@@ -160,13 +160,15 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   // hit management --- circularly defined so they can communicate
 
-  val idShuffleRand = new util.Random(218469L)
-  lazy val sourceIds = idShuffleRand.shuffle(trainIds ++ devIds ++ testIds)
+  lazy val sourceIds = {
+    val idShuffleRand = new util.Random(218469L)
+    idShuffleRand.shuffle(trainIds ++ devIds ++ testIds)
+  }
 
   lazy val sourcePrompts = sourceIds
     .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
 
-  implicit val inflections = {
+  implicit lazy val inflections = {
     val tokens = for {
       id <- sourceIds.iterator
       word <- getTokensForId(id).iterator
@@ -343,7 +345,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.mkString("\n") + "\n"
   }
 
-  lazy val makeTSV: String = {
+  def makeTSV: String = {
     val sb = new StringBuilder
     val ids = sourcePrompts.map(_.id).toSet.toList
     val genInfos = allGenInfos; val valInfos = allValInfos
@@ -401,21 +403,21 @@ class FinalExperiment(implicit config: TaskConfig) {
       0.20 + genBonus + (2 * valReward)
   }
 
-  lazy val assignmentNumQAs = allValInfos.map {
+  def assignmentNumQAs = allValInfos.map {
     case HITInfo(hit, assignments) => hit.prompt.qaPairs.size
   }
 
-  lazy val assignmentNumValids = allValInfos.map {
+  def assignmentNumValids = allValInfos.map {
     case HITInfo(hit, assignments) =>
       math.round(assignments.map(_.response.filter(_.isAnswer).size).mean - 0.01).toInt
   }
 
-  lazy val assignmentNumRedundants = allValInfos.map {
+  def assignmentNumRedundants = allValInfos.map {
     case HITInfo(hit, assignments) =>
       math.round(assignments.map(_.response.filter(_.isRedundant).size).mean).toInt
   }
 
-  lazy val numBothAnswered = allValInfos.map(
+  def numBothAnswered = allValInfos.map(
     _.assignments
       .map(a => a.response.map(resolveRedundancy(_, a.response)))
       .transpose
@@ -423,7 +425,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       .size
   )
 
-  lazy val numBothAnsweredAndNoIntersection = allValInfos.map(
+  def numBothAnsweredAndNoIntersection = allValInfos.map(
     _.assignments
       .map(a => a.response.map(resolveRedundancy(_, a.response)))
       .transpose
@@ -432,9 +434,9 @@ class FinalExperiment(implicit config: TaskConfig) {
       .size
   ).sum
 
-  lazy val numAgreements = allValInfos.map(hi => numAgreed(hi.assignments(0), hi.assignments(1)))
+  def numAgreements = allValInfos.map(hi => numAgreed(hi.assignments(0), hi.assignments(1)))
 
-  lazy val numQAPairsEachSpecialWordInHIT = for {
+  def numQAPairsEachSpecialWordInHIT = for {
     HITInfo(hit, assignments) <- allGenInfos
     sentence = getTokensForId(hit.prompt.id)
     assignment <- assignments
@@ -443,7 +445,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
     .filter(_.contains(keyword)).size
 
-  lazy val assignmentsMissingSpecialWords = for {
+  def assignmentsMissingSpecialWords = for {
     HITInfo(hit, assignments) <- allGenInfos
     sentence = getTokensForId(hit.prompt.id)
     assignment <- assignments
@@ -455,4 +457,3 @@ class FinalExperiment(implicit config: TaskConfig) {
            TextRendering.normalizeToken(sentence(keyword)),
            assignment.response)
 }
-
