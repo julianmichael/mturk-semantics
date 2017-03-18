@@ -35,7 +35,7 @@ package object expH extends PackagePlatformExtensions {
 
   val finalExperimentName = "h_final"
 
-  val generationReward = 0.18
+  val generationReward = 0.20
   val bonusIncrement = 0.02
   def bonusFor(i: Int): Double = bonusIncrement * i + 0.03
   def generationBonus(nKeywords: Int, nValidQAs: Int) =
@@ -43,7 +43,7 @@ package object expH extends PackagePlatformExtensions {
   val numKeywords = 4
   val questionCharLimit = 50
 
-  val validationReward = 0.10
+  val validationReward = 0.08
   val validationBonusPerQuestion = 0.02
   val validationBonusThreshold = numKeywords
   def validationBonus(numQuestions: Int) =
@@ -53,7 +53,7 @@ package object expH extends PackagePlatformExtensions {
     math.round(responses.map(_.filter(_.isAnswer).size).mean - 0.01).toInt
 
   val generationAccuracyThreshold = 0.8
-  val generationBufferBeforeWarning = 15
+  val generationBufferBeforeWarning = 20
   val generationBufferBeforeBlocking = 10
 
   val validationAgreementThreshold = 0.75

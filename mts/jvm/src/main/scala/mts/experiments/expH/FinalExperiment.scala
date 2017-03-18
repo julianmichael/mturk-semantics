@@ -42,10 +42,10 @@ class FinalExperiment(implicit config: TaskConfig) {
   )
 
 
-  val numPTB = 10 // up to 250
+  val numPTB = 20 // up to 250
 
   lazy val (ptbTrain, ptbDev, ptbTest) = {
-    val shuffleRand = new util.Random(987654321L)
+    val shuffleRand = new util.Random(3257296L)
     val (train, devTestRest) = shuffleRand.shuffle(origQASRLPaths).splitAt(numPTB * 4 / 5)
     val (dev, testRest) = devTestRest.splitAt(numPTB / 10)
     val test = testRest.take(numPTB / 10)
@@ -60,10 +60,10 @@ class FinalExperiment(implicit config: TaskConfig) {
     ).flatten.map(s => s.path).take(numSentences)
   }
 
-  val numWikipedia = 10
+  val numWikipedia = 0
 
   lazy val (wikipediaTrain, wikipediaDev, wikipediaTest) = {
-    val shuffleRand = new util.Random(329358L)
+    val shuffleRand = new util.Random(238956329L)
     val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
       FileManager.wiki1kPathsForDomain("wikipedia")
     ).splitAt(640)
@@ -76,10 +76,10 @@ class FinalExperiment(implicit config: TaskConfig) {
     (train, dev, test)
   }
 
-  val numWikinews = 10 // up to 2500
+  val numWikinews = 0 // up to 2500
 
   lazy val (wikinewsTrain, wikinewsDev, wikinewsTest) = {
-    val shuffleRand = new util.Random(1846178L)
+    val shuffleRand = new util.Random(18613963L)
     val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
       FileManager.wiki1kPathsForDomain("wikinews")
         .sortBy(-_.suffix.toInt) // XXX relies on wikinews IDs being ints... make typeful
@@ -131,8 +131,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
-    frozenHITTypeId = Some("3IKWVMAP3FUZOZR1EZWG1LT22B1E0W"))
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
 
   // validation task definition
 
@@ -157,8 +156,7 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
-    frozenHITTypeId = Some("3DOL9V5RNRSAH0J520G5ELLLDGN2PP"))
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
 
   // hit management --- circularly defined so they can communicate
 
@@ -376,7 +374,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.mkString("\n") + "\n"
   }
 
-  // TODO make hierarchical list and use a CSV reader.
+  // TODO make hierarchical list and use a CSV reader; at least, do that when desire to share data.
   def makeTSV: String = {
     val sb = new StringBuilder
     val ids = sourcePrompts.map(_.id).toSet.toList

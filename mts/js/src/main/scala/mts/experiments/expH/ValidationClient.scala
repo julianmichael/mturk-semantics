@@ -255,7 +255,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
   private[this] val instructions = <.div(
     <.h2("""Task Summary"""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
-           We wish to deconstruct the meanings of English sentences into a list of questions and answers.
+           We wish to deconstruct the meanings of English sentences into lists of questions and answers.
            You will be presented with a selection of English text and a list of questions (usually at least four)
            prepared by other annotators."""),
     <.p(<.b("Note: "), """While there may be few HITs available at any one time, more will be continuously uploaded
@@ -276,24 +276,45 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
         For each question, you will either """,
         <.b("answer it, "), "mark it ", <.b("invalid, "), "or mark it ", <.b("redundant.")),
     <.h3("Answers"),
-    <.p("""Each of your answers must satisfy the following criteria:"""),
-    <.ol(
-      <.li("""It is a correct answer to the question."""),
-      <.li("""It is grammatical, to the extent possible.""")),
-    <.p("""If there are multiple correct answers, include all of them in your answer if possible.
-        (Skipping over words might help with this.)
-        In general, include only the words necessary to completely answer the question,
+    <.p("""Each answer must be """, <.b("correct "), "and ", <.b("as grammatical as possible"),
+        """. If there are multiple correct answers, include all of them in your answer if possible.
+        Include only the words necessary to completely answer the question,
         but if all else is equal, prefer longer answers over shorter ones."""),
-    <.h3("When a Question is Invalid"),
-    <.p("""A question should be marked invalid if it fails to meet any of the following criteria:"""),
+    <.h3("Invalid Questions"),
+    <.p("""A question should be marked invalid if any of the following are true:"""),
     <.ul(
-      <.li("It is an English question about the meaning of the sentence (and not, for example, the positions of the words)."),
-      <.li("It has no serious grammatical or spelling errors."),
-      <.li("Its answer is obvious and explicitly stated in the sentence."),
-      <.li("It contains at least one word taken from sentence."),
-      <.li("It is open-ended, i.e., not a yes/no or either/or question.")
+      <.li("""It isn't about the meaning of the sentence (for example, asking "Which word comes after...")."""),
+      <.li("It has grammatical or spelling errors."),
+      <.li("It is not obviously and explicitly answered in the sentence."),
+      <.li("""It does not contain any words from the sentence (for example, "What happened?" is usually invalid)."""),
+      <.li("It is a yes/no or either/or question, or other non-open-ended question.")
     ),
-    <.h3("""Examples"""),
+    <.p("""It is okay for a question not to be a full sentence, as long as it makes sense and it is grammatical English.
+           For example, the question "Whose decision?" would be fine if the phrase "my decision" appeared in the sentence."""),
+    <.p("""If the question is a bit odd and you're not sure how to mark it, it is probably invalid.
+           Good questions should be obviously good."""),
+    <.h3("Redundancy"),
+    <.p(""" Two questions are """, <.b("redundant "), """if they """,
+        <.b("have the same meaning "), "and they ", <.b("have the same answer. "), """
+        If any question is redundant with another, you should mark it as such.
+        For example, suppose you are given the following sentence and questions:"""),
+    <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
+    <.ul(
+      <.li(<.div("When was something leaked?")),
+      <.li(<.div("On what day was something leaked?"))
+    ),
+    <.p("""They have the same answer (""", <.i("today"), """) and the second question is just a minor rephrasing of the first, so """,
+        <.b(Styles.badRed, "these are redundant. "), """
+        However, consider the following:"""),
+    <.ul(
+      <.li(<.div("What was leaked today?")),
+      <.li(<.div("What kind of documents?"))
+    ),
+    <.p("""While these both may be answered with the same phrase, """, <.i("intelligence documents"), """,
+        these questions are """, <.b(Styles.goodGreen, "not redundant "), """ because they are asking about different things:
+        the first is asking about what it is that leaked,
+        and the second is asking about a characteristic of the documents."""),
+    <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
     <.blockquote(<.i(""" In the year since the regulations were enacted,
                          the Director of the Environmental Protection Agency (EPA),
@@ -331,11 +352,16 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                         my decision to disclose these materials to the public." """)),
     <.p("""Here are some more examples:"""),
     <.ul(
-      example(question = "Who decided to disclose materials to the public?", answer = "I", isGood = true,
+      example(question = "Who decided to disclose something?", answer = "I", isGood = true,
               tooltip = """To deal with pronouns like "I", you should choose answers from the perspective of the speaker."""),
       example(question = "What is someone responsible for?", answer = "my decision to disclose these materials to the public", isGood = true,
               tooltip = """If shorter and longer answers both suffice, favor the longer one.
                            Provide this answer instead of just "my decision"."""),
+      example(question = "Who made the decision?",
+              answer = """<Redundant with "Who decided to disclose something?">""", isGood = false,
+              tooltip = """The question has the same meaning as asking who "decided" to do it,
+                           as in the first question---and the answer, "I", is the same,
+                           so this question is redundant."""),
       example(question = "What did someone take?",
               answer = "responsibility for my decision to disclose these materials to the public",
               isGood = true,
@@ -345,27 +371,6 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
               isGood = false,
               tooltip = """This question does not contain any content words from the sentence.""")
     ),
-    <.h3("Redundancy"),
-    <.p(""" Two questions are """, <.b("redundant "), """if they """,
-        <.b("have the same meaning "), "and they ", <.b("have the same answer. "), """
-        If any question is redundant with another, you should mark it as such.
-        For example, suppose you are given the following sentence and questions:"""),
-    <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
-    <.ul(
-      <.li(<.div("When was something leaked?")),
-      <.li(<.div("On what day was something leaked?"))
-    ),
-    <.p("""They have the same answer (""", <.i("today"), """) and the second question is just a minor rephrasing of the first, so """,
-        <.b(Styles.badRed, "these are redundant. "), """
-        However, consider the following:"""),
-    <.ul(
-      <.li(<.div("What was leaked today?")),
-      <.li(<.div("What kind of documents?"))
-    ),
-    <.p("""While these both may be answered with the same phrase, """, <.i("intelligence documents"), """,
-        these questions are """, <.b(Styles.goodGreen, "not redundant "), """ because they are asking about different things:
-        the first is asking about what it is that leaked,
-        and the second is asking about a characteristic of the documents."""),
     <.h2("Interface Controls"),
     <.ul(
       <.li("Change questions using the arrow keys."),
@@ -376,8 +381,9 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
               (If more than two questions are mutually redundant, answer one of them and mark the others as redundant with that one.)""")
     ),
     <.h2("Conditions and payment"),
-    <.p("""Your answers and validity judgments will be cross-checked with other workers.
-        If your agreement with other annotators drops too low,
+    <.p(s"""Your judgments will be cross-checked with other workers.
+        If your agreement with other annotators drops below
+        ${(validationAgreementThreshold * 100).toInt} percent,
         you will be warned, and then you will be blocked from this task and future tasks
         if you continue without improving.
         If we find you spamming, your work will be rejected and you will be blocked without warning.

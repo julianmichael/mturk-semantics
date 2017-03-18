@@ -273,14 +273,18 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     )
 
   private[this] val instructions = <.div(
+    <.p(Styles.bolded,
+      """You can significantly increase your earnings on this task through bonuses.
+         Please read through all of the instructions and examples so you can maximize your rewards."""),
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
-        We wish to deconstruct the meanings of English sentences into a list of questions and answers.
+        We wish to deconstruct the meanings of English sentences into lists of questions and answers.
         You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold."),
-    <.p("""For each special word, you will write questions and their answers, where the answer is taken from the sentence and """,
-        <.b("""either the question or the answer contains the special word. """),
-        """You will earn bonuses by writing more questions and answers.
-        For example, consider the sentence:"""),
+    <.p("""For each special word, you will write questions and their answers, where the answer is taken from the sentence and
+           either """, <.b("""the question or the answer """),
+        """contains the special word. """,
+        <.b("""You will earn bonuses by writing more questions and answers. """),
+        """For example, consider the sentence:"""),
     <.blockquote(<.i("The jubilant ", <.span(Styles.specialWord, "protesters"),
                      " celebrated after executive intervention canceled the project.")),
     <.p("""Valid question-answer pairs include:"""),
@@ -296,7 +300,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
       Styles.bolded,
       <.li("""Either the question or the answer contains the special word."""),
       <.li("""The question contains at least one word from the sentence."""),
-      <.li("The question is about the meaning of the sentence (and not, for example, the positions of the words)."),
+      <.li("The question is about the meaning of the sentence (and not, for example, the order of the words)."),
       <.li("""The question is answered obviously and explicitly in the sentence."""),
       <.li("""The question is open-ended: yes/no and either/or questions are not allowed."""),
       <.li("""None of your question-answer pairs are redundant with each other,
@@ -406,25 +410,38 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
           """),
     <.p("""Your work will be evaluated by other workers according to the above criteria. """,
           <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
-          """as judged by other workers.
+          s"""as judged by other workers.
           This means the "total potential bonus" indicator is just an upper bound on what you may receive,
           which will depend on the quality of your responses.
           Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
           which will happen shortly after you submit (but will vary depending on worker availability).
-          High quality responses, on average, are judged valid about 90 percent of the time.
-          If your question-answer pairs are judged valid at a rate lower than 80 percent,
+          If your question-answer pairs are judged valid at a rate lower than
+          ${(generationAccuracyThreshold * 100).toInt} percent,
           you will be sent a warning; if after that your work does not improve,
           then you will be blocked from this task and future tasks."""),
     <.h2("""Tips"""),
+    <.p(s"""To make the task go quickly, make your questions as short and simple as possible.
+            (There is a ${questionCharLimit}-character limit.)
+            Feel free to use generic words like "someone" and "something" to do so.
+            You will find that a few simple question types will cover many cases.
+            For example, here are just a few possible templates your questions will fall into:"""),
     <.ul(
-      <.li(s"""To make the task go quickly, make your questions as short as possible.
-             (There is a ${questionCharLimit}-character limit.)"""),
-      <.li("""Feel free to use generic words like "someone" and "something" to simplify your questions
-              and make them shorter. This can also help you avoid accidental redundancies."""),
-      <.li("""As you work on the task, you will discover some broadly-applicable templates for questions.
-              Keep these in mind and it can potentially speed you up."""),
-      <.li("""Start by writing the required questions so you don't end up having to move your responses around.""")
+      <.li("Who ", <.i("verb"), "ed something?"),
+      <.li("What was ", <.i("verb"), "ed?"),
+      <.li("What is ", <.i("adjective"), "?"),
+      <.li("What kind of ", <.i("noun"), "?"),
+      <.li("Whose ", <.i("noun"), "?"),
+      // <.li("When/where was <noun>?"),
+      // <.li("How many/much ", <.i("noun"), "?"),
+      <.li("How ", <.i("adjective"), " is ", <.i("noun"), "?"),
+      <.li("Who/What/Where/When/Why/How did someone ", <.i("verb"), "?")
     ),
+    <.p("""There are many other types of questions as well,
+        which you will come up with as you do the task.
+        But if you're having trouble coming up with questions, consult the templates above for ideas.
+        Remember also that you can change the special word's form for the question (like turning "decision" into "decide")
+        or use it in the """, <.b("answer"), """ instead.
+        """),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
     )
