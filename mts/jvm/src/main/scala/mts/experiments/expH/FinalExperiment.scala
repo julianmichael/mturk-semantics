@@ -139,7 +139,8 @@ class FinalExperiment(implicit config: TaskConfig) {
     title = s"Answer simple questions about a sentence",
     description = s"""
       Given a sentence and several questions,
-      highlight the part of the sentence that answers each question.
+      highlight the part of the sentence that answers each question,
+      or indicate whether the question is invalid or redundant.
     """.trim,
     reward = validationReward,
     keywords = "language,english,question answering",
