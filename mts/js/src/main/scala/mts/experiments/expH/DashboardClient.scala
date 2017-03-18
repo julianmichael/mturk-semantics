@@ -65,22 +65,16 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                 val estSentenceCompletionRate =
                   if(lastFewSentences.isEmpty) None
                   else Some {
-                    val time = lastFewSentences
-                      .flatMap(_._2.valHITInfos)
-                      .flatMap(_.assignments)
-                      .map(_.acceptTime)
-                      .max
-                    val aggTime = aggSentenceStats.now
-                    val deltaMinutes = (aggTime - time) / 1000000000L / 60
-                    lastFewSentences.size.toDouble / deltaMinutes
+                    val deltaHours = (aggSentenceStats.latestTime - aggSentenceStats.earliestTime) / 1000L / 60.0 / 60.0
+                    lastFewSentences.size.toDouble / deltaHours
                   }
 
                 <.div(
                   <.h2("Sentences"),
-                  estSentenceCompletionRate.map(r => f"Est. completion rate (sentences/min): $r%.2f"),
+                  estSentenceCompletionRate.map(r => f"Est. completion rate (sentences/hour): $r%.2f"),
                   aggSentenceStats match {
                     case AggregateSentenceStats(
-                      now,
+                      earliestTime, latestTime,
                       numSentences, numKeywords, numQAPairs, numValidQAPairs,
                       keywordPromptQAPairHist, keywordActualQAPairHist, validationLatencyHist,
                       generationCost, validationCost) =>

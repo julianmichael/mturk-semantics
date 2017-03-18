@@ -44,7 +44,7 @@ trait PackagePlatformExtensions {
   /** (non-normalized as well as normalized PTB tokens.) */
   val punctuation = Set[String](
     ".", ",", "!", "?", ";", ":", "''", "\"", "'",
-    "``", "$", "#", "-", "--",
+    "`", "``", "$", "#", "-", "--",
     "%", "-", "+",
     ")", "]", "}",
     "(", "[", "{",

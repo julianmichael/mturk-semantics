@@ -15,9 +15,17 @@ import com.amazonaws.mturk.requester.HITStatus
 
 case class SetNumHITsActive(value: Int)
 
+object NumAssignmentsHITManager {
+  def constAssignments[Prompt, Response](
+    helper: HITManager.Helper[Prompt, Response],
+    numAssignmentsPerPrompt: Int,
+    initNumHITsToKeepActive: Int,
+    _promptSource: Iterator[Prompt]) = new NumAssignmentsHITManager[Prompt, Response](
+    helper, _ => numAssignmentsPerPrompt, initNumHITsToKeepActive, _promptSource)
+}
 class NumAssignmentsHITManager[Prompt, Response](
   helper: HITManager.Helper[Prompt, Response],
-  numAssignmentsPerPrompt: Int,
+  numAssignmentsForPrompt: Prompt => Int,
   initNumHITsToKeepActive: Int,
   _promptSource: Iterator[Prompt]) extends HITManager[Prompt, Response](helper) {
 
@@ -53,7 +61,7 @@ class NumAssignmentsHITManager[Prompt, Response](
   val queuedPrompts = new LazyStackQueue[Prompt](_promptSource)
 
   def isFinished(prompt: Prompt) =
-    finishedHITInfos(prompt).map(_.assignments.size).sum >= numAssignmentsPerPrompt
+    finishedHITInfos(prompt).map(_.assignments.size).sum >= numAssignmentsForPrompt(prompt)
 
   final override def reviewHITs: Unit = {
     for {
@@ -88,7 +96,7 @@ class NumAssignmentsHITManager[Prompt, Response](
             // if this prompt is already active, queue it for later
             // TODO probably want to delay it by a constant factor instead
             queuedPrompts.enqueue(nextPrompt)
-          } else createHIT(nextPrompt, numAssignmentsPerPrompt) recover {
+          } else createHIT(nextPrompt, numAssignmentsForPrompt(nextPrompt)) recover {
             case _ => queuedPrompts.enqueue(nextPrompt) // put it back at the bottom to try later
           }
       }

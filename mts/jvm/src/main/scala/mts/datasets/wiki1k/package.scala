@@ -74,7 +74,7 @@ trait PackagePlatformExtensions {
       var curLines: List[String] = Nil
       import scala.collection.JavaConverters._
 
-      // For NEW below.
+      // For NEW below. XXX probably not using the NEW style. But it's useful for finding weird things in the data.
       // import edu.stanford.nlp.ling.CoreLabel
       // import edu.stanford.nlp.process.PTBTokenizer
       // import edu.stanford.nlp.process.WordToSentenceProcessor
@@ -83,8 +83,6 @@ trait PackagePlatformExtensions {
 
       def tryWriteFile = {
         if(!curLines.isEmpty) {
-
-
           val FileProps(id, url, title) = curProps
           val paragraphs = curLines.iterator.map { pLine =>
             // NEW: sentences printed as non-tokenized strings. need to change reader code to re-tokenize then

@@ -22,11 +22,11 @@ class GenerationHITManager(
   validationHelper: HITManager.Helper[ValidationPrompt, List[ValidationAnswer]],
   validationActor: ActorRef,
   sentenceTrackingActor: ActorRef,
-  initNumAssignmentsPerPrompt: Int,
+  numAssignmentsForPrompt: GenerationPrompt => Int,
   initNumHITsToKeepActive: Int,
   _promptSource: Iterator[GenerationPrompt]
 ) extends NumAssignmentsHITManager[GenerationPrompt, List[WordedQAPair]](
-  helper, initNumAssignmentsPerPrompt, initNumHITsToKeepActive, _promptSource) {
+  helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource) {
 
   import helper._
   import config._

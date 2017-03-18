@@ -293,6 +293,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.p("""This task is best fit for native speakers of English.
         Your response must be grammatical, fluent English that satisfies the following criteria:"""),
     <.ol(
+      Styles.bolded,
       <.li("""Either the question or the answer contains the special word."""),
       <.li("""The question contains at least one word from the sentence."""),
       <.li("The question is about the meaning of the sentence (and not, for example, the positions of the words)."),

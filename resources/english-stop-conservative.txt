@@ -258,6 +258,7 @@ whence
 whereby
 wherein
 whether
+which
 while
 whither
 whom

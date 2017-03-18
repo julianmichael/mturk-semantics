@@ -31,6 +31,8 @@ case class SentenceStatus(
 
 case class SentenceStats(
   id: SentenceId,
+  earliestTime: Long,
+  latestTime: Long,
   // numWords: Int // TODO
   numKeywords: Int,
   numQAPairs: Int,
@@ -45,7 +47,8 @@ case class SentenceStats(
   valHITIds: Set[String])
 
 case class AggregateSentenceStats(
-  now: Long,
+  earliestTime: Long,
+  latestTime: Long,
   numSentences: Int,
   numKeywords: Int,
   numQAPairs: Int,
@@ -56,8 +59,9 @@ case class AggregateSentenceStats(
   generationCost: Double,
   validationCost: Double) {
 
-  def add(stats: SentenceStats, curTime: Long) = this.copy(
-    now = curTime,
+  def add(stats: SentenceStats) = this.copy(
+    earliestTime = math.min(this.earliestTime, stats.earliestTime),
+    latestTime = math.max(this.latestTime, stats.latestTime),
     numSentences = this.numSentences + 1,
     numKeywords = this.numKeywords + stats.numKeywords,
     numQAPairs = this.numQAPairs + stats.numQAPairs,
@@ -69,14 +73,12 @@ case class AggregateSentenceStats(
     validationCost = this.validationCost + stats.validationCost)
 }
 object AggregateSentenceStats {
-  def empty(curTime: Long) = AggregateSentenceStats(
-    curTime,
+  def empty = AggregateSentenceStats(
+    0L, 0L,
     0, 0, 0, 0,
     IntHist.empty, IntHist.empty, IntHist.empty,
     0.0, 0.0)
 
-  def aggregate(ss: List[SentenceStats], curTime: Long) = ss.foldLeft(empty(curTime)) {
-    case (agg, stats) => agg.add(stats, curTime)
-  }
+  def aggregate(ss: List[SentenceStats]) = ss.foldLeft(empty)(_ add _)
 }
 

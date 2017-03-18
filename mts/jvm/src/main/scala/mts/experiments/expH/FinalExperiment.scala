@@ -131,7 +131,8 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    frozenHITTypeId = Some("3IKWVMAP3FUZOZR1EZWG1LT22B1E0W"))
 
   // validation task definition
 
@@ -156,7 +157,8 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    frozenHITTypeId = Some("3DOL9V5RNRSAH0J520G5ELLLDGN2PP"))
 
   // hit management --- circularly defined so they can communicate
 
@@ -189,6 +191,11 @@ class FinalExperiment(implicit config: TaskConfig) {
   var genManagerPeek: GenerationHITManager = null
   var valManagerPeek: ValidationHITManager = null
 
+  def numGenerationAssignmentsForPrompt(p: GenerationPrompt) = p.id match {
+    case PTBSentenceId(_) => 5
+    case WikiSentenceId(_) => 1
+  }
+
   lazy val genHelper = new HITManager.Helper(genTaskSpec)
   lazy val genManager: ActorRef = if(config.isProduction) {
     actorSystem.actorOf(
@@ -198,7 +205,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           valHelper,
           valManager,
           sentenceTracker,
-          1, 30, sourcePrompts.iterator)
+          numGenerationAssignmentsForPrompt, 30, sourcePrompts.iterator)
         genManagerPeek
       })
   } else {
@@ -209,7 +216,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           valHelper,
           valManager,
           sentenceTracker,
-          1, 3, sourcePrompts.iterator)
+          _ => 1, 3, sourcePrompts.iterator)
         genManagerPeek
       })
   }
@@ -222,7 +229,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           valHelper,
           genManager,
           sentenceTracker,
-          2, 50)
+          _ => 2, 50)
         valManagerPeek
       })
   } else {
@@ -232,7 +239,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           valHelper,
           genManager,
           sentenceTracker,
-          1, 3)
+          _ => 1, 3)
         valManagerPeek
       })
   }
@@ -301,12 +308,14 @@ class FinalExperiment(implicit config: TaskConfig) {
   import TaskManager._
   def start(interval: FiniteDuration = 30 seconds) = {
     server
+    startSaves()
     genActor ! Start(interval, delay = 0 seconds)
     valActor ! Start(interval, delay = 3 seconds)
   }
   def stop() = {
     genActor ! Stop
     valActor ! Stop
+    stopSaves
   }
   def disable() = {
     genActor ! Disable
@@ -332,6 +341,28 @@ class FinalExperiment(implicit config: TaskConfig) {
   def allGenInfos = FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId)
   def allValInfos = FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId)
 
+  def allSentenceStats: Map[SentenceId, SentenceStats] = {
+    val genInfosById = allGenInfos.groupBy(_.hit.prompt.id)
+    val valInfosById = allValInfos.groupBy(_.hit.prompt.genPrompt.id)
+    sourceIds.map { id =>
+      val afterGen = genInfosById(id)
+        .map(_.hit.prompt.keywords.toSet)
+        .foldLeft(emptyStatus(id))(_ withKeywords _)
+      val valStart = valInfosById(id)
+        .map(_.hit.prompt)
+        .foldLeft(afterGen)(_ beginValidation _)
+      val valFinish = valInfosById(id)
+        .foldLeft(valStart) {
+        case (status, hitInfo) => status.finishValidation(hitInfo.hit.prompt, hitInfo.assignments)
+      }
+      id -> makeStats(valFinish, genTaskSpec.hitTypeId, valTaskSpec.hitTypeId)
+    }.toMap
+  }
+
+  def aggSentenceStats: AggregateSentenceStats = AggregateSentenceStats.aggregate(
+    allSentenceStats.values.toList
+  )
+
   def renderValidation(info: HITInfo[ValidationPrompt, List[ValidationAnswer]]) = {
     val sentence = getTokensForId(info.hit.prompt.genPrompt.id)
     info.assignments.map { assignment =>
@@ -345,6 +376,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.mkString("\n") + "\n"
   }
 
+  // TODO make hierarchical list and use a CSV reader.
   def makeTSV: String = {
     val sb = new StringBuilder
     val ids = sourcePrompts.map(_.id).toSet.toList

@@ -19,7 +19,7 @@ class QAGenHITManager(
   numHITsToKeepActive: Int,
   _promptSource: Iterator[QAGenPrompt]
 ) extends NumAssignmentsHITManager[QAGenPrompt, QAGenResponse](
-  helper, numAssignmentsPerPrompt, numHITsToKeepActive, _promptSource) {
+  helper, _ => numAssignmentsPerPrompt, numHITsToKeepActive, _promptSource) {
 
   import helper._
   import config._

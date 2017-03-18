@@ -38,7 +38,7 @@ class SampleExperiment(implicit config: TaskConfig) {
 
   import config.actorSystem
   lazy val hitManager = actorSystem.actorOf(
-    Props(new NumAssignmentsHITManager[SamplePrompt, SampleResponse](
+    Props(NumAssignmentsHITManager.constAssignments[SamplePrompt, SampleResponse](
             helper, 1, 3, List(samplePrompt).iterator)))
 
   lazy val server = new Server(List(taskSpec))

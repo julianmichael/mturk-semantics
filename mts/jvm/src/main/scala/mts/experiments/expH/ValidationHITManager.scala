@@ -22,12 +22,12 @@ object ValidationHITManager {
     helper: HITManager.Helper[ValidationPrompt, List[ValidationAnswer]],
     generationActor: ActorRef,
     sentenceTrackingActor: ActorRef,
-    initNumAssignmentsPerPrompt: Int,
+    numAssignmentsForPrompt: ValidationPrompt => Int,
     initNumHITsToKeepActive: Int) = {
 
     new ValidationHITManager(
       helper, generationActor, sentenceTrackingActor,
-      initNumAssignmentsPerPrompt, initNumHITsToKeepActive,
+      numAssignmentsForPrompt, initNumHITsToKeepActive,
       loadPrompts.iterator)
   }
 
@@ -42,11 +42,11 @@ class ValidationHITManager private (
   helper: HITManager.Helper[ValidationPrompt, List[ValidationAnswer]],
   generationActor: ActorRef,
   sentenceTrackingActor: ActorRef,
-  initNumAssignmentsPerPrompt: Int,
+  numAssignmentsForPrompt: ValidationPrompt => Int,
   initNumHITsToKeepActive: Int,
   _promptSource: Iterator[ValidationPrompt]
 ) extends NumAssignmentsHITManager[ValidationPrompt, List[ValidationAnswer]](
-  helper, initNumAssignmentsPerPrompt, initNumHITsToKeepActive, _promptSource) {
+  helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource) {
 
   import ValidationHITManager._
   import helper._

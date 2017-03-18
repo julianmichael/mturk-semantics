@@ -116,7 +116,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
   // If responding to individual assignments with review, this can work fine; in particular,
   // you can just put all of the HITs up at once. So that's a better way to do it.
   lazy val qvHelper = new HITManager.Helper(qvTaskSpec)
-  lazy val qvHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
+  lazy val qvHITManager = actorSystem.actorOf(Props(NumAssignmentsHITManager.constAssignments(
     qvHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
     initNumHITsToKeepActive = (if(config.isProduction) 30 else 3),
@@ -124,7 +124,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
   lazy val qvActor = actorSystem.actorOf(Props(new TaskManager(qvHelper, qvHITManager)))
 
   lazy val avHelper = new HITManager.Helper(avTaskSpec)
-  lazy val avHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
+  lazy val avHITManager = actorSystem.actorOf(Props(NumAssignmentsHITManager.constAssignments(
     avHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
     initNumHITsToKeepActive = (if(config.isProduction) 30 else 3),
@@ -134,7 +134,7 @@ class ValidationExperiment(implicit config: TaskConfig) {
   // oh, ok, guess we should do longest-answer preferring validation too
 
   lazy val lavHelper = new HITManager.Helper(lavTaskSpec)
-  lazy val lavHITManager = actorSystem.actorOf(Props(new NumAssignmentsHITManager(
+  lazy val lavHITManager = actorSystem.actorOf(Props(NumAssignmentsHITManager.constAssignments(
     lavHelper,
     numAssignmentsPerPrompt = (if(config.isProduction) 2 else 1),
     initNumHITsToKeepActive = (if(config.isProduction) 30 else 3),

@@ -24,6 +24,7 @@ object TextRendering {
   // )
 
   def normalizeToken(token: String) = token match {
+    case "`" => "'"
     case "``" => "\""
     case "''" => "\""
     case "-LRB-" => "("
@@ -52,13 +53,24 @@ object TextRendering {
     spaceFromNextWord: Word => M,
     renderWord: Word => M)(
     implicit M: Monoid[M]): M = {
-    words.foldLeft((M.zero, true)) {
-      case ((acc, skipSpace), word) =>
-        val skipNextSpace = noSpaceAfter.contains(normalizeToken(getToken(word)))
-        if(skipSpace || noSpaceBefore.contains(normalizeToken(getToken(word)))) {
-          (acc |+| renderWord(word), skipNextSpace)
+    words.foldLeft((M.zero, true, false, false)) {
+      case ((acc, skipSpace, insideSingleQuotes, insideDoubleQuotes), word) =>
+        val token = getToken(word)
+        val skipPrevSpace = skipSpace ||
+          (insideSingleQuotes && token.equals("'")) ||
+          (insideDoubleQuotes && (token.equals("''") || token.equals("\"")))
+
+        val skipNextSpace = noSpaceAfter.contains(normalizeToken(token)) ||
+          (!insideSingleQuotes && (token.equals("`") || token.equals("'"))) ||
+          (!insideDoubleQuotes && (token.equals("``") || token.equals("\"")))
+
+        val nowInsideSingleQuotes = (token.equals("'") || token.equals("`")) ^ insideSingleQuotes
+        val nowInsideDoubleQuotes = (token.equals("''") || token.equals("``") || token.equals("\"")) ^ insideDoubleQuotes
+
+        if(skipPrevSpace || noSpaceBefore.contains(normalizeToken(token))) {
+          (acc |+| renderWord(word), skipNextSpace, nowInsideSingleQuotes, nowInsideDoubleQuotes)
         } else {
-          (acc |+| spaceFromNextWord(word) |+| renderWord(word), skipNextSpace)
+          (acc |+| spaceFromNextWord(word) |+| renderWord(word), skipNextSpace, nowInsideSingleQuotes, nowInsideDoubleQuotes)
         }
     }._1
   }

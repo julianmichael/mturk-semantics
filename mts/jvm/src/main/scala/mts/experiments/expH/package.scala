@@ -7,6 +7,7 @@ import java.nio.file.Paths
 import mts.util._
 import mts.util.LowerCaseStrings._
 import mts.core._
+import mts.tasks._
 import mts.datasets.conll._
 import mts.datasets.ptb._
 import mts.datasets.wiki1k._
@@ -84,5 +85,91 @@ trait PackagePlatformExtensions {
     }
 
     (paths.toSet, sentencesNoSpaces.toSet)
+  }
+
+  def makeStats(
+    status: SentenceStatus,
+    genHITTypeId: String,
+    valHITTypeId: String)(
+    implicit config: TaskConfig,
+    inflections: Inflections): SentenceStats = {
+    val allValidations = status.finishedAssignments
+    val id = status.id
+    val sentence = getTokensForId(id)
+    val allValHITIds = allValidations.map(_.hitId).toSet
+    val valHITInfos = allValHITIds.toList
+      .map(hitId => FileManager.getHITInfo[ValidationPrompt, List[ValidationAnswer]](valHITTypeId, hitId).get)
+    val allGenHITIds = valHITInfos.map(_.hit.prompt.sourceHITId).toSet
+    val genHITInfos = allGenHITIds.toList
+      .map(hitId => FileManager.getHITInfo[GenerationPrompt, List[WordedQAPair]](genHITTypeId, hitId).get)
+    val sentenceHITInfo = SentenceHITInfo(sentence, genHITInfos, valHITInfos)
+
+    val earliestTime = util.Try(
+      genHITInfos.flatMap(_.assignments).map(_.acceptTime).min
+    ).toOption.getOrElse(0L)
+    val latestTime = util.Try(
+      (valHITInfos.flatMap(_.assignments).map(_.submitTime) ++
+         valHITInfos.flatMap(_.assignments).map(_.submitTime)).min
+    ).toOption.getOrElse(0L)
+
+    val alignedValidations = sentenceHITInfo.alignValidations
+    val allKeywords = genHITInfos.map(_.hit.prompt.keywords).flatten.toSet
+    val qaPairsEachKeywordPrompt = for {
+      HITInfo(hit, assignments) <- genHITInfos
+      assignment <- assignments
+      keywordIndex <- hit.prompt.keywords.toList
+    } yield assignment.response.filter(_.wordIndex == keywordIndex).size
+    val qaPairsEachKeywordActual = for {
+      keywordIndex <- allKeywords.toList
+    } yield {
+      val qaPairs = for {
+        HITInfo(hit, assignments) <- genHITInfos
+        assignment <- assignments
+        wqa @ WordedQAPair(_, question, answerIndices) <- assignment.response
+        wordsInQuestion = getWordsInQuestion(sentence, question)
+        if (wordsInQuestion union answerIndices).contains(keywordIndex)
+      } yield wqa
+      qaPairs.size
+    }
+    val validationLatencies = for {
+      HITInfo(_, assignments) <- genHITInfos
+      assignment <- assignments
+      validations = for {
+        HITInfo(valHIT, valAssignments) <- valHITInfos
+        if valHIT.prompt.sourceAssignmentId == assignment.assignmentId
+      } yield valAssignments.map(_.submitTime).max
+      completion = validations.max
+    } yield ((completion - assignment.submitTime) / 1000L).toInt  // seconds
+
+    val numQAPairs = genHITInfos.flatMap(_.assignments).flatMap(_.response).size
+    val numValidQAPairs = alignedValidations
+      .map(av => numValidQuestions(av.valAssignments.map(_.response)))
+      .sum
+    val completionTime = valHITInfos.flatMap(_.assignments).map(_.submitTime).max
+    val genCost = alignedValidations.map(_.genCost).sum
+    val valCost = alignedValidations.map(_.valCost).sum
+    val genHITIds = genHITInfos.map(_.hit.hitId).toSet
+    val valHITIds = valHITInfos.map(_.hit.hitId).toSet
+    SentenceStats(
+      id,
+      earliestTime, latestTime,
+      allKeywords.size,
+      numQAPairs,
+      numValidQAPairs,
+      qaPairsEachKeywordPrompt,
+      qaPairsEachKeywordActual,
+      validationLatencies,
+      completionTime,
+      genCost, valCost,
+      genHITIds, valHITIds)
+  }
+
+  def emptyStatus(id: SentenceId) = {
+    val sentence = getTokensForId(id)
+    val allKeywords = sentence.indices
+      .filter(i => !isReallyUninteresting(sentence(i)))
+
+      .toSet
+    SentenceStatus(id, allKeywords, Set.empty[Int], Set.empty[ValidationPrompt], List.empty[Assignment[List[ValidationAnswer]]])
   }
 }
