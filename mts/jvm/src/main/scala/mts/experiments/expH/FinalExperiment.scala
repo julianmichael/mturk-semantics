@@ -113,7 +113,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   def isTest(id: SentenceId) = testIDSet.contains(id)
 
   val genHITType = HITType(
-    title = s"Write questions and answers about words in context",
+    title = s"Write question-answer pairs about the meaning of a sentence",
     description = s"""
       Given a sentence and a set of words from that sentence,
       write questions and answers involving each word.
