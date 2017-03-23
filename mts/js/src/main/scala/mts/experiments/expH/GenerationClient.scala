@@ -430,8 +430,9 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
         <.b(" What color, what day, which country, which person, how much, how long, how often, how large, "),
         """ and many others. If you're having trouble coming up with questions using these words,
         remember that you can use the special word in """, <.b(" either the question or the answer, "),
-        """ and when using it in the question, you can change its form
-        (like turning "decision" into "decide"). """),
+        """ and when using it in the question, you can change its form,
+        like turning "decision" into "decide", or expanding symbols to their English versions
+        (like $ as dollars, or ° as degrees). """),
     <.p("""Finally, it's to your advantage to """,
         <.b("write as many good questions as possible. "),
         """ If you can come up with more questions that you're sure are valid in one HIT,

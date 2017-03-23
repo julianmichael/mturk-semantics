@@ -286,7 +286,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
       <.li("""It isn't about the meaning of the sentence (for example, asking "Which word comes after...")."""),
       <.li("It has grammatical or spelling errors."),
       <.li("It is not obviously and explicitly answered in the sentence."),
-      <.li("""It does not contain any words from the sentence (for example, "What happened?" is usually invalid)."""),
+      <.li("""It does not contain any words from the sentence (for example, "What happened?" is usually invalid). Changing the forms of words (like changing "decision" to "decide") and expanding symbols (like writing $ as dollars or ° as degrees) is fine."""),
       <.li("It is a yes/no or either/or question, or other non-open-ended question.")
     ),
     <.p("""It is okay for a question not to be a full sentence, as long as it makes sense and it is grammatical English.
