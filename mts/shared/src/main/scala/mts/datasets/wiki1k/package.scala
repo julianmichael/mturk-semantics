@@ -11,6 +11,7 @@ package object wiki1k extends PackagePlatformExtensions {
   case class Wiki1kFile(
     path: Wiki1kPath,
     id: String,
+    revId: String,
     title: String,
     paragraphs: Vector[Vector[Wiki1kSentence]])
   case class Wiki1kSentence(path: Wiki1kSentencePath, tokens: Vector[String])
@@ -33,6 +34,7 @@ package object wiki1k extends PackagePlatformExtensions {
   object Parsing {
     def readFile(path: Wiki1kPath, lines: Iterator[String]): Wiki1kFile = {
       val id = lines.next
+      val revId = lines.next
       val title = lines.next
       def makeParagraph(paragraphNum: Int, lines: List[String]) = lines.reverse.zipWithIndex.map {
         case (line, index) => Wiki1kSentence(Wiki1kSentencePath(path, paragraphNum, index), line.split(" ").toVector)
@@ -51,7 +53,7 @@ package object wiki1k extends PackagePlatformExtensions {
           (newP :: mostPs).reverse.toVector
         }
       }
-      Wiki1kFile(path, id, title, paragraphs)
+      Wiki1kFile(path, id, revId, title, paragraphs)
     }
   }
 }

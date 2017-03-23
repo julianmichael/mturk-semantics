@@ -52,8 +52,8 @@ package object expH extends PackagePlatformExtensions {
   def numValidQuestions(responses: List[List[ValidationAnswer]]) =
     math.round(responses.map(_.filter(_.isAnswer).size).mean - 0.01).toInt
 
-  val generationAccuracyWarningThreshold = 0.85
-  val generationAccuracyBlockingThreshold = 0.8
+  val generationAccuracyWarningThreshold = 0.8
+  val generationAccuracyBlockingThreshold = 0.75
   val generationBufferBeforeWarning = 10
   val generationBufferBeforeBlocking = 10
 

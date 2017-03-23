@@ -5,7 +5,7 @@ import mts.util._
 import java.nio.file.{Paths, Path, Files}
 import java.io.{BufferedReader, StringReader}
 
-import scala.util.Try
+import scala.util.{Try, Success, Failure}
 
 import edu.stanford.nlp.process.DocumentPreprocessor;
 
@@ -92,7 +92,7 @@ trait PackagePlatformExtensions {
 
       def urlForPageId(pageId: String) = {
         val urlPageId = pageId.replaceAll(" ", "%20")
-        s"https://en.$domain.org/w/api.php?action=query&prop=extracts&format=json&explaintext=true&exsectionformat=plain&pageids=$urlPageId"
+        s"https://en.$domain.org/w/api.php?action=query&prop=extracts%7Crevisions&format=json&explaintext=true&exsectionformat=plain&pageids=$urlPageId"
       }
 
       def jsonForPageId(pageId: String) = Parse.parse(
@@ -104,6 +104,12 @@ trait PackagePlatformExtensions {
         .fieldOrNull("query").fieldOrNull("pages")
         .objectFields.get.head
 
+      def revIdForJson(json: Json) = json
+        .fieldOrNull("query").fieldOrNull("pages")
+        .fieldOrNull(idForJson(json))
+        .fieldOrNull("revisions")
+        .array.get.head
+        .fieldOrNull("revid")
       def titleForJson(json: Json) = json
         .fieldOrNull("query").fieldOrNull("pages")
         .fieldOrNull(idForJson(json))
@@ -124,6 +130,7 @@ trait PackagePlatformExtensions {
 
         val json = jsonForPageId(pageId)
         val id = idForJson(json)
+        val revId = revIdForJson(json)
         val title = titleForJson(json)
         val content = contentForJson(json)
         val fullParagraphs = content.split("\\n+")
@@ -144,19 +151,20 @@ trait PackagePlatformExtensions {
             sentence.mkString(" ")
           ).mkString("\n")
         ).mkString("\n\n")
-        val fileString = s"$id\n$title\n$contentString"
+        val fileString = s"$id\n$revId\n$title\n$contentString"
         if(Files.exists(fullPath)) {
           System.err.println(s"File already exists: $title ($id)")
         }
         Try(Files.write(fullPath, fileString.getBytes)).toOptionPrinting
       }
 
-      pageIds.take(size).foreach { pageId =>
+      pageIds.iterator.map { pageId =>
         Thread.sleep(100)
-        Try(writeFileFromPageId(pageId)).recover { case e =>
-          println(s"Missing $domain page ID: $pageId")
+        Try(writeFileFromPageId(pageId)) match {
+          case Success(_) => true
+          case Failure(_) => println(s"Missing $domain page ID: $pageId"); false
         }
-      }
+      }.filter(identity).take(size).foreach(_ => ())
     }
   }
 }
