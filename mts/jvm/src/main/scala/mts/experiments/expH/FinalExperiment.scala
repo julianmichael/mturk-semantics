@@ -47,8 +47,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     FileManager.loadDataFile(experimentName, "origQASRLPaths.txt").get.head
   )
 
-
-  val numPTB = 20 // up to 250
+  val numPTB = 150
 
   lazy val (ptbTrain, ptbDev, ptbTest) = {
     val shuffleRand = new util.Random(3257296L)
@@ -68,7 +67,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     ).flatten.map(s => s.path).take(numSentences)
   }
 
-  val numWikipedia = 0
+  val numWikipedia = 2500
 
   lazy val (wikipediaTrain, wikipediaDev, wikipediaTest) = {
     val shuffleRand = new util.Random(238956329L)
@@ -84,7 +83,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     (train, dev, test)
   }
 
-  val numWikinews = 0 // up to 2500
+  val numWikinews = 2500
 
   lazy val (wikinewsTrain, wikinewsDev, wikinewsTest) = {
     val shuffleRand = new util.Random(18613963L)
@@ -121,9 +120,9 @@ class FinalExperiment(implicit config: TaskConfig) {
   def isTest(id: SentenceId) = testIDSet.contains(id)
 
   val genHITType = HITType(
-    title = s"Write question-answer pairs about the meaning of a sentence",
+    title = s"Write question-answer pairs about a sentence's meaning",
     description = s"""
-      Given a sentence and a set of words from that sentence,
+      Given a sentence and some words from that sentence,
       write questions and answers involving each word.
       Write more question-answer pairs for increasing bonuses!
     """.trim,
@@ -141,17 +140,16 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
-    frozenHITTypeId = Some("3PMOF0KIQHA3UMML8148JX2QDCUKB8"))
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
 
   // validation task definition
 
   val valHITType = HITType(
     title = s"Answer simple questions about a sentence",
     description = s"""
-      Given a sentence and several questions,
+      Given a sentence and several questions about it,
       highlight the part of the sentence that answers each question,
-      or indicate whether the question is invalid or redundant.
+      and mark questions that are invalid or redundant.
     """.trim,
     reward = validationReward,
     keywords = "language,english,question answering",
@@ -170,8 +168,7 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
-    frozenHITTypeId = Some("3LVDE0XV5YUGIM5DC6YATHKUJGEPL1"))
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
 
   // hit management --- circularly defined so they can communicate
 
@@ -206,7 +203,7 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   def numGenerationAssignmentsForPrompt(p: GenerationPrompt) = p.id match {
     case PTBSentenceId(_) => 5
-    case WikiSentenceId(_) => 1
+    case id @ WikiSentenceId(_) => if(isTrain(id)) 1 else 3
   }
 
   lazy val genHelper = new HITManager.Helper(genTaskSpec)
