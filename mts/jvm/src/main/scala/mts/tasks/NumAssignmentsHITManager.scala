@@ -71,10 +71,18 @@ class NumAssignmentsHITManager[Prompt, Response](
       val submittedAssignments = service.getAllAssignmentsForHIT(hit.hitId, Array(AssignmentStatus.Submitted))
       // review all submitted assignments (that are not currently in review)
       for(a <- submittedAssignments) {
-        val assignment = taskSpec.makeAssignment(hit.hitId, a)
+        val assignmentTry = Try(taskSpec.makeAssignment(hit.hitId, a))
 
-        if(isInReview(assignment).isEmpty) {
-          reviewAssignment(hit, assignment)
+        assignmentTry match {
+          case Success(assignment) => if(isInReview(assignment).isEmpty) {
+            reviewAssignment(hit, assignment)
+          }
+          case Failure(e) =>
+            System.err.println("Error parsing assignment:")
+            e.printStackTrace
+            service.approveAssignment(
+              a.getAssignmentId,
+              "There was an error in parsing your response to the HIT. Please notify the requester.")
         }
       }
       // if the HIT is "reviewable", and all its assignments are reviewed (i.e., no longer "Submitted"), we can dispose
