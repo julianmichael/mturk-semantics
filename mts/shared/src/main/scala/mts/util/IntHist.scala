@@ -22,7 +22,7 @@ case class IntHist private (map: Map[Int, Int]) {
 
 object IntHist {
   private def addInstance(map: Map[Int, Int], instance: Int) =
-    map.updated(instance, map(instance) + 1)
+    map.updated(instance, map.get(instance).getOrElse(0) + 1)
 
   def empty: IntHist = new IntHist(Map.empty[Int, Int].withDefaultValue(0))
   def apply(entries: Iterator[Int]): IntHist = new IntHist(
