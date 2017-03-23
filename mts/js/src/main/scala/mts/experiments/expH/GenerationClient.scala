@@ -273,6 +273,8 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     )
 
   private[this] val instructions = <.div(
+    <.p(<.b("Note: "), """While there may be few HITs available at any one time,
+        more will be continuously uploaded as they are completed."""),
     <.p(Styles.bolded,
       """You can significantly increase your earnings on this task through bonuses.
          Please read through all of the instructions and examples so you can maximize your rewards."""),
@@ -291,13 +293,10 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.ul(
       <.li("How did the ", <.b("protesters "), "feel? --> jubilant"),
       <.li("Who celebrated? --> the ", <.b("protesters"))),
-    // <.p(<.b("Note: "), """While there may be few HITs available at any one time, more will be continuously uploaded
-    //        as they are completed by workers."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         Your response must be grammatical, fluent English that satisfies the following criteria:"""),
     <.ol(
-      Styles.bolded,
       <.li("""Either the question or the answer contains the special word."""),
       <.li("""The question contains at least one word from the sentence."""),
       <.li("The question is about the meaning of the sentence (and not, for example, the order of the words)."),
@@ -333,7 +332,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
               tooltip = """This question is about the words in the sentence instead of the sentence's meaning,
                            so it is unacceptable."""),
       example(question = "Who enacted the regulations?", answer = "the Environmental Protection Agency (EPA)", isGood = false,
-              tooltip = """This is not answered explicitly in the sentence, so the question is invalid.
+              tooltip = """This is not directly implied by the sentence, so the question is invalid.
                            (In fact, it is also wrong: it is Congress which enacts regulations, not the EPA.)"""),
       example(question = "What is Gina's last name?", answer = "McCarthy", isGood = true,
               tooltip = """This is an acceptable question much like "What does EPA stand for?" """),
@@ -410,39 +409,48 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
           """),
     <.p("""Your work will be evaluated by other workers according to the above criteria. """,
           <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
-          s"""as judged by other workers.
+          s""" as judged by other workers.
           This means the "total potential bonus" indicator is just an upper bound on what you may receive,
           which will depend on the quality of your responses.
           Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
           which will happen shortly after you submit (but will vary depending on worker availability).
-          If your question-answer pairs are judged valid at a rate lower than
-          ${(generationAccuracyThreshold * 100).toInt} percent,
-          you will be sent a warning; if after that your work does not improve,
-          then you will be blocked from this task and future tasks."""),
+          If your question-answer pairs are judged valid at a low rate,
+          you will be notified; if this rate drops too low, you will be blocked."""),
     <.h2("""Tips"""),
     <.p(s"""To make the task go quickly, make your questions as short and simple as possible.
             (There is a ${questionCharLimit}-character limit.)
-            Feel free to use generic words like "someone" and "something" to do so.
-            You will find that a few simple question types will cover many cases.
-            For example, here are just a few possible templates your questions will fall into:"""),
-    <.ul(
-      <.li("Who ", <.i("verb"), "ed something?"),
-      <.li("What was ", <.i("verb"), "ed?"),
-      <.li("What is ", <.i("adjective"), "?"),
-      <.li("What kind of ", <.i("noun"), "?"),
-      <.li("Whose ", <.i("noun"), "?"),
-      // <.li("When/where was <noun>?"),
-      // <.li("How many/much ", <.i("noun"), "?"),
-      <.li("How ", <.i("adjective"), " is ", <.i("noun"), "?"),
-      <.li("Who/What/Where/When/Why/How did someone ", <.i("verb"), "?")
-    ),
-    <.p("""There are many other types of questions as well,
-        which you will come up with as you do the task.
-        But if you're having trouble coming up with questions, consult the templates above for ideas.
-        Remember also that you can change the special word's form for the question (like turning "decision" into "decide")
-        or use it in the """, <.b("answer"), """ instead.
-        """),
+            Feel free to use generic words like "someone" and "something" to do so."""),
+    <.p(""" You should find that the vast majority of your questions begin with """,
+        <.b("Who, what, when, where, why, whose, which, "),
+        " or ",
+        <.b("how"),
+        """. There is also variety of possible """,
+        <.i(" what"), ", ", <.i(" which"), ", and ", <.i(" how "), """ questions you may ask,
+        which start with phrases like """,
+        <.b(" What color, what day, which country, which person, how much, how long, how often, how large, "),
+        """ and many others. If you're having trouble coming up with questions using these words,
+        remember that you can use the special word in """, <.b(" either the question or the answer, "),
+        """ and when using it in the question, you can change its form
+        (like turning "decision" into "decide"). """),
+    <.p("""Finally, it's to your advantage to """,
+        <.b("write as many good questions as possible. "),
+        """ If you can come up with more questions that you're sure are valid in one HIT,
+            it will help keep your accuracy high in case you have trouble writing the required questions in other HITs.
+            In addition, the bonuses increase the more questions you write,
+            so this will help maximize your earnings per question."""),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
     )
 }
+
+// <.ul(
+//   <.li("Who ", <.i("verb"), "ed something?"),
+//   <.li("What was ", <.i("verb"), "ed?"),
+//   <.li("What is ", <.i("adjective"), "?"),
+//   <.li("What kind of ", <.i("noun"), "?"),
+//   <.li("Whose ", <.i("noun"), "?"),
+//   // <.li("When/where was <noun>?"),
+//   // <.li("How many/much ", <.i("noun"), "?"),
+//   <.li("How ", <.i("adjective"), " is ", <.i("noun"), "?"),
+//   <.li("Who/What/Where/When/Why/How did someone ", <.i("verb"), "?")
+// ),

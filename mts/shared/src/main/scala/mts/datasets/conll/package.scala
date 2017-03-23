@@ -67,14 +67,14 @@ package object conll extends PackagePlatformExtensions {
       */
     def readSentence(sentenceNum: Int, lines: List[String]): CoNLLSentence = {
       val lineArrays = lines.map(_.split("\\s+"))
-      val words = lineArrays.map(arr => Word(arr(2).toInt, arr(3), arr(4)))
+      val words = lineArrays.map(arr => Word(arr(2).toInt, arr(4), arr(3)))
       val treeString = lineArrays.map(arr => arr(5)).mkString
       val tree = readSyntaxTree(treeString, words)
       val predicates = for {
         (arr, index) <- lineArrays.zipWithIndex
         predicateLemma = arr(6)
         if !predicateLemma.equals("-")
-        framesetId <- Try(arr(7).toInt).toOption
+        framesetId = arr(7)
         head = words(index)
       } yield Predicate(head, predicateLemma, framesetId)
       val paStructures = for {

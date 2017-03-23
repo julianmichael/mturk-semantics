@@ -38,9 +38,14 @@ trait PackagePlatformExtensions {
     def getNomBank: Try[collection.Map[PTBSentencePath, List[NomBankEntry]]] =
       Try(getNomBankUnsafe)
 
-    def getPredArgStructures(path: PTBSentencePath): Try[List[PredicateArgumentStructure]] = for {
+    def getNomBankPredArgStructures(path: PTBSentencePath): Try[List[PredicateArgumentStructure]] = for {
       sentence <- FileManager.getPTBSentence(path)
       nombank <- getNomBank
     } yield nombank(path).map(getPredicateArgumentStructure(_, sentence.syntaxTree))
+
+    def getNomBankPredArgStructuresReindexed(path: PTBSentencePath): Try[List[PredicateArgumentStructure]] = for {
+      sentence <- FileManager.getPTBSentence(path)
+      nombank <- getNomBank
+    } yield nombank(path).map(getPredicateArgumentStructureReindexed(_, sentence.syntaxTree).get)
   }
 }

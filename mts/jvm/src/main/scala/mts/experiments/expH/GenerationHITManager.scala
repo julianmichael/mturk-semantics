@@ -17,6 +17,27 @@ import com.amazonaws.mturk.requester.HITStatus
 
 import upickle.default._
 
+object GenerationHITManager {
+  def notificationEmailText(curAccuracy: Double) = {
+    val explanatoryText = if(curAccuracy < generationAccuracyBlockingThreshold) {
+      s"""There will be a grace period of several more assignments, and after that, if your accuracy remains below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will be blocked."""
+    } else {
+      s"""You are fine for now, but if this drops below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will be blocked."""
+    }
+    val dropOrRemain = if(curAccuracy < generationAccuracyBlockingThreshold) "remain" else "drop"
+    f"""
+Of your question-answer pairs that have been reviewed so far, ${math.round(curAccuracy * 10000.0) / 100.0}%.2f%% were judged valid or non-redundant by validators. $explanatoryText%s If you are having trouble writing grammatical questions for all of the words you are given, keep a few things in mind:
+
+  1) You can use a special word in either the question or the answer. Sometimes it is hard to form a nice question-answer pair one way, but it is very easy to do it the other way.
+  2) The answer can contain more than just the special word. Especially with proper names that contain several words, you may be able to use that full name as the answer to a few questions, and spread those question-answer pairs over the set of special words you were given.
+
+Also be sure not to write any redundant questions. Before you continue, we suggest that you carefully read over the instructions again to maximize the rewards you can get out of the task.
+
+Finally, it is always possible that you got unlucky. If your responses are high-quality, then your accuracy will likely not $dropOrRemain%s too low. However, because this process is inherently random, we cannot guarantee that no high-quality workers will be blocked.
+""".trim
+  }
+}
+
 class GenerationHITManager(
   helper: HITManager.Helper[GenerationPrompt, List[WordedQAPair]],
   validationHelper: HITManager.Helper[ValidationPrompt, List[ValidationAnswer]],
@@ -28,6 +49,7 @@ class GenerationHITManager(
 ) extends NumAssignmentsHITManager[GenerationPrompt, List[WordedQAPair]](
   helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource) {
 
+  import GenerationHITManager._
   import helper._
   import config._
   import taskSpec.hitTypeId
@@ -110,15 +132,12 @@ class GenerationHITManager(
         case Some(_) => stats // already blocked
         case None => stats.warnedAt match {
           case None => // decide whether to warn
-            if(stats.accuracy < generationAccuracyThreshold &&
+            if(stats.accuracy < generationAccuracyWarningThreshold &&
                  stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
 
               service.notifyWorkers(
-                "Warning: your performance on the question-answer task",
-                s"""Of your question-answer pairs that have been reviewed so far,
-                    fewer than ${math.round(generationAccuracyThreshold * 100).toInt}%
-                    were judged valid by validators. We suggest you stop working on the task;
-                    if you continue and your performance does not improve, you will be blocked.""",
+                "Notification (warning + tips) regarding the question-answer task",
+                notificationEmailText(stats.accuracy),
                 Array(assignment.workerId)
               )
 
@@ -126,12 +145,12 @@ class GenerationHITManager(
 
             } else stats
           case Some(numWhenWarned) => // decide whether to block
-            if(stats.accuracy < generationAccuracyThreshold &&
+            if(stats.accuracy < generationAccuracyBlockingThreshold &&
                  stats.numAssignmentsCompleted - numWhenWarned >= generationBufferBeforeBlocking) {
 
               service.blockWorker(
                 assignment.workerId,
-                f"Accuracy failed to improve above ${stats.accuracy}%.2f after warning.")
+                f"Accuracy failed to remain above ${generationAccuracyBlockingThreshold}%.2f.")
 
               stats.blocked
 

@@ -36,6 +36,26 @@ object ValidationHITManager {
   def loadPrompts = FileManager.loadDataFile(finalExperimentName, validationPromptsFilename)
     .toOption
     .fold(List.empty[ValidationPrompt])(lines => read[List[ValidationPrompt]](lines.mkString))
+
+  def notificationEmailText(curAgreement: Double): String = {
+    val explanatoryText = if(curAgreement < validationAgreementBlockingThreshold) {
+      s"""There will be a grace period of several more assignments, and after that, if your agreement rate remains below ${math.round(validationAgreementBlockingThreshold * 100).toInt}%, you will be blocked."""
+    } else {
+      s"""You are fine right now, but if this drops below ${math.round(validationAgreementBlockingThreshold * 100).toInt}%, you will be blocked."""
+    }
+    val dropOrRemain = if(curAgreement < validationAgreementBlockingThreshold) "remain" else "drop"
+    f"""
+The answer judgments that you have provided so far agree with other annotators ${math.round(curAgreement * 10000.0) / 100.0}%.2f%% of the time. $explanatoryText%s Common reasons for disagreement may include:
+
+  1) Grammaticality. Be sure to mark ungrammatical questions as invalid. Since this is not always clear-cut, try to adjust your standards so that on average, you count about 10%% to 15%% of questions as invalid. (Of course, since it varies by who wrote them, some groups of questions will be worse than others.)
+  2) Other rules for validity. Be sure to mark yes/no or either/or questions as invalid, as well as questions which are explicitly about the words in the sentence rather than about the meaning of the sentence.
+  3) Redundancy. Remember to mark redundant questions. (Though, don't mark them as redundant just because they have the same answer—see the task instructions for details.)
+
+Before continuing to work on the task, we suggest that you carefully review the instructions and make sure you understand the requirements.
+
+Finally, it is always possible that you got unlucky and were compared to low-quality workers who have not been filtered out yet. If your responses are high-quality, then your agreement rates will likely not $dropOrRemain%s too low and you will be fine. However, because this process is inherently random, we cannot guarantee that no high-quality workers will be blocked.
+""".trim
+  }
 }
 
 class ValidationHITManager private (
@@ -129,15 +149,12 @@ class ValidationHITManager private (
       case Some(_) => worker // already blocked
       case None => warnedAt match {
         case None => // decide whether to warn
-          if(agreement < validationAgreementThreshold &&
+          if(agreement < validationAgreementWarningThreshold &&
                numAssignmentsCompleted >= validationBufferBeforeWarning) {
 
             service.notifyWorkers(
-              "Warning: your performance on the question answering task",
-              s"""The answer judgments that you have provided so far agree with other annotators less than
-                  ${math.round(validationAgreementThreshold * 100).toInt}% of the time.
-                  We suggest you stop working on the task;
-                  if you continue and your performance does not improve, you will be blocked.""",
+              "Warning (+ tips) regarding the question answering task",
+              notificationEmailText(agreement),
               Array(workerId)
             )
 
@@ -145,7 +162,7 @@ class ValidationHITManager private (
 
           } else worker
         case Some(numWhenWarned) => // decide whether to block
-          if(agreement < validationAgreementThreshold &&
+          if(agreement < validationAgreementBlockingThreshold &&
                numAssignmentsCompleted - numWhenWarned >= validationBufferBeforeBlocking) {
 
             service.blockWorker(

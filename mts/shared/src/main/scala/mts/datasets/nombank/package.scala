@@ -32,7 +32,7 @@ package object nombank extends PackagePlatformExtensions {
     ptbSentencePath: PTBSentencePath,
     headIndex: Int,
     predLemma: String,
-    framesetId: Int,
+    framesetId: String,
     argSpanIndicators: List[LinkedSpanIndicator])
 
   // expect PTB trees, i.e., with -NONE-s and such
@@ -56,6 +56,28 @@ package object nombank extends PackagePlatformExtensions {
       PredicateArgumentStructure(predicate, argumentSpans)
   }
 
+  def getPredicateArgumentStructureReindexed(entry: NomBankEntry, refTree: SyntaxTree) = {
+    val pas = getPredicateArgumentStructure(entry, refTree)
+    // reindex it
+    case class IndexMappingState(curMapping: List[Option[Int]], nextIndex: Int) {
+      def noToken = this.copy(curMapping = None :: this.curMapping)
+      def yesToken = IndexMappingState(Some(nextIndex) :: curMapping, nextIndex + 1)
+    }
+    val mapping = refTree.words.foldLeft(IndexMappingState(Nil, 0)) {
+      case (acc, word) =>
+        if(word.pos == "-NONE-") acc.noToken
+        else acc.yesToken
+    }.curMapping.reverse.toVector
+    def mapWord(w: Word): Option[Word] = mapping(w.index).map(i => w.copy(index = i))
+    mapWord(pas.pred.head).map { newHeadWord =>
+      import mts.util._
+      val newArgs = pas.arguments.flatMap { arg =>
+        arg.words.flatMap(mapWord).onlyIf(_.nonEmpty).map(ArgumentSpan(arg.label, _))
+      }
+      PredicateArgumentStructure(pas.pred.copy(head = newHeadWord), newArgs)
+    }
+  }
+
   /** Provides parsing of argument spans. */
   object Parsing {
     val PTBString = """wsj/(.*)""".r
@@ -68,7 +90,7 @@ package object nombank extends PackagePlatformExtensions {
     }
 
     def readEntry(line: String) = line.split(" ").toList match {
-      case PTBString(pathSuffix) :: IntMatch(sentenceNum) :: IntMatch(headIndex) :: predLemma :: IntMatch(framesetId) :: argStrings =>
+      case PTBString(pathSuffix) :: IntMatch(sentenceNum) :: IntMatch(headIndex) :: predLemma :: framesetId :: argStrings =>
         val arguments = argStrings.map { argStr =>
           val (spansStr, label) = argStr.span(_ != '-')
           val spanStrings = spansStr.split("[\\*;,]").toList

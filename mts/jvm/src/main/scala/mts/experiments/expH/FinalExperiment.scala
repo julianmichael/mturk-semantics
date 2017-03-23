@@ -27,6 +27,7 @@ import upickle.default._
 import com.amazonaws.mturk.requester.QualificationRequirement
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.requester.Comparator
+import com.amazonaws.mturk.requester.Locale
 
 class FinalExperiment(implicit config: TaskConfig) {
   val experimentName = finalExperimentName
@@ -35,6 +36,11 @@ class FinalExperiment(implicit config: TaskConfig) {
     RequesterService.APPROVAL_RATE_QUALIFICATION_TYPE_ID,
     Comparator.GreaterThanOrEqualTo, 95,
     null, true)
+
+  val locationRequirement = new QualificationRequirement(
+    RequesterService.LOCALE_QUALIFICATION_TYPE_ID,
+    Comparator.EqualTo, 0,
+    new Locale("US"), true)
 
   // saved these manually, see code in package.scala
   lazy val origQASRLPaths = read[Vector[PTBSentencePath]](
@@ -56,7 +62,9 @@ class FinalExperiment(implicit config: TaskConfig) {
     rand.shuffle(
       filePaths.flatMap(p => FileManager.getWiki1kFile(p).get.paragraphs)
     ).filter(p =>
-      !p.exists(sentence => TextRendering.renderSentence(sentence).contains("formula_"))
+      !p.exists(sentence =>
+        sentence.tokens.exists(t =>
+          TextRendering.normalizeToken(t) == "\\"))
     ).flatten.map(s => s.path).take(numSentences)
   }
 
@@ -82,7 +90,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     val shuffleRand = new util.Random(18613963L)
     val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
       FileManager.wiki1kPathsForDomain("wikinews")
-        .sortBy(-_.suffix.toInt) // XXX relies on wikinews IDs being ints... make typeful
+        .sortBy(-_.suffix.toInt) // relies on wikinews IDs being ints... true as of now
         .take(1000)
     ).splitAt(800)
     val (devFiles, testRestFiles) = devTestRestFiles.splitAt(80)
@@ -121,7 +129,9 @@ class FinalExperiment(implicit config: TaskConfig) {
     """.trim,
     reward = generationReward,
     keywords = "language,english,question answering",
-    qualRequirements = Array[QualificationRequirement](approvalRateRequirement))
+    qualRequirements = Array[QualificationRequirement](
+      approvalRateRequirement, locationRequirement
+    ))
 
   lazy val genApiFlow = Flow[GenerationApiRequest].map {
     case GenerationApiRequest(id) =>
@@ -131,7 +141,8 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    frozenHITTypeId = Some("3PMOF0KIQHA3UMML8148JX2QDCUKB8"))
 
   // validation task definition
 
@@ -144,7 +155,9 @@ class FinalExperiment(implicit config: TaskConfig) {
     """.trim,
     reward = validationReward,
     keywords = "language,english,question answering",
-    qualRequirements = Array[QualificationRequirement](approvalRateRequirement))
+    qualRequirements = Array[QualificationRequirement](
+      approvalRateRequirement, locationRequirement
+    ))
 
   lazy val valApiFlow = Flow[ValidationApiRequest].map {
     case ValidationApiRequest(id) =>
@@ -157,7 +170,8 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    frozenHITTypeId = Some("3LVDE0XV5YUGIM5DC6YATHKUJGEPL1"))
 
   // hit management --- circularly defined so they can communicate
 
@@ -340,6 +354,24 @@ class FinalExperiment(implicit config: TaskConfig) {
   def allGenInfos = FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId)
   def allValInfos = FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId)
 
+  def alignedInfos: Map[
+    SentenceId,
+    Map[GenerationPrompt,
+        Map[Assignment[List[WordedQAPair]],
+            List[HITInfo[ValidationPrompt, List[ValidationAnswer]]]]]
+  ] = {
+    val genInfos = allGenInfos
+    val valInfos = allValInfos
+
+    sourceIds.map { id =>
+      id -> sourcePrompts.filter(_.id == id).map { prompt =>
+        prompt -> genInfos.filter(_.hit.prompt == prompt).flatMap(_.assignments).map { genAssignment =>
+          genAssignment -> valInfos.filter(_.hit.prompt.sourceAssignmentId == genAssignment.assignmentId)
+        }.toMap
+      }.toMap
+    }.toMap
+  }
+
   def allSentenceStats: Map[SentenceId, SentenceStats] = {
     val genInfosById = allGenInfos.groupBy(_.hit.prompt.id)
     val valInfosById = allValInfos.groupBy(_.hit.prompt.genPrompt.id)
@@ -487,4 +519,141 @@ class FinalExperiment(implicit config: TaskConfig) {
   } yield (sentence, TextRendering.renderSentence(sentence), keyword,
            TextRendering.normalizeToken(sentence(keyword)),
            assignment.response)
+
+  def orderedPairsCovered(sentence: Vector[String], question: String, answerIndices: Set[Int]) = {
+    val pairs = for {
+      qi <- getWordsInQuestion(sentence, question)
+      ai <- answerIndices
+    } yield (math.min(qi, ai), math.max(qi, ai))
+    pairs.toSet
+  }
+
+  def sampleQAPairs(id: SentenceId, n: Int = 1) = {
+    val promptToAlignments = alignedInfos(id)
+    val sentence = getTokensForId(id)
+    val qas = promptToAlignments.values.flatMap { alignment =>
+      // sample n assignments
+      val sample = util.Random.shuffle(alignment.keys.toVector).take(n)
+      for {
+        genAssignment <- sample
+        valResponses = alignment(genAssignment).flatMap(_.assignments).map(_.response)
+        (wqa, index) <- genAssignment.response.zipWithIndex
+        qResponses = valResponses.map(_(index))
+        if qResponses.forall(!_.isInvalid)
+        allValIndices = qResponses.flatMap(_.getAnswer).map(_.indices).foldLeft(Set.empty[Int])(_ union _)
+      } yield WordedQAPair(wqa.wordIndex, wqa.question, allValIndices ++ wqa.answer)
+    }
+    qas
+  }
+
+  case class PairCoverage(
+    id: SentenceId,
+    pairs: Set[(Int, Int)]) {
+    def sentence = getTokensForId(id)
+    def numCovered = pairs.size
+    def numPossible = math.pow(sentence.size, 2).toInt
+  }
+  def nSamplePairCoverage(n: Int): Map[SentenceId, PairCoverage] = alignedInfos.map {
+    case (id, promptToAlignments) =>
+      val sentence = getTokensForId(id)
+      val wqas = sampleQAPairs(id, n)
+      val pairs = wqas.map {
+        case WordedQAPair(_, question, answer) => orderedPairsCovered(sentence, question, answer)
+      }.foldLeft(Set.empty[(Int, Int)])(_ union _)
+      id -> PairCoverage(id, pairs)
+  }.toMap
+
+  def coverageCountsBySentence = {
+    val coverages = (1 to 5).map(nSamplePairCoverage).toList
+    sourceIds.map { id =>
+      id -> coverages.map(_(id)).map(_.numCovered)
+    }.toMap
+  }
+
+  def avgCoveragePercentages(n: Int = 20) = {
+    coverageCountsBySentence.values.toVector
+      .sortBy(_.last)
+      .take(n)
+      .map(counts => counts.map(_ * 100.0 / counts.last))
+      .toList.transpose.map(_.mean)
+  }
+
+  def avgQAsPerKeywordByWorker = allGenInfos.flatMap(_.assignments).groupBy(_.workerId).map {
+    case (worker, as) => worker -> {
+      val nums = as.flatMap(_.response).groupBy(_.wordIndex).map(_._2.size).toList
+      (nums.mean, nums.size)
+    }
+  }
+
+  def alignToPAS(words: Vector[String], qas: List[WordedQAPair], paStructures: List[PredicateArgumentStructure]) = {
+    case class PredArg(pred: Predicate, arg: ArgumentSpan)
+    import mts.analysis
+    val predArgs = paStructures
+      .flatMap(pas => pas.arguments.map(PredArg(pas.pred, _)))
+      .filterNot(pa => analysis.labelIsIrrelevant(pa.arg.label))
+      .filterNot(pa => analysis.copulas.contains(pa.pred.head.token.toLowerCase))
+      .filterNot(pa => pa.arg.words.contains(pa.pred.head))
+    val alignedPAs = qas.map {
+      case WordedQAPair(_, question, answer) =>
+        val qWords = getWordsInQuestion(words, question)
+        def alignment(predSide: Set[Int], argSide: Set[Int]) = predArgs
+          .filter(pa => predSide.contains(pa.pred.head.index))
+          .map(pa => pa -> argSide.intersect(pa.arg.words.map(_.index).toSet).size.toDouble / argSide.union(pa.arg.words.map(_.index).toSet).size)
+          .filter(_._2 > 0)
+          .sortBy(-_._2)
+          .headOption
+        val bestAlignment = List(
+          alignment(qWords, answer),
+          alignment(answer, qWords)
+        ).flatten.sortBy(-_._2).map(_._1).headOption
+        bestAlignment
+    }
+    // collapse QAs redundantly aligned... TODO: try without collapsing
+    val pasCovered = alignedPAs.flatten.toSet
+    val numPredictions = alignedPAs.filter(_ == None).size + pasCovered.size
+
+    val missedDeps = predArgs.filterNot(pasCovered).mkString("\n")
+    println(s"Missed deps:\n$missedDeps")
+
+    PrecisionRecall(
+      numPredicted = numPredictions,
+      numGold = predArgs.size,
+      numCorrect = pasCovered.size,
+      numCovered = pasCovered.size
+    )
+  }
+
+  def propBankPR(path: PTBSentencePath, qas: List[WordedQAPair]): PrecisionRecall = {
+    import mts.datasets.propbank._
+    val pbPath = ptbToPropBankSentencePath(path)
+    pbPath
+      .flatMap((p => FileManager.getPropBankSentence(p)) andThen (_.toOption))
+      .fold(PrecisionRecall(qas.size, 0, 0, 0)) { pbSentence =>
+      val paStructures = pbSentence.predicateArgumentStructures
+      alignToPAS(getTokensForId(PTBSentenceId(path)), qas, paStructures)
+    }
+  }
+
+  def allPropBankPRs(n: Int = 1) = alignedInfos.collect {
+    case (id @ PTBSentenceId(path), promptToAlignments) =>
+      val sentence = getTokensForId(id)
+      val qas = sampleQAPairs(id, n)
+      propBankPR(path, qas.toList)
+  }.toList
+
+  def nomBankPR(path: PTBSentencePath, qas: List[WordedQAPair]): PrecisionRecall = {
+    import mts.datasets.nombank._
+    FileManager.getNomBankPredArgStructuresReindexed(path).toOption
+      .fold(PrecisionRecall(qas.size, 0, 0, 0)) { paStructures =>
+      alignToPAS(getTokensForId(PTBSentenceId(path)), qas, paStructures)
+    }
+  }
+
+  def allNomBankPRs(n: Int = 1) = alignedInfos.collect {
+    case (id @ PTBSentenceId(path), promptToAlignments) =>
+      val sentence = getTokensForId(id)
+      val qas = sampleQAPairs(id, n)
+      nomBankPR(path, qas.toList)
+  }.toList
+
 }

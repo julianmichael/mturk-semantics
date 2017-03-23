@@ -58,9 +58,88 @@ trait PackagePlatformExtensions {
       getWiki1kFile(wiki1kPath).get.paragraphs.iterator.flatten.map(_.path)
     }
 
-    // "Wiki1000/wiki1000.txt" ; "wikipedia"
-    // "wikinews.txt" ; "wikinews"
-    def createWiki1kDataset(sourceFilePath: String, domain: String) = {
+    def wikipediaTitles = {
+      val pageBeginRegex = """^###doc id="(.*)" url="(.*)" title="(.*)".*$""".r
+      val wiki1kFullPath = FileManager.getResourcePath.resolve(wiki1kDatasetPath)
+      val sourceFilePath = wiki1kFullPath.resolve("Wiki1000/wiki1000.txt")
+
+      import scala.collection.JavaConverters._
+      Files.lines(sourceFilePath).iterator.asScala.collect {
+        case pageBeginRegex(id, url, title) => title
+      }.toList
+    }
+
+    def createWikipediaDataset(titles: List[String]) = {
+      import argonaut._
+      import Argonaut._
+
+      def urlForTitle(searchTitle: String) = {
+        val urlTitle = searchTitle.replaceAll(" ", "%20")
+        s"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&format=json&explaintext=true&exsectionformat=plain&titles=$urlTitle"
+      }
+
+      def jsonForTitle(title: String) = Parse.parse(io.Source.fromURL(urlForTitle(title)).mkString).right.get
+
+      def idForJson(json: Json) = json
+        .fieldOrNull("query").fieldOrNull("pages")
+        .objectFields.get.head
+      def titleForJson(json: Json) = json
+        .fieldOrNull("query").fieldOrNull("pages")
+        .fieldOrNull(idForJson(json))
+        .fieldOrNull("title")
+        .string.get
+
+      def contentForJson(json: Json) = json
+        .fieldOrNull("query").fieldOrNull("pages")
+        .fieldOrNull(idForJson(json))
+        .fieldOrNull("extract")
+        .string.get
+
+      def writeFileFromTitle(searchTitle: String) = {
+        val wiki1kFullPath = FileManager.getResourcePath.resolve(wiki1kDatasetPath)
+        val wikipediaDomainPath = wiki1kFullPath.resolve("wikipedia")
+        if(!Files.exists(wikipediaDomainPath)) {
+          Files.createDirectories(wikipediaDomainPath)
+        }
+
+        val json = jsonForTitle(searchTitle)
+        val id = idForJson(json)
+        val title = titleForJson(json)
+        val content = contentForJson(json)
+        val fullParagraphs = content.split("\\n+")
+        import scala.collection.JavaConverters._
+        val paragraphs = fullParagraphs.iterator
+          .takeWhile(line =>
+          !(line.trim.equals("See also") || line.trim.equals("References"))
+        ).map { pLine =>
+          new DocumentPreprocessor(
+            new BufferedReader(new StringReader(pLine))
+          ).iterator.asScala.map { tokenListJava =>
+            tokenListJava.iterator.asScala.map(_.word).toVector: Vector[String]
+          }.toVector
+        }.filter(_.size > 1).toVector
+        // ^^ remove paragraphs with 1 or fewer lines. gets rid of titles, lists, etc
+        val fullPath = wiki1kFullPath.resolve(Wiki1kPath("wikipedia", id).get)
+        val contentString = paragraphs.map(sentences =>
+          sentences.map(sentence =>
+            sentence.mkString(" ")
+          ).mkString("\n")
+        ).mkString("\n\n")
+        val fileString = s"$id\n$title\n$contentString"
+        if(Files.exists(fullPath)) {
+          System.err.println(s"File already exists: $title ($id)")
+        }
+        Try(Files.write(fullPath, fileString.getBytes)).toOptionPrinting
+      }
+
+      titles.foreach { t => Thread.sleep(500); writeFileFromTitle(t) }
+    }
+
+    // slightly weird code because it was originally domain-agnostic before we did mediawiki api queries
+    // for wikipedia instead.
+    def createWikinewsDataset = {
+      val domain = "wikinews"
+      val sourceFilePath = "wikinews.txt"
       // make wikipedia directory
       val wiki1kFullPath = FileManager.getResourcePath.resolve(wiki1kDatasetPath)
       val wikipediaDomainPath = wiki1kFullPath.resolve(domain)
@@ -68,7 +147,7 @@ trait PackagePlatformExtensions {
         Files.createDirectories(wikipediaDomainPath)
       }
       val filePath = wiki1kFullPath.resolve(sourceFilePath)
-      case class FileProps(id: String, url: String, title: String)
+      case class FileProps(id: String, title: String)
       val pageBeginRegex = """^###doc id="(.*)" url="(.*)" title="(.*)".*$""".r
       var curProps: FileProps = null
       var curLines: List[String] = Nil
@@ -83,7 +162,7 @@ trait PackagePlatformExtensions {
 
       def tryWriteFile = {
         if(!curLines.isEmpty) {
-          val FileProps(id, url, title) = curProps
+          val FileProps(id, title) = curProps
           val paragraphs = curLines.iterator.map { pLine =>
             // NEW: sentences printed as non-tokenized strings. need to change reader code to re-tokenize then
             // val allTokenListJ = tokenizerFactory.getTokenizer(new StringReader(pLine), "untokenizable=firstKeep").tokenize
@@ -115,7 +194,7 @@ trait PackagePlatformExtensions {
               sentence.mkString(" ")
             ).mkString("\n")
           ).mkString("\n\n")
-          val fileString = s"$id\n$url\n$title\n" + contentString
+          val fileString = s"$id\n$title\n" + contentString
           if(Files.exists(fullPath)) {
             System.err.println(s"File already exists: $curProps")
           }
@@ -128,7 +207,7 @@ trait PackagePlatformExtensions {
           case "" => tryWriteFile
           case pageBeginRegex(id, url, title) =>
             tryWriteFile
-            curProps = FileProps(id, url, title)
+            curProps = FileProps(id, title)
           case paragraph =>
             curLines = line :: curLines
         }

@@ -35,6 +35,7 @@ lazy val mts = crossProject.settings(
     "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
     "com.jsuereth" % "scala-arm_2.11" % "2.0-RC1",
     "com.softwaremill.macmemo" %% "macros" % "0.4-SNAPSHOT",
+    "io.argonaut" %% "argonaut" % "6.2-SNAPSHOT" changing(),
     // java deps:
     "log4j" % "log4j" % "1.2.17",
     "net.sf.trove4j" % "trove4j" % "3.0.1",

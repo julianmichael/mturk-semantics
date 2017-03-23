@@ -352,15 +352,15 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                         my decision to disclose these materials to the public." """)),
     <.p("""Here are some more examples:"""),
     <.ul(
-      example(question = "Who decided to disclose something?", answer = "I", isGood = true,
-              tooltip = """To deal with pronouns like "I", you should choose answers from the perspective of the speaker."""),
+      example(question = "Who decided to disclose something?", answer = "she", isGood = true,
+              tooltip = """The answer "I" would also be acceptable here, since it also refers to the correct person. In cases like this, just choose the one that feels more natural to you."""),
       example(question = "What is someone responsible for?", answer = "my decision to disclose these materials to the public", isGood = true,
               tooltip = """If shorter and longer answers both suffice, favor the longer one.
                            Provide this answer instead of just "my decision"."""),
       example(question = "Who made the decision?",
               answer = """<Redundant with "Who decided to disclose something?">""", isGood = false,
               tooltip = """The question has the same meaning as asking who "decided" to do it,
-                           as in the first question---and the answer, "I", is the same,
+                           as in the first question---and the answer is the same,
                            so this question is redundant."""),
       example(question = "What did someone take?",
               answer = "responsibility for my decision to disclose these materials to the public",
@@ -381,14 +381,14 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
               (If more than two questions are mutually redundant, answer one of them and mark the others as redundant with that one.)""")
     ),
     <.h2("Conditions and payment"),
-    <.p(s"""Your judgments will be cross-checked with other workers.
-        If your agreement with other annotators drops below
-        ${(validationAgreementThreshold * 100).toInt} percent,
-        you will be warned, and then you will be blocked from this task and future tasks
-        if you continue without improving.
-        If we find you spamming, your work will be rejected and you will be blocked without warning.
+    <.p(s"""You will be paid a bonus of ${dollarsToCents(validationBonusPerQuestion)}c
+        for every question beyond $validationBonusThreshold.
+        Your judgments will be cross-checked with other workers.
+        If your agreement with other annotators is low, you will be sent a notification.
+        If it drops too low, you will be blocked from this task.
+        If we find you spamming, you will be blocked without warning.
         Otherwise, your work will be approved and the bonus will be paid within an hour."""),
     <.p("""If you have any questions, concerns, or points of confusion,
-        please share them in the "Feedback" field so we may improve the task.""")
+        please share them in the "Feedback" field.""")
   )
 }

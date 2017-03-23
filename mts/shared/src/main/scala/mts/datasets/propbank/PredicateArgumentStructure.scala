@@ -25,7 +25,7 @@ case class PredicateArgumentStructure(
 case class Predicate(
   head: Word,
   predicateLemma: String,
-  framesetId: Int)
+  framesetId: String)
 
 /** Represents an argument span in a predicate--argument structure.
   *

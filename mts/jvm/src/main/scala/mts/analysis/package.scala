@@ -4,6 +4,14 @@ import mts.util._
 import mts.datasets.conll._
 
 package object analysis {
+  // the pred itself, discourse markers, negations, and auxiliaries we don't care about
+  def labelIsIrrelevant(l: String) = {
+    l == "V" || l.contains("DIS") || l.contains("NEG") || l.contains("MOD") ||
+      l.contains("C-") || l.contains("R-") ||
+      l == "rel"// || l == "Support"
+  }
+  val copulas = Set("be", "am", "are", "is", "was", "were", "have", "has", "had")
+
   case class QuestionAnswerPair(question: String, answer: Set[Int])
 
   case class AlignedQuestionAnswerPair(
@@ -20,11 +28,12 @@ package object analysis {
     numPredicted: Double,
     numGold: Double,
     numCorrect: Double,
-    numCovered: Double
-  ) {
+    numCovered: Double) {
     val precision = numCorrect / numPredicted
     val recall = numCovered / numGold
     val f1 = 2 * precision * recall / (precision + recall)
+
+    def statString = f"F1: $f1%.3f\tPrecision: $precision%.3f\tRecall: $recall%.3f"
 
     def aggregate(other: PrecisionRecall) = PrecisionRecall(
       numPredicted + other.numPredicted,
@@ -32,10 +41,11 @@ package object analysis {
       numCorrect + other.numCorrect,
       numCovered + other.numCovered)
   }
+  object PrecisionRecall {
+    val zero = PrecisionRecall(0, 0, 0, 0)
+  }
 
-
-  def statString(pr: PrecisionRecall) =
-    f"F1: ${pr.f1}%.3f\tPrecision: ${pr.precision}%.3f\tRecall: ${pr.recall}%.3f"
+  def statString(pr: PrecisionRecall) = pr.statString
 
   def histogramString(hist: Scorer[Int, Int]): String = {
     val vec = (0 to hist.keyIterator.max).map(hist.get).toVector

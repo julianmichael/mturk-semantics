@@ -43,21 +43,23 @@ trait PackagePlatformExtensions {
 
   /** (non-normalized as well as normalized PTB tokens.) */
   val punctuation = Set[String](
-    ".", ",", "!", "?", ";", ":", "''", "\"", "'",
-    "`", "``", "$", "#", "-", "--",
-    "%", "-", "+",
+    ".", ",", "!", "?", ";", ":",
+    "''", "\"", "'", "`", "``",
+    "$", "#", "--", "-", "–", "—", "%", // PTB dashes, hyphens, en and em dashes
+    "-", "+", "<", ">", "^", "@", "|", "&",
+    "/.", "/?", "/", "\\",
     ")", "]", "}",
     "(", "[", "{",
-    "/.", "/?", "/",
     "-RRB-", "-RCB-", "-RSB-",
     "-LRB-", "-LCB-", "-LSB-")
 
   val contractions = Set("n't", "'s", "'re", "'ve", "'ll", "na", "'m", "'d")
 
-  val questionWords = Set("who", "what", "when", "where", "why", "how", "much", "many")
+  val questionWords = Set("who", "what", "when", "where", "why", "how",
+                          "whose", "which", "much", "many")
 
-  // TODO remove pronouns from this list?
   // NOTE: can get java code with pronouns from HITL stuff
+
   lazy val uninterestingTokens = stopwords ++ punctuation ++ contractions
   lazy val reallyUninterestingTokens = conservativeStopwords ++ punctuation ++ contractions ++ questionWords
 

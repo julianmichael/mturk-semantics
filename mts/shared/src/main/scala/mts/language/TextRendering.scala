@@ -10,7 +10,8 @@ object TextRendering {
     "%", "-", "+",
     "-RRB-", "-RCB-", "-RSB-",
     ")", "]", "}",
-    "/.", "/?"
+    "/.", "/?",
+    "°"
   )
 
   val noSpaceAfter = Set(
@@ -53,19 +54,28 @@ object TextRendering {
     spaceFromNextWord: Word => M,
     renderWord: Word => M)(
     implicit M: Monoid[M]): M = {
+    val hasSingleQuoteOnly = words.map(getToken).filter(t => t == "'" || t == "`").size == 1
     words.foldLeft((M.zero, true, false, false)) {
       case ((acc, skipSpace, insideSingleQuotes, insideDoubleQuotes), word) =>
         val token = getToken(word)
-        val skipPrevSpace = skipSpace ||
-          (insideSingleQuotes && token.equals("'")) ||
-          (insideDoubleQuotes && (token.equals("''") || token.equals("\"")))
 
-        val skipNextSpace = noSpaceAfter.contains(normalizeToken(token)) ||
-          (!insideSingleQuotes && (token.equals("`") || token.equals("'"))) ||
-          (!insideDoubleQuotes && (token.equals("``") || token.equals("\"")))
-
-        val nowInsideSingleQuotes = (token.equals("'") || token.equals("`")) ^ insideSingleQuotes
-        val nowInsideDoubleQuotes = (token.equals("''") || token.equals("``") || token.equals("\"")) ^ insideDoubleQuotes
+        val (skipPrevSpace, skipNextSpace, nowInsideSingleQuotes, nowInsideDoubleQuotes) =
+          if(hasSingleQuoteOnly && token == "'") (
+            true, false, false, insideDoubleQuotes
+          ) else (
+            // skip prev space
+            skipSpace ||
+              (insideSingleQuotes && token.equals("'")) ||
+              (insideDoubleQuotes && (token.equals("''") || token.equals("\""))),
+            // skip next space
+            noSpaceAfter.contains(normalizeToken(token)) ||
+              (!insideSingleQuotes && (token.equals("`") || token.equals("'"))) ||
+              (!insideDoubleQuotes && (token.equals("``") || token.equals("\""))),
+            // now inside single
+            (token.equals("'") || token.equals("`")) ^ insideSingleQuotes,
+            // now inside double
+            (token.equals("''") || token.equals("``") || token.equals("\"")) ^ insideDoubleQuotes
+          )
 
         if(skipPrevSpace || noSpaceBefore.contains(normalizeToken(token))) {
           (acc |+| renderWord(word), skipNextSpace, nowInsideSingleQuotes, nowInsideDoubleQuotes)

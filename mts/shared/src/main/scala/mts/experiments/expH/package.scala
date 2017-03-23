@@ -36,7 +36,7 @@ package object expH extends PackagePlatformExtensions {
   val finalExperimentName = "h_final"
 
   val generationReward = 0.20
-  val bonusIncrement = 0.02
+  val bonusIncrement = 0.03
   def bonusFor(i: Int): Double = bonusIncrement * i + 0.03
   def generationBonus(nKeywords: Int, nValidQAs: Int) =
     math.max(0.0, (1 to (nValidQAs - nKeywords)).map(bonusFor).sum)
@@ -52,13 +52,15 @@ package object expH extends PackagePlatformExtensions {
   def numValidQuestions(responses: List[List[ValidationAnswer]]) =
     math.round(responses.map(_.filter(_.isAnswer).size).mean - 0.01).toInt
 
-  val generationAccuracyThreshold = 0.8
-  val generationBufferBeforeWarning = 20
+  val generationAccuracyWarningThreshold = 0.85
+  val generationAccuracyBlockingThreshold = 0.8
+  val generationBufferBeforeWarning = 10
   val generationBufferBeforeBlocking = 10
 
-  val validationAgreementThreshold = 0.75
-  val validationBufferBeforeWarning = 30
-  val validationBufferBeforeBlocking = 15
+  val validationAgreementWarningThreshold = 0.75
+  val validationAgreementBlockingThreshold = 0.70
+  val validationBufferBeforeWarning = 10
+  val validationBufferBeforeBlocking = 10
 
   case class GenerationPrompt(
     id: SentenceId,
