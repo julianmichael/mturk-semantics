@@ -102,8 +102,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
             (charsLeft <= 10 && isFocused) ?= s"$charsLeft"
           ),
           <.input(
-            // ((index - 1) == numQAsInGroup || isNotAssigned) ?= (^.disabled := true),
-            // ((index - 1) == numQAsInGroup || isNotAssigned) ?= (^.backgroundColor := "#EEEEEE"),
+            isNotAssigned ?= (^.disabled := true),
             ^.float := "left",
             ^.`type` := "text",
             ^.placeholder := (
@@ -296,7 +295,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.p(<.b("""Warning: """), """The text shown to you is drawn randomly
            from Wikipedia and news articles from the past few years.
            We have no control over the contents of the text, which may discuss sensitive subjects,
-           including crime and death, or contain offensive ideas. Please use appropriate discretion."""),
+           including crime and death, or occasionally contain offensive ideas. Please use appropriate discretion."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         Your response must be grammatical, fluent English that satisfies the following criteria:"""),

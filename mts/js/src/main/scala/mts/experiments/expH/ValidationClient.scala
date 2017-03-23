@@ -70,7 +70,9 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     def handleKey(e: ReactKeyboardEvent): Callback = {
       def next = scope.modState(State.curQuestion.modify(i => (i + 1) % questions.size))
       def prev = scope.modState(State.curQuestion.modify(i => (i + questions.size - 1) % questions.size))
-      CallbackOption.keyCodeSwitch(e) {
+      if(isNotAssigned) {
+        Callback.empty
+      } else CallbackOption.keyCodeSwitch(e) {
         case KeyCode.Down => next
         case KeyCode.Up => prev
       } >> e.preventDefaultCB
@@ -274,7 +276,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.p(<.b("""Warning: """), """The text shown to you is drawn randomly
            from Wikipedia and news articles from the past few years.
            We have no control over the contents of the text, which may discuss sensitive subjects,
-           including crime and death, or contain offensive ideas. Please use appropriate discretion."""),
+           including crime and death, or occasionally contain offensive ideas. Please use appropriate discretion."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         For each question, you will either """,

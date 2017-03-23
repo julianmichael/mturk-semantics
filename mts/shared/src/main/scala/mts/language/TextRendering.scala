@@ -15,7 +15,9 @@ object TextRendering {
   )
 
   val noSpaceAfter = Set(
-    "``", "$", "#", "-",
+    "``",
+    "$", "£", "€",
+    "#", "-",
     "-LRB-", "-LCB-", "-LSB-",
     "(", "[", "{"
   )
