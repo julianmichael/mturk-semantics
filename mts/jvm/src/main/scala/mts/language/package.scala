@@ -45,7 +45,7 @@ trait PackagePlatformExtensions {
   val punctuation = Set[String](
     ".", ",", "!", "?", ";", ":", "...",
     "''", "\"", "'", "`", "``",
-    "$", "#", "--", "-", "–", "—", "%", // PTB dashes, hyphens, en and em dashes
+    "#", "--", "-", "–", "—", "%", // PTB dashes, hyphens, en and em dashes
     "−", // minus sign (unicode hex 2122)
     "+", "±", "<", "≤", "≥", ">", "=",
     "^", "@", "|", "&",

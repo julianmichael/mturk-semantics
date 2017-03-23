@@ -50,7 +50,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val numPTB = 150
 
   lazy val (ptbTrain, ptbDev, ptbTest) = {
-    val shuffleRand = new util.Random(3257296L)
+    val shuffleRand = new util.Random(832592735L)
     val (train, devTestRest) = shuffleRand.shuffle(origQASRLPaths).splitAt(numPTB * 4 / 5)
     val (dev, testRest) = devTestRest.splitAt(numPTB / 10)
     val test = testRest.take(numPTB / 10)
@@ -70,7 +70,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val numWikipedia = 2500
 
   lazy val (wikipediaTrain, wikipediaDev, wikipediaTest) = {
-    val shuffleRand = new util.Random(238956329L)
+    val shuffleRand = new util.Random(1230976L)
     val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
       FileManager.wiki1kPathsForDomain("wikipedia")
     ).splitAt(640)
@@ -86,7 +86,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val numWikinews = 2500
 
   lazy val (wikinewsTrain, wikinewsDev, wikinewsTest) = {
-    val shuffleRand = new util.Random(18613963L)
+    val shuffleRand = new util.Random(1246902L)
     val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
       FileManager.wiki1kPathsForDomain("wikinews")
         .sortBy(-_.suffix.toInt) // relies on wikinews IDs being ints... true as of now

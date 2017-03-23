@@ -271,6 +271,10 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.p(s"""You will be paid in accordance with the number of questions shown to you, with a bonus of
             ${dollarsToCents(validationBonusPerQuestion)}c per question after the first four
             that will be paid when the assignment is approved."""),
+    <.p(<.b("""Warning: """), """The text shown to you is drawn randomly
+           from Wikipedia and news articles from the past few years.
+           We have no control over the contents of the text, which may discuss sensitive subjects,
+           including crime and death, or contain offensive ideas. Please use appropriate discretion."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         For each question, you will either """,

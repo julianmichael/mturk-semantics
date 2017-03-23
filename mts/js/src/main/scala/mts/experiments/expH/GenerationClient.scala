@@ -275,10 +275,10 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
   private[this] val instructions = <.div(
     <.p(<.b("Note: "), """While there may be few HITs available at any one time,
         more will be continuously uploaded as they are completed."""),
-    <.p(Styles.bolded,
-      """You can significantly increase your earnings on this task through bonuses.
-         Please read through all of the instructions and examples so you can maximize your rewards."""),
     <.h2("""Task Summary"""),
+    <.p(Styles.bolded,
+        """You can significantly increase your earnings on this task through bonuses.
+         Please read through all of the instructions and examples so you can maximize your rewards."""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into lists of questions and answers.
         You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold."),
@@ -293,6 +293,10 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     <.ul(
       <.li("How did the ", <.b("protesters "), "feel? --> jubilant"),
       <.li("Who celebrated? --> the ", <.b("protesters"))),
+    <.p(<.b("""Warning: """), """The text shown to you is drawn randomly
+           from Wikipedia and news articles from the past few years.
+           We have no control over the contents of the text, which may discuss sensitive subjects,
+           including crime and death, or contain offensive ideas. Please use appropriate discretion."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         Your response must be grammatical, fluent English that satisfies the following criteria:"""),
@@ -305,7 +309,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
       <.li("""None of your question-answer pairs are redundant with each other,
               even for different special words.""")
     ),
-    <.p("See the examples for further explanation."),
+    <.p("""See the examples for further explanation."""),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
     <.blockquote(<.i(""" In the year since the regulations were enacted,
@@ -337,7 +341,11 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
       example(question = "What is Gina's last name?", answer = "McCarthy", isGood = true,
               tooltip = """This is an acceptable question much like "What does EPA stand for?" """),
       example(question = "Was McCarthy aggressive or lax?", answer = "aggressive", isGood = false,
-              tooltip = """This is an either/or question, which is disallowed.""")
+              tooltip = """This is an either/or question, which is disallowed."""),
+      example(question = "What was enforced?", answer = "them", isGood = true,
+              tooltip = """The answer "the regulations" is also acceptable here. It is okay for the answer
+                           to be non-unique if it is because multiple different phrases
+                           refer to the same thing.""")
     ),
     <.p("Now consider the following sentence, with the special word ", <.b("decision. ")),
     <.blockquote(<.i("""I take full and complete responsibility for my thoughtless """, <.span(Styles.specialWord, """decision"""),
@@ -418,9 +426,9 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
           you will be notified; if this rate drops too low, you will be blocked."""),
     <.h2("""Tips"""),
     <.p(s"""To make the task go quickly, make your questions as short and simple as possible.
-            (There is a ${questionCharLimit}-character limit.)
+            (There is a ${questionCharLimit}-character limit, which will be indicated in red when you approach it.)
             Feel free to use generic words like "someone" and "something" to do so."""),
-    <.p(""" You should find that the vast majority of your questions begin with """,
+    <.p(""" You will find that the vast majority of your questions begin with """,
         <.b("Who, what, when, where, why, whose, which, "),
         " or ",
         <.b("how"),

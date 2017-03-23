@@ -58,59 +58,78 @@ trait PackagePlatformExtensions {
       getWiki1kFile(wiki1kPath).get.paragraphs.iterator.flatten.map(_.path)
     }
 
-    def wikipediaTitles = {
+    def wikipediaIds = {
       val pageBeginRegex = """^###doc id="(.*)" url="(.*)" title="(.*)".*$""".r
       val wiki1kFullPath = FileManager.getResourcePath.resolve(wiki1kDatasetPath)
       val sourceFilePath = wiki1kFullPath.resolve("Wiki1000/wiki1000.txt")
 
       import scala.collection.JavaConverters._
       Files.lines(sourceFilePath).iterator.asScala.collect {
-        case pageBeginRegex(id, url, title) => title
+        case pageBeginRegex(id, url, title) => id
       }.toList
     }
 
-    def createWikipediaDataset(titles: List[String]) = {
+    def wikinewsIds = {
+      val pageBeginRegex = """^###doc id="(.*)" url="(.*)" title="(.*)".*$""".r
+      val wiki1kFullPath = FileManager.getResourcePath.resolve(wiki1kDatasetPath)
+      val sourceFilePath = wiki1kFullPath.resolve("wikinews.txt")
+
+      import scala.collection.JavaConverters._
+      Files.lines(sourceFilePath).iterator.asScala.collect {
+        case pageBeginRegex(id, url, title) => id
+      }.toVector.sortBy(-_.toInt).drop(500).toList
+    }
+
+    // domain: "wikipedia" or "wikinews" --- it is used for the API URL too!
+    // options: list of page IDs
+    def createWikiDataset(
+      domain: String,
+      pageIds: List[String],
+      size: Int
+    ) = {
       import argonaut._
       import Argonaut._
 
-      def urlForTitle(searchTitle: String) = {
-        val urlTitle = searchTitle.replaceAll(" ", "%20")
-        s"https://en.wikipedia.org/w/api.php?action=query&prop=extracts&format=json&explaintext=true&exsectionformat=plain&titles=$urlTitle"
+      def urlForPageId(pageId: String) = {
+        val urlPageId = pageId.replaceAll(" ", "%20")
+        s"https://en.$domain.org/w/api.php?action=query&prop=extracts&format=json&explaintext=true&exsectionformat=plain&pageids=$urlPageId"
       }
 
-      def jsonForTitle(title: String) = Parse.parse(io.Source.fromURL(urlForTitle(title)).mkString).right.get
+      def jsonForPageId(pageId: String) = Parse.parse(
+        io.Source.fromURL(urlForPageId(pageId)).mkString
+      ).right.get
 
+      // kind of superfluous, oh well
       def idForJson(json: Json) = json
         .fieldOrNull("query").fieldOrNull("pages")
         .objectFields.get.head
+
       def titleForJson(json: Json) = json
         .fieldOrNull("query").fieldOrNull("pages")
         .fieldOrNull(idForJson(json))
         .fieldOrNull("title")
         .string.get
-
       def contentForJson(json: Json) = json
         .fieldOrNull("query").fieldOrNull("pages")
         .fieldOrNull(idForJson(json))
         .fieldOrNull("extract")
         .string.get
 
-      def writeFileFromTitle(searchTitle: String) = {
+      def writeFileFromPageId(pageId: String) = {
         val wiki1kFullPath = FileManager.getResourcePath.resolve(wiki1kDatasetPath)
-        val wikipediaDomainPath = wiki1kFullPath.resolve("wikipedia")
-        if(!Files.exists(wikipediaDomainPath)) {
-          Files.createDirectories(wikipediaDomainPath)
+        val domainPath = wiki1kFullPath.resolve(domain)
+        if(!Files.exists(domainPath)) {
+          Files.createDirectories(domainPath)
         }
 
-        val json = jsonForTitle(searchTitle)
+        val json = jsonForPageId(pageId)
         val id = idForJson(json)
         val title = titleForJson(json)
         val content = contentForJson(json)
         val fullParagraphs = content.split("\\n+")
         import scala.collection.JavaConverters._
         val paragraphs = fullParagraphs.iterator
-          .takeWhile(line =>
-          !(line.trim.equals("See also") || line.trim.equals("References"))
+          .takeWhile(line => !Set("See also", "References", "Sources").contains(line.trim)
         ).map { pLine =>
           new DocumentPreprocessor(
             new BufferedReader(new StringReader(pLine))
@@ -119,7 +138,7 @@ trait PackagePlatformExtensions {
           }.toVector
         }.filter(_.size > 1).toVector
         // ^^ remove paragraphs with 1 or fewer lines. gets rid of titles, lists, etc
-        val fullPath = wiki1kFullPath.resolve(Wiki1kPath("wikipedia", id).get)
+        val fullPath = wiki1kFullPath.resolve(Wiki1kPath(domain, id).get)
         val contentString = paragraphs.map(sentences =>
           sentences.map(sentence =>
             sentence.mkString(" ")
@@ -132,84 +151,10 @@ trait PackagePlatformExtensions {
         Try(Files.write(fullPath, fileString.getBytes)).toOptionPrinting
       }
 
-      titles.foreach { t => Thread.sleep(500); writeFileFromTitle(t) }
-    }
-
-    // slightly weird code because it was originally domain-agnostic before we did mediawiki api queries
-    // for wikipedia instead.
-    def createWikinewsDataset = {
-      val domain = "wikinews"
-      val sourceFilePath = "wikinews.txt"
-      // make wikipedia directory
-      val wiki1kFullPath = FileManager.getResourcePath.resolve(wiki1kDatasetPath)
-      val wikipediaDomainPath = wiki1kFullPath.resolve(domain)
-      if(!Files.exists(wikipediaDomainPath)) {
-        Files.createDirectories(wikipediaDomainPath)
-      }
-      val filePath = wiki1kFullPath.resolve(sourceFilePath)
-      case class FileProps(id: String, title: String)
-      val pageBeginRegex = """^###doc id="(.*)" url="(.*)" title="(.*)".*$""".r
-      var curProps: FileProps = null
-      var curLines: List[String] = Nil
-      import scala.collection.JavaConverters._
-
-      // For NEW below. XXX probably not using the NEW style. But it's useful for finding weird things in the data.
-      // import edu.stanford.nlp.ling.CoreLabel
-      // import edu.stanford.nlp.process.PTBTokenizer
-      // import edu.stanford.nlp.process.WordToSentenceProcessor
-      // val tokenizerFactory = PTBTokenizer.factory(false, true)
-      // val sentenceSplitter = new WordToSentenceProcessor[CoreLabel]
-
-      def tryWriteFile = {
-        if(!curLines.isEmpty) {
-          val FileProps(id, title) = curProps
-          val paragraphs = curLines.iterator.map { pLine =>
-            // NEW: sentences printed as non-tokenized strings. need to change reader code to re-tokenize then
-            // val allTokenListJ = tokenizerFactory.getTokenizer(new StringReader(pLine), "untokenizable=firstKeep").tokenize
-            // val sentences = sentenceSplitter.wordsToSentences(allTokenListJ).iterator.asScala
-            //   .map(_.iterator.asScala.toVector)
-            //   .toVector
-            // val rendered = sentences.map(sentence =>
-            //   sentence.map { w =>
-            //     val bf = if(w.originalText.trim.equals(",") || w.originalText.trim.equals(".")) ""
-            //              else w.before
-            //     bf + w.originalText
-            //   }.mkString.trim
-            // ).mkString(" ")
-            // if(!pLine.equals(rendered)) {
-            //   println("Non-equal:\noriginal:\n" + pLine)
-            //   println("New:\n" + rendered)
-            // }
-            // sentences
-            // OLD: tokens split by spaces
-            new DocumentPreprocessor(
-              new BufferedReader(new StringReader(pLine))
-            ).iterator.asScala.map { tokenListJava =>
-              tokenListJava.iterator.asScala.map(_.word).toVector: Vector[String]
-            }.toVector
-          }.toVector.reverse
-          val fullPath = wiki1kFullPath.resolve(Wiki1kPath(domain, id).get)
-          val contentString = paragraphs.map(sentences =>
-            sentences.map(sentence =>
-              sentence.mkString(" ")
-            ).mkString("\n")
-          ).mkString("\n\n")
-          val fileString = s"$id\n$title\n" + contentString
-          if(Files.exists(fullPath)) {
-            System.err.println(s"File already exists: $curProps")
-          }
-          Try(Files.write(fullPath, fileString.getBytes)).toOptionPrinting
-          curLines = Nil
-        }
-      }
-      Files.lines(filePath).iterator.asScala.foreach { line =>
-        line.trim match {
-          case "" => tryWriteFile
-          case pageBeginRegex(id, url, title) =>
-            tryWriteFile
-            curProps = FileProps(id, title)
-          case paragraph =>
-            curLines = line :: curLines
+      pageIds.take(size).foreach { pageId =>
+        Thread.sleep(100)
+        Try(writeFileFromPageId(pageId)).recover { case e =>
+          println(s"Missing $domain page ID: $pageId")
         }
       }
     }
