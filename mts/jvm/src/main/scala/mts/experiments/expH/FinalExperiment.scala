@@ -39,7 +39,7 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   val locationRequirement = new QualificationRequirement(
     RequesterService.LOCALE_QUALIFICATION_TYPE_ID,
-    Comparator.EqualTo, 0,
+    Comparator.EqualTo, null,
     new Locale("US"), true)
 
   // saved these manually, see code in package.scala
