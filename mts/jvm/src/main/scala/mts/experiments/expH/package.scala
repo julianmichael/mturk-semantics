@@ -14,11 +14,6 @@ import mts.datasets.wiki1k._
 import mts.language._
 
 trait PackagePlatformExtensions {
-  // def getSentenceById(id: SentenceId): Vector[String] = id match {
-  //   case CoNLLSentenceId(path) => FileManager.getCoNLLSentence(path).get.words.map(_.token).toVector
-  //     // TODO wiki case when implemented
-  // }
-
   def getTokensForId(id: SentenceId): Vector[String] = id match {
     case PTBSentenceId(path) => getPTBSentenceTokens(
       FileManager.getPTBSentence(path).get
@@ -146,7 +141,9 @@ trait PackagePlatformExtensions {
     val numValidQAPairs = alignedValidations
       .map(av => numValidQuestions(av.valAssignments.map(_.response)))
       .sum
-    val completionTime = valHITInfos.flatMap(_.assignments).map(_.submitTime).max
+    val completionTime = util.Try(
+      valHITInfos.flatMap(_.assignments).map(_.submitTime).max
+    ).toOption.getOrElse(0L)
     val genCost = alignedValidations.map(_.genCost).sum
     val valCost = alignedValidations.map(_.valCost).sum
     val genHITIds = genHITInfos.map(_.hit.hitId).toSet

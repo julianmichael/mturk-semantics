@@ -166,6 +166,8 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleValPrompt = ValidationPrompt(
     sampleGenPrompt, "", "",
     List(WordedQAPair(0, "Who is awesome?", Set(1, 2, 3, 4)),
+         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
+         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
@@ -659,5 +661,23 @@ class FinalExperiment(implicit config: TaskConfig) {
       val qas = sampleQAPairs(id, n)
       nomBankPR(path, qas.toList)
   }.toList
+
+  def workerGenInfos(workerId: String) = for {
+    hi <- allGenInfos
+    assignment <- hi.assignments
+    if assignment.workerId == workerId
+  } yield HITInfo(hi.hit, List(assignment))
+
+  // sorted increasing by number of disagreements
+  def workerValInfos(workerId: String) = {
+    val scored = for {
+      hi <- allValInfos
+      if hi.assignments.exists(_.workerId == workerId)
+      workerAssignment = hi.assignments.find(_.workerId == workerId).get
+      nonWorkerAssignments = hi.assignments.filter(_.workerId != workerId)
+      avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(numAgreed(workerAssignment, _)).mean
+    } yield (HITInfo(hi.hit, workerAssignment :: nonWorkerAssignments), avgNumDisagreed)
+    scored.sortBy(_._2).map(_._1)
+  }
 
 }
