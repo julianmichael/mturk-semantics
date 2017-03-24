@@ -137,10 +137,11 @@ class FinalExperiment(implicit config: TaskConfig) {
       GenerationApiResponse(getTokensForId(id))
   }
 
-  lazy val sampleGenPrompt = GenerationPrompt(PTBSentenceId(origQASRLPaths.head), List(0, 1, 2, 3))
+  lazy val sampleGenPrompt = GenerationPrompt(sourceIds(5), idSplits(sourceIds(5))(0))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    frozenHITTypeId = Some("3X8M0CO8US8JERH7QA0GGQIWAEHPVL"))
 
   // validation task definition
 
@@ -168,13 +169,19 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    frozenHITTypeId = Some("3OR5EJIUG2QY9PC04VUEYEGYR3Q9UL"))
 
   // hit management --- circularly defined so they can communicate
 
   lazy val sourceIds = {
     val idShuffleRand = new util.Random(218469L)
     idShuffleRand.shuffle(trainIds ++ devIds ++ testIds)
+      .filter {
+      case WikiSentenceId(path) =>
+        !path.filePath.suffix.contains("785582") // this is apparently a FRENCH INTERVIEW
+      case _ => true
+    }
   }
 
   lazy val sourcePrompts = sourceIds
@@ -370,8 +377,8 @@ class FinalExperiment(implicit config: TaskConfig) {
   }
 
   def allSentenceStats: Map[SentenceId, SentenceStats] = {
-    val genInfosById = allGenInfos.groupBy(_.hit.prompt.id)
-    val valInfosById = allValInfos.groupBy(_.hit.prompt.genPrompt.id)
+    val genInfosById = allGenInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
+    val valInfosById = allValInfos.groupBy(_.hit.prompt.genPrompt.id).withDefaultValue(Nil)
     sourceIds.map { id =>
       val afterGen = genInfosById(id)
         .map(_.hit.prompt.keywords.toSet)

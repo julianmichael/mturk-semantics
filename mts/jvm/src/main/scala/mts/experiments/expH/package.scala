@@ -138,6 +138,7 @@ trait PackagePlatformExtensions {
         HITInfo(valHIT, valAssignments) <- valHITInfos
         if valHIT.prompt.sourceAssignmentId == assignment.assignmentId
       } yield valAssignments.map(_.submitTime).max
+      if !validations.isEmpty
       completion = validations.max
     } yield ((completion - assignment.submitTime) / 1000L).toInt  // seconds
 

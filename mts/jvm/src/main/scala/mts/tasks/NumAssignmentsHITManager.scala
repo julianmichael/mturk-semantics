@@ -65,7 +65,8 @@ class NumAssignmentsHITManager[Prompt, Response](
 
   final override def reviewHITs: Unit = {
     for {
-      mTurkHIT <- service.searchAllHITs().filter(_.getHITTypeId() == hitTypeId)
+      allMTurkHITs <- Try(service.searchAllHITs()).toOptionPrinting.toList
+      mTurkHIT <- allMTurkHITs.filter(_.getHITTypeId() == hitTypeId)
       hit <- FileManager.getHIT[Prompt](hitTypeId, mTurkHIT.getHITId).toOptionPrinting
     } yield {
       val submittedAssignments = service.getAllAssignmentsForHIT(hit.hitId, Array(AssignmentStatus.Submitted))
