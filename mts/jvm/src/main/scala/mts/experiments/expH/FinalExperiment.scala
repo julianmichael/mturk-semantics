@@ -69,7 +69,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val genAccuracyRequirement = new QualificationRequirement(
     genAccQualTypeId,
     Comparator.GreaterThanOrEqualTo, (math.round(generationAccuracyBlockingThreshold * 100.0).toInt),
-    null, true)
+    null, false)
 
   val valAgrQualTypeName = "Question answering agreement rate"
   val valAgrQualType = config.service.searchQualificationTypes(
@@ -94,7 +94,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val valAgreementRequirement = new QualificationRequirement(
     valAgrQualTypeId,
     Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
-    null, true)
+    null, false)
 
   // saved these manually, see code in package.scala
   lazy val origQASRLPaths = read[Vector[PTBSentencePath]](
@@ -194,8 +194,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleGenPrompt = GenerationPrompt(sourceIds(5), idSplits(sourceIds(5))(0))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt
-    /*, frozenHITTypeId = Some("3X8M0CO8US8JERH7QA0GGQIWAEHPVL")*/)
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
 
   // validation task definition
 
@@ -225,8 +224,7 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt
-    /*, frozenHITTypeId = Some("3OR5EJIUG2QY9PC04VUEYEGYR3Q9UL")*/)
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
 
   // hit management --- circularly defined so they can communicate
 
@@ -417,8 +415,17 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   // convenience functions
 
-  def allGenInfos = FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId)
-  def allValInfos = FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId)
+  val oldGenHITTypeId = "3X8M0CO8US8JERH7QA0GGQIWAEHPVL"
+  val oldValHITTypeId = "3OR5EJIUG2QY9PC04VUEYEGYR3Q9UL"
+
+  def oldGenInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] =
+    FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](oldGenHITTypeId)
+  def oldValInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]] =
+    FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](oldValHITTypeId)
+
+  def allGenInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] =
+    oldGenInfos ++ FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId)
+  def allValInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]] = oldValInfos ++ FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId)
 
   def alignedInfos: Map[
     SentenceId,
@@ -474,10 +481,12 @@ class FinalExperiment(implicit config: TaskConfig) {
   }
 
   // TODO make hierarchical list and use a CSV reader; at least, do that when desire to share data.
-  def makeTSV: String = {
+  def makeTSV(
+    ids: List[SentenceId],
+    genInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]],
+    valInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]]
+  ): String = {
     val sb = new StringBuilder
-    val ids = sourcePrompts.map(_.id).toSet.toList
-    val genInfos = allGenInfos; val valInfos = allValInfos
     import scalaz._
     import Scalaz._
     import scala.language.higherKinds
@@ -488,7 +497,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     val processor = for {
       id <- iter(ids)
       sentence = getTokensForId(id)
-      _ <- append("\t\t\t" + TextRendering.renderSentence(sentence) + "\n")
+      _ <- append("\t\t\t" + sentence.mkString(" ") + "\n")
       (genWorkerId, WordedQAPair(keywordIndex, question, answerIndices), valAnswers, valAnswersString, valFeedback) <- iter {
         val qaPairs = for {
           HITInfo(genHIT, genAssignments) <- genInfos
@@ -520,7 +529,18 @@ class FinalExperiment(implicit config: TaskConfig) {
     processor.run.exec(Nil).reverse.mkString
   }
 
-  def writeTSV = FileManager.saveDataFile(experimentName, "readable.tsv", makeTSV)
+  def writeTSVs(
+    genInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] = allGenInfos,
+    valInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]] = allValInfos
+  ) = {
+    val allIds = genInfos.map(_.hit.prompt.id).toSet.toList
+    val trainIds = allIds.filter(isTrain)
+    val devIds = allIds.filter(isDev)
+    val testIds = allIds.filter(isTest)
+    FileManager.saveDataFile(experimentName, "train.tsv", makeTSV(trainIds, genInfos, valInfos))
+    FileManager.saveDataFile(experimentName, "dev.tsv", makeTSV(devIds, genInfos, valInfos))
+    FileManager.saveDataFile(experimentName, "test.tsv", makeTSV(testIds, genInfos, valInfos))
+  }
 
   lazy val assignmentCosts = allValInfos.map {
     case HITInfo(hit, assignments) =>

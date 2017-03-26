@@ -422,14 +422,17 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
           which will depend on the quality of your responses.
           Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
           which will happen shortly after you submit (but will vary depending on worker availability).
-          The accuracy qualification value for this HIT will be updated to match your current accuracy
+          Your accuracy qualification value for this HIT will be updated to match your current accuracy
           as your questions are validated.
           If this number drops below ${(100 * generationAccuracyBlockingThreshold).toInt},
           you will no longer qualify for the task.
           There is a grace period of several HITs before your score is allowed to drop too low;
           if your score is exactly ${(100 * generationAccuracyBlockingThreshold).toInt}
           it may be that your real accuracy is lower but you are in the grace period.
-          The first time your score gets near or below the threshold, you will be sent a notification."""),
+          The first time your score gets near or below the threshold, you will be sent a notification,
+          but you can check it at any time in your qualifications.
+          (Note, however, that the validators will sometimes make mistakes,
+          so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)"""),
     <.h2("""Tips"""),
     <.p(s"""To make the task go quickly, make your questions as short and simple as possible.
             (There is a ${questionCharLimit}-character limit, which will be indicated in red when you approach it.)

@@ -149,7 +149,8 @@ class ValidationHITManager private (
     }
 
   def tryWarnOrBlock(worker: WorkerInfo): WorkerInfo = {
-    worker.warnedAt match {
+    if(worker.agreement.isNaN) worker // this means no comparisons have been done yet
+    else worker.warnedAt match {
       case None =>
         // set soft qualification since no warning yet
         config.service.updateQualificationScore(

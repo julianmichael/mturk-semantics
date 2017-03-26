@@ -302,12 +302,15 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
       <.li("It is a yes/no or either/or question, or other non-open-ended question.")
     ),
     <.p("""It is okay for a question not to be a full sentence, as long as it makes sense and it is grammatical English.
-           For example, the question "Whose decision?" would be fine if the phrase "my decision" appeared in the sentence."""),
+           For example, the question "Whose decision?" would be fine if the phrase "my decision" appeared in the sentence.""",
+        <.b("""Note that such short questions might lack the context we normally provide in conversational speech,
+               but this does not make them invalid.
+               Be sure to read the entire sentence to figure out what the question writer is asking about.""")),
     <.p("""If a question betrays a clear misunderstanding of the task or is clearly not written by a native English speaker,
            it should be counted invalid."""),
-      <.p(<.b("""On average, we expect 1 in every 6 questions to be invalid,
-                 but it often comes in bursts (when a new question writer
-                 does not understand the task or does not use fluent English).
+      <.p(<.b("""On average over a long period, you should expect about 1 in every 6 questions to be invalid,
+                 but it often comes in bursts and lulls
+                 because it depends on the quality of the worker writing the questions.
                  Try to adjust your standards appropriately.""")),
     <.h3("Redundancy"),
     <.p(""" Two questions are """, <.b("redundant "), """if they """,
@@ -400,12 +403,16 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.p(s"""You will be paid a bonus of ${dollarsToCents(validationBonusPerQuestion)}c
         for every question beyond $validationBonusThreshold.
         Your judgments will be cross-checked with other workers,
-        and the agreement qualification value for this HIT will be updated to match your total agreement rate.
+        and your agreement qualification value for this HIT will be updated to match your total agreement rate.
         If this number drops below ${(100 * validationAgreementBlockingThreshold).toInt}
         you will no longer qualify for the task.
         There is a grace period of several HITs before your score is allowed to drop too low;
         if your score is exactly ${(100 * validationAgreementBlockingThreshold).toInt}
         it may be that your real accuracy is lower but you are in the grace period.
+        The first time your score gets near or below the threshold, you will be sent a notification,
+        but you can check it at any time in your qualifications.
+        (Note, however, that other validators will sometimes make mistakes,
+        so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)
         As long as you are qualified, your work will be approved and the bonus will be paid within an hour."""),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
