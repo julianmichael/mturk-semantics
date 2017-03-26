@@ -127,7 +127,6 @@ package object expH extends PackagePlatformExtensions {
     }.size
   }
 
-
   case class ValidationApiRequest(id: SentenceId)
   case class ValidationApiResponse(sentence: Vector[String])
 }

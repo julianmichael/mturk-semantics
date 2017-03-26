@@ -116,6 +116,7 @@ package object util extends PackagePlatformExtensions {
   implicit class RichValForOptions[A](val a: A) extends AnyVal {
     def onlyIf(p: (A => Boolean)): Option[A] = Some(a).filter(p)
     def ifNot(p: (A => Boolean)): Option[A] = Some(a).filterNot(p)
+    def wrapNullable: Option[A] = if(a == null) None else Some(a) // TODO probably Option(A) works here
   }
 
   implicit class RichTry[A](val t: Try[A]) extends AnyVal {

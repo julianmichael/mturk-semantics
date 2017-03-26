@@ -67,6 +67,7 @@ class SentenceTracker(
       finalExperimentName,
       aggregateSentenceStatsFilename,
       write[AggregateSentenceStats](aggregateSentenceStats))
+    println("Sentence tracker saved.")
   }
 
   def processUpdate(id: SentenceId, update: TrackingUpdate) = {

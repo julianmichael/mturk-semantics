@@ -25,6 +25,9 @@ import monocle.macros._
 import upickle.default._
 
 import com.amazonaws.mturk.requester.QualificationRequirement
+import com.amazonaws.mturk.requester.QualificationTypeStatus
+import com.amazonaws.mturk.requester.SortDirection
+import com.amazonaws.mturk.requester.SearchQualificationTypesSortProperty
 import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.requester.Comparator
 import com.amazonaws.mturk.requester.Locale
@@ -41,6 +44,57 @@ class FinalExperiment(implicit config: TaskConfig) {
     RequesterService.LOCALE_QUALIFICATION_TYPE_ID,
     Comparator.EqualTo, null,
     new Locale("US"), true)
+
+  val genAccQualTypeName = "Question-answer generation accuracy"
+  val genAccQualType = config.service.searchQualificationTypes(
+    genAccQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
+  ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
+    System.out.println("Generating generation qualification type...")
+    config.service.createQualificationType(
+      genAccQualTypeName,
+      "language,english,question answering",
+      """The rate at which questions provided for our
+       question-answer generation task were judged
+       valid and non-redundant, using the input of validators.""".replaceAll("\\s+", " "),
+      QualificationTypeStatus.Active,
+      1, // retry delay (seconds)
+      null,
+      null,
+      null, // these 3 are for a test/answer key
+      true, // auto granted
+      101 // auto granted value
+    )
+  }
+  val genAccQualTypeId = genAccQualType.getQualificationTypeId
+  val genAccuracyRequirement = new QualificationRequirement(
+    genAccQualTypeId,
+    Comparator.GreaterThanOrEqualTo, (math.round(generationAccuracyBlockingThreshold * 100.0).toInt),
+    null, true)
+
+  val valAgrQualTypeName = "Question answering agreement rate"
+  val valAgrQualType = config.service.searchQualificationTypes(
+    valAgrQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
+  ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
+    System.out.println("Generating validation qualification type...")
+    config.service.createQualificationType(
+      valAgrQualTypeName,
+      "language,english,question answering",
+      """The rate at which answers and validity judgments
+       in our question answering task agreed with other validators.""".replaceAll("\\s+", " "),
+      QualificationTypeStatus.Active,
+      1, // retry delay (seconds)
+      null,
+      null,
+      null, // these 3 are for a test/answer key
+      true, // auto granted
+      101 // auto granted value
+    )
+  }
+  val valAgrQualTypeId = valAgrQualType.getQualificationTypeId
+  val valAgreementRequirement = new QualificationRequirement(
+    valAgrQualTypeId,
+    Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
+    null, true)
 
   // saved these manually, see code in package.scala
   lazy val origQASRLPaths = read[Vector[PTBSentencePath]](
@@ -129,7 +183,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     reward = generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement
+      approvalRateRequirement, locationRequirement, genAccuracyRequirement
     ))
 
   lazy val genApiFlow = Flow[GenerationApiRequest].map {
@@ -140,8 +194,8 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleGenPrompt = GenerationPrompt(sourceIds(5), idSplits(sourceIds(5))(0))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
-    frozenHITTypeId = Some("3X8M0CO8US8JERH7QA0GGQIWAEHPVL"))
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt
+    /*, frozenHITTypeId = Some("3X8M0CO8US8JERH7QA0GGQIWAEHPVL")*/)
 
   // validation task definition
 
@@ -155,7 +209,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     reward = validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement
+      approvalRateRequirement, locationRequirement, valAgreementRequirement
     ))
 
   lazy val valApiFlow = Flow[ValidationApiRequest].map {
@@ -171,8 +225,8 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
-    frozenHITTypeId = Some("3OR5EJIUG2QY9PC04VUEYEGYR3Q9UL"))
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt
+    /*, frozenHITTypeId = Some("3OR5EJIUG2QY9PC04VUEYEGYR3Q9UL")*/)
 
   // hit management --- circularly defined so they can communicate
 
@@ -181,12 +235,14 @@ class FinalExperiment(implicit config: TaskConfig) {
     idShuffleRand.shuffle(trainIds ++ devIds ++ testIds)
       .filter {
       case WikiSentenceId(path) =>
-        !path.filePath.suffix.contains("785582") // this is apparently a FRENCH INTERVIEW
+        !path.filePath.suffix.contains("785582") && // this is apparently a FRENCH INTERVIEW
+          !path.filePath.suffix.contains("648587") // this is apparently a SPANISH ARTICLE
       case _ => true
     }
   }
 
   lazy val sourcePrompts = sourceIds
+    .drop(860) // those done in the version with blocks
     .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
 
   implicit lazy val inflections = {
@@ -221,6 +277,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       Props {
         genManagerPeek = new GenerationHITManager(
           genHelper,
+          genAccQualTypeId,
           valHelper,
           valManager,
           sentenceTracker,
@@ -232,6 +289,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       Props {
         genManagerPeek = new GenerationHITManager(
           genHelper,
+          genAccQualTypeId,
           valHelper,
           valManager,
           sentenceTracker,
@@ -246,6 +304,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       Props {
         valManagerPeek = ValidationHITManager(
           valHelper,
+          valAgrQualTypeId,
           genManager,
           sentenceTracker,
           _ => 2, 50)
@@ -256,6 +315,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       Props {
         valManagerPeek = ValidationHITManager(
           valHelper,
+          valAgrQualTypeId,
           genManager,
           sentenceTracker,
           _ => 1, 3)
@@ -678,6 +738,12 @@ class FinalExperiment(implicit config: TaskConfig) {
       avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(numAgreed(workerAssignment, _)).mean
     } yield (HITInfo(hi.hit, workerAssignment :: nonWorkerAssignments), avgNumDisagreed)
     scored.sortBy(_._2).map(_._1)
+  }
+
+  def currentGenSentences: List[(SentenceId, String)] = {
+    genHelper.activeHITInfosByPromptIterator.map(_._1.id).map(id =>
+      id -> TextRendering.renderSentence(getTokensForId(id))
+    ).toList
   }
 
 }

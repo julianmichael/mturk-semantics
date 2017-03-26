@@ -256,6 +256,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
 
   private[this] val instructions = <.div(
     <.h2("""Task Summary"""),
+    <.p(<.b("""Please read through all of the instructions before you begin.""")),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.
            You will be presented with a selection of English text and a list of questions (usually at least four)
@@ -290,15 +291,19 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.p("""A question should be marked invalid if any of the following are true:"""),
     <.ul(
       <.li("""It isn't about the meaning of the sentence (for example, asking "Which word comes after...")."""),
-      <.li("It has grammatical or spelling errors."),
+      <.li("It is not fluent English or has grammatical or spelling errors."),
       <.li("It is not obviously and explicitly answered in the sentence."),
       <.li("""It does not contain any words from the sentence (for example, "What happened?" is usually invalid). Changing the forms of words (like changing "decision" to "decide") and expanding symbols (like writing $ as dollars or ° as degrees) is fine."""),
       <.li("It is a yes/no or either/or question, or other non-open-ended question.")
     ),
     <.p("""It is okay for a question not to be a full sentence, as long as it makes sense and it is grammatical English.
            For example, the question "Whose decision?" would be fine if the phrase "my decision" appeared in the sentence."""),
-    <.p("""If the question is a bit odd and you're not sure how to mark it, it is probably invalid.
-           Good questions should be obviously good."""),
+    <.p("""If a question betrays a clear misunderstanding of the task or is clearly not written by a native English speaker,
+           it should be counted invalid."""),
+      <.p(<.b("""On average, we expect 1 in every 6 questions to be invalid,
+                 but it often comes in bursts (when a new question writer
+                 does not understand the task or does not use fluent English).
+                 Try to adjust your standards appropriately.""")),
     <.h3("Redundancy"),
     <.p(""" Two questions are """, <.b("redundant "), """if they """,
         <.b("have the same meaning "), "and they ", <.b("have the same answer. "), """
@@ -389,11 +394,14 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.h2("Conditions and payment"),
     <.p(s"""You will be paid a bonus of ${dollarsToCents(validationBonusPerQuestion)}c
         for every question beyond $validationBonusThreshold.
-        Your judgments will be cross-checked with other workers.
-        If your agreement with other annotators is low, you will be sent a notification.
-        If it drops too low, you will be blocked from this task.
-        If we find you spamming, you will be blocked without warning.
-        Otherwise, your work will be approved and the bonus will be paid within an hour."""),
+        Your judgments will be cross-checked with other workers,
+        and the agreement qualification value for this HIT will be updated to match your total agreement rate.
+        If this number drops below ${(100 * validationAgreementBlockingThreshold).toInt}
+        you will no longer qualify for the task.
+        There is a grace period of several HITs before your score is allowed to drop too low;
+        if your score is exactly ${(100 * validationAgreementBlockingThreshold).toInt}
+        it may be that your real accuracy is lower but you are in the grace period.
+        As long as you are qualified, your work will be approved and the bonus will be paid within an hour."""),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
   )

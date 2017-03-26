@@ -17,29 +17,34 @@ import com.amazonaws.mturk.requester.HITStatus
 
 import upickle.default._
 
+case class FlagBadSentence(id: SentenceId)
+
 object GenerationHITManager {
   def notificationEmailText(curAccuracy: Double) = {
     val explanatoryText = if(curAccuracy < generationAccuracyBlockingThreshold) {
-      s"""There will be a grace period of several more assignments, and after that, if your accuracy remains below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will be blocked."""
+      s"""There will be a grace period of several more assignments ($generationBufferBeforeBlocking more after this calculation was done), and after that, if your accuracy remains below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. Note that your qualification value may not be accurate during this grace period: it will be prevented from going below ${math.round(generationAccuracyBlockingThreshold * 100).toInt} until the grace period is over."""
     } else {
-      s"""You are fine for now, but if this drops below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will be blocked."""
+      s"""You are fine for now, but if this drops below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period ($generationBufferBeforeBlocking more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}."""
     }
     val dropOrRemain = if(curAccuracy < generationAccuracyBlockingThreshold) "remain" else "drop"
     f"""
-Of your question-answer pairs that have been reviewed so far, ${math.round(curAccuracy * 10000.0) / 100.0}%.2f%% were judged valid or non-redundant by validators. $explanatoryText%s If you are having trouble writing grammatical questions for all of the words you are given, keep a few things in mind:
+Of your question-answer pairs that have been reviewed so far, ${math.round(curAccuracy * 10000.0) / 100.0}%.2f%% were judged valid or non-redundant by validators. $explanatoryText%s
+
+If you are having trouble writing grammatical questions for all of the words you are given, keep a few things in mind:
 
   1) You can use a special word in either the question or the answer. Sometimes it is hard to form a nice question-answer pair one way, but it is very easy to do it the other way.
   2) The answer can contain more than just the special word. Especially with proper names that contain several words, you may be able to use that full name as the answer to a few questions, and spread those question-answer pairs over the set of special words you were given.
 
 Also be sure not to write any redundant questions. Before you continue, we suggest that you carefully read over the instructions again to maximize the rewards you can get out of the task.
 
-Finally, it is always possible that you got unlucky. If your responses are high-quality, then your accuracy will likely not $dropOrRemain%s too low. However, because this process is inherently random, we cannot guarantee that no high-quality workers will be blocked.
+Finally, it is always possible that you got unlucky. If your responses are high-quality, then your accuracy will likely not $dropOrRemain%s too low. However, because this process is inherently random, we cannot guarantee that no high-quality workers will end up not qualifying.
 """.trim
   }
 }
 
 class GenerationHITManager(
   helper: HITManager.Helper[GenerationPrompt, List[WordedQAPair]],
+  genQualificationTypeId: String,
   validationHelper: HITManager.Helper[ValidationPrompt, List[ValidationAnswer]],
   validationActor: ActorRef,
   sentenceTrackingActor: ActorRef,
@@ -56,6 +61,27 @@ class GenerationHITManager(
 
   override def promptFinished(prompt: GenerationPrompt): Unit = {
     sentenceTrackingActor ! GenerationFinished(prompt)
+  }
+
+  val badSentenceIdsFilename = "badSentenceIds"
+
+  var badSentences = FileManager.loadDataFile(finalExperimentName, badSentenceIdsFilename)
+    .map(_.mkString)
+    .map(read[Set[SentenceId]])
+    .toOption.getOrElse {
+    Set.empty[SentenceId]
+  }
+
+  private[this] def flagBadSentence(id: SentenceId) = {
+    badSentences = badSentences + id
+    saveData
+    service.searchAllHITs.iterator
+      .filter(hit => hit.getHITTypeId == hitTypeId)
+      .map(_.getHITId)
+      .map(FileManager.getHIT[GenerationPrompt](hitTypeId, _).get)
+      .filter(_.prompt.id == id)
+      .map(_.hitId)
+      .foreach(service.disableHIT)
   }
 
   val workerStatsFilename = "generationWorkerStats"
@@ -88,6 +114,11 @@ class GenerationHITManager(
       finalExperimentName,
       feedbackFilename,
       write[List[Assignment[List[WordedQAPair]]]](feedbacks))
+    FileManager.saveDataFile(
+      finalExperimentName,
+      badSentenceIdsFilename,
+      write[Set[SentenceId]](badSentences))
+    println("Generation data saved.")
   }
 
   override def reviewAssignment(hit: HIT[GenerationPrompt], assignment: Assignment[List[WordedQAPair]]): Unit = {
@@ -103,6 +134,7 @@ class GenerationHITManager(
 
   override lazy val receiveAux2: PartialFunction[Any, Unit] = {
     case SaveData => saveData
+    case FlagBadSentence(id) => flagBadSentence(id)
     case ValidationResult(prompt, hitId, assignmentId, numQAsValid) =>
       val hit = FileManager.getHIT[GenerationPrompt](hitTypeId, hitId).get
       val assignment = FileManager.loadAssignmentsForHIT[List[WordedQAPair]](hitTypeId, hitId)
@@ -127,37 +159,43 @@ class GenerationHITManager(
                        assignment.submitTime - assignment.acceptTime,
                        taskSpec.hitType.reward + bonusAwarded)
 
-      // warn or block worker if performance is unsatisfactory
-      val newStats = stats.blockedAt match {
-        case Some(_) => stats // already blocked
-        case None => stats.warnedAt match {
-          case None => // decide whether to warn
-            if(stats.accuracy < generationAccuracyWarningThreshold &&
-                 stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
+      // update qualifications according to performance
+      val newStats = stats.warnedAt match {
+        case None =>
+          // set soft qualification since no warning yet
+          config.service.updateQualificationScore(
+            genQualificationTypeId,
+            assignment.workerId,
+            math.ceil(math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+          if(stats.accuracy < generationAccuracyWarningThreshold &&
+               stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
 
-              service.notifyWorkers(
-                "Notification (warning + tips) regarding the question-answer task",
-                notificationEmailText(stats.accuracy),
-                Array(assignment.workerId)
-              )
+            service.notifyWorkers(
+              "Notification (warning + tips) regarding the question-answer task",
+              notificationEmailText(stats.accuracy),
+              Array(assignment.workerId))
 
-              stats.warned
+            stats.warned
 
-            } else stats
-          case Some(numWhenWarned) => // decide whether to block
-            if(stats.accuracy < generationAccuracyBlockingThreshold &&
-                 stats.numAssignmentsCompleted - numWhenWarned >= generationBufferBeforeBlocking) {
-
-              service.blockWorker(
-                assignment.workerId,
-                f"Accuracy failed to remain above ${generationAccuracyBlockingThreshold}%.2f.")
-
+          } else stats
+        case Some(numWhenWarned) =>
+          if(stats.numAssignmentsCompleted - numWhenWarned >= generationBufferBeforeBlocking) {
+            config.service.updateQualificationScore(
+              genQualificationTypeId,
+              assignment.workerId,
+              math.ceil(stats.accuracy).toInt)
+            if(math.ceil(stats.accuracy).toInt < generationAccuracyBlockingThreshold) {
               stats.blocked
-
             } else stats
-        }
+          } else {
+            // set soft qualification since still in buffer zone
+            config.service.updateQualificationScore(
+              genQualificationTypeId,
+              assignment.workerId,
+              math.ceil(math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+            stats
+          }
       }
-
       allWorkerStats = allWorkerStats.updated(assignment.workerId, newStats)
   }
 }

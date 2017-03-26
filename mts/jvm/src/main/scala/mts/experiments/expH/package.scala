@@ -104,7 +104,7 @@ trait PackagePlatformExtensions {
     ).toOption.getOrElse(0L)
     val latestTime = util.Try(
       (valHITInfos.flatMap(_.assignments).map(_.submitTime) ++
-         valHITInfos.flatMap(_.assignments).map(_.submitTime)).min
+         genHITInfos.flatMap(_.assignments).map(_.submitTime)).max
     ).toOption.getOrElse(0L)
 
     val alignedValidations = sentenceHITInfo.alignValidations
