@@ -155,7 +155,7 @@ class ValidationHITManager private (
         config.service.updateQualificationScore(
           valQualificationTypeId,
           worker.workerId,
-          math.ceil(math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
+          math.ceil(100 * math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
         if(worker.agreement < validationAgreementWarningThreshold &&
              worker.numAssignmentsCompleted >= validationBufferBeforeWarning) {
 
@@ -172,7 +172,7 @@ class ValidationHITManager private (
           config.service.updateQualificationScore(
             valQualificationTypeId,
             worker.workerId,
-            math.ceil(worker.agreement).toInt)
+            math.ceil(100 * worker.agreement).toInt)
           if(math.ceil(worker.agreement).toInt < validationAgreementBlockingThreshold) {
             worker.blocked
           } else worker
@@ -181,7 +181,7 @@ class ValidationHITManager private (
           config.service.updateQualificationScore(
             valQualificationTypeId,
             worker.workerId,
-            math.ceil(math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
+            math.ceil(100 * math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
           worker
         }
     }

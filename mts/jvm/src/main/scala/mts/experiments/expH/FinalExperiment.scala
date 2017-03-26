@@ -57,7 +57,7 @@ class FinalExperiment(implicit config: TaskConfig) {
        question-answer generation task were judged
        valid and non-redundant, using the input of validators.""".replaceAll("\\s+", " "),
       QualificationTypeStatus.Active,
-      1, // retry delay (seconds)
+      null, // retry delay (seconds)
       null,
       null,
       null, // these 3 are for a test/answer key
@@ -82,7 +82,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       """The rate at which answers and validity judgments
        in our question answering task agreed with other validators.""".replaceAll("\\s+", " "),
       QualificationTypeStatus.Active,
-      1, // retry delay (seconds)
+      null, // retry delay (seconds)
       null,
       null,
       null, // these 3 are for a test/answer key

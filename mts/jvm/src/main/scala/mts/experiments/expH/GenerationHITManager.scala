@@ -166,7 +166,7 @@ class GenerationHITManager(
           config.service.updateQualificationScore(
             genQualificationTypeId,
             assignment.workerId,
-            math.ceil(math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+            math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
           if(stats.accuracy < generationAccuracyWarningThreshold &&
                stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
 
@@ -183,7 +183,7 @@ class GenerationHITManager(
             config.service.updateQualificationScore(
               genQualificationTypeId,
               assignment.workerId,
-              math.ceil(stats.accuracy).toInt)
+              math.ceil(100 * stats.accuracy).toInt)
             if(math.ceil(stats.accuracy).toInt < generationAccuracyBlockingThreshold) {
               stats.blocked
             } else stats
@@ -192,7 +192,7 @@ class GenerationHITManager(
             config.service.updateQualificationScore(
               genQualificationTypeId,
               assignment.workerId,
-              math.ceil(math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+              math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
             stats
           }
       }

@@ -287,6 +287,11 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
         """. If there are multiple correct answers, include all of them in your answer if possible.
         Include only the words necessary to completely answer the question,
         but if all else is equal, prefer longer answers over shorter ones."""),
+    <.p("""In long sentences, an object may be mentioned multiple times, or a phrase may appear in the sentence multiple times.
+           In cases such as this where there are multiple possible correct answers,
+           you should identify which words in the sentence the question is asking about,
+           and highlight the answer that is closest to those words.
+           This will help maximize your agreement with other workers."""),
     <.h3("Invalid Questions"),
     <.p("""A question should be marked invalid if any of the following are true:"""),
     <.ul(
@@ -364,7 +369,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.p("""Here are some more examples:"""),
     <.ul(
       example(question = "Who decided to disclose something?", answer = "she", isGood = true,
-              tooltip = """The answer "I" would also be acceptable here, since it also refers to the correct person. In cases like this, just choose the one that feels more natural to you."""),
+              tooltip = """The answer "I" would also be acceptable here, since it also refers to the correct person. In cases like this, you should choose the answer that is closest in the sentence to what's being asked about."""),
       example(question = "What is someone responsible for?", answer = "my decision to disclose these materials to the public", isGood = true,
               tooltip = """If shorter and longer answers both suffice, favor the longer one.
                            Provide this answer instead of just "my decision"."""),
