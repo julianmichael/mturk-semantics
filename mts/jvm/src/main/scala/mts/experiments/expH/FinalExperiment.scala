@@ -390,7 +390,7 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q13</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>13. How often the metropole?</Text></QuestionContent>
+  <QuestionContent><Text>13. How often metropole?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -514,16 +514,22 @@ object FinalExperiment {
 
 </QuestionForm>
 """.trim
-
-  private[this] def answerXML(qid: String, aid: String) = s"""
+  private[this] def answerXML(qid: String, aid: String): String = answerXML(qid, List(aid))
+  private[this] def answerXML(qid: String, aids: List[String]): String = {
+    val opts = aids.map(aid => s"""
+<AnswerOption>
+  <SelectionIdentifier>$aid</SelectionIdentifier>
+  <AnswerScore>1</AnswerScore>
+</AnswerOption>
+""".trim).mkString("\n")
+    s"""
 <Question>
-  <QuestionIdentifier>$qid</QuestionIdentifier>
-  <AnswerOption>
-    <SelectionIdentifier>$aid</SelectionIdentifier>
-    <AnswerScore>1</AnswerScore>
-  </AnswerOption>
+<QuestionIdentifier>$qid</QuestionIdentifier>
+$opts
 </Question>
 """.trim
+
+  }
   val valQualAnswerKeyString = s"""<?xml version="1.0" encoding="UTF-8"?>
 <AnswerKey xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/AnswerKey.xsd">
 ${answerXML("q1", "q1-invalid")}
@@ -533,13 +539,11 @@ ${answerXML("q4", "q4-a1")}
 ${answerXML("q5", "q5-redundant2")}
 ${answerXML("q6", "q6-a1")}
 ${answerXML("q7", "q7-invalid")}
-${answerXML("q8", "q8-invalid")}
-${answerXML("q8", "q8-a2")}
+${answerXML("q8", List("q8-invalid", "q8-a2"))}
 ${answerXML("q9", "q9-a1")}
 ${answerXML("q10", "q10-invalid")}
 ${answerXML("q11", "q11-a2")}
-${answerXML("q12", "q12-a1")}
-${answerXML("q12", "q12-invalid")}
+${answerXML("q12", List("q12-a1", "q12-invalid"))}
 ${answerXML("q13", "q13-invalid")}
 ${answerXML("q14", "q14-a1")}
 ${answerXML("q15", "q15-invalid")}
@@ -619,7 +623,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
     null, false)
 
-  val valTestQualTypeName = "Question answering qualification test score"
+  val valTestQualTypeName = "Question answering test score (%)"
   val valTestQualType = config.service.searchQualificationTypes(
     valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
   ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
