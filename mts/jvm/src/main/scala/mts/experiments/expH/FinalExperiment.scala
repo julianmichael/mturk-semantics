@@ -42,7 +42,7 @@ object FinalExperiment {
 <Text>
   Your will read questions written by other workers and provide their answers or mark the questions as invalid or redundant according to our task criteria.
 </Text><Text>
-  Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions. It is very important for us that you follow the guidelines because you will be helping us detect question-writers who are scamming, are not native English speakers, or do not correctly understand the task. In addition, your ability to remain qualified for the question-answering task will depend on your rate of agreement with other annotators who are doing the question answering HIT.
+  Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions, focusing on some of the harder cases. It is very important for us that you follow the guidelines because you will be helping us detect question writers who are scamming, are not native English speakers, or do not correctly understand the task. In addition, your ability to remain qualified for the question-answering task will depend on your rate of agreement with other workers who are doing the question answering HIT.
 </Text><Text>
   Suppose you get a HIT with the following sentence and list of questions. Please provide a judgment for each.
 </Text><Text>
@@ -53,9 +53,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q1</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     1. Exploitation colonialism focuses on?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -87,9 +87,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q2</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     2. What involves fewer colonists?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -121,9 +121,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q3</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     3. How many colonists?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -155,9 +155,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q4</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     4. What kind of colonialism?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -198,9 +198,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q5</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     5. What form of colonialism involves fewer colonists?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -250,9 +250,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q6</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     6. Fewer what?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -293,9 +293,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q7</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     7. What is important about exploitation colonialism?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -345,9 +345,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q8</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     8. What is exploited?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -397,9 +397,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q9</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     9. Where do the exports typically go?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -431,9 +431,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q10</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     10. Does it focus more on colonists or access to resources?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -474,9 +474,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q11</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     11. What gets exported?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -517,9 +517,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q12</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     12. Typically to where?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -551,9 +551,9 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q13</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent>
+  <QuestionContent><Text>
     13. How often to metropole?
-  </QuestionContent>
+  </Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -613,6 +613,7 @@ ${answerXML("q5", "q5-redundant2")}
 ${answerXML("q6", "q6-a1")}
 ${answerXML("q7", "q7-invalid")}
 ${answerXML("q8", "q8-invalid")}
+${answerXML("q8", "q8-a2")}
 ${answerXML("q9", "q9-a1")}
 ${answerXML("q10", "q10-invalid")}
 ${answerXML("q11", "q11-a2")}
@@ -691,7 +692,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     null, false)
 
   val valTestQualTypeName = "Question answering test score"
-  val valTestQualType = config.service.searchQualificationTypes(
+  lazy val valTestQualType = config.service.searchQualificationTypes(
     valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
   ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
     System.out.println("Generating validation test qualification type...")
