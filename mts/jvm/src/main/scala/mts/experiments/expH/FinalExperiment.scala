@@ -32,6 +32,600 @@ import com.amazonaws.mturk.service.axis.RequesterService
 import com.amazonaws.mturk.requester.Comparator
 import com.amazonaws.mturk.requester.Locale
 
+object FinalExperiment {
+  val valQualTestString = s"""<?xml version="1.0" encoding="UTF-8"?>
+<QuestionForm xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionForm.xsd">
+<Overview>
+<Title>
+  Answering simple questions about a sentence
+</Title>
+<Text>
+  Your will read questions written by other workers and provide their answers or mark the questions as invalid or redundant according to our task criteria.
+</Text><Text>
+  Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions. It is very important for us that you follow the guidelines because you will be helping us detect question-writers who are scamming, are not native English speakers, or do not correctly understand the task. In addition, your ability to remain qualified for the question-answering task will depend on your rate of agreement with other annotators who are doing the question answering HIT.
+</Text><Text>
+  Suppose you get a HIT with the following sentence and list of questions. Please provide a judgment for each.
+</Text><Text>
+  Exploitation colonialism involves fewer colonists and focuses on access to resources for export, typically to the metropole.
+</Text>
+</Overview>
+
+<Question>
+  <QuestionIdentifier>q1</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    1. Exploitation colonialism focuses on?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q1-a1
+        </SelectionIdentifier>
+        <Text>
+          access to resources for export, typically to the metropole
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q1-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q2</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    2. What involves fewer colonists?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q2-a1
+        </SelectionIdentifier>
+        <Text>
+          Exploitation colonialism
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q2-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q3</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    3. How many colonists?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q3-a1
+        </SelectionIdentifier>
+        <Text>
+          fewer
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q3-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q4</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    4. What kind of colonialism?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q4-a1
+        </SelectionIdentifier>
+        <Text>
+          Exploitation
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q4-redundant
+        </SelectionIdentifier>
+        <Text>
+          N/A: Redundant with question 2
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q4-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q5</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    5. What form of colonialism involves fewer colonists?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q5-a1
+        </SelectionIdentifier>
+        <Text>
+          Exploitation
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q5-redundant1
+        </SelectionIdentifier>
+        <Text>
+          N/A: Redundant with question 2
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q5-redundant2
+        </SelectionIdentifier>
+        <Text>
+          N/A: Redundant with question 4
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q5-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q6</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    6. Fewer what?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q6-a1
+        </SelectionIdentifier>
+        <Text>
+          colonists
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q6-redundant
+        </SelectionIdentifier>
+        <Text>
+          N/A: Redundant with question 3
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q6-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q7</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    7. What is important about exploitation colonialism?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q7-a1
+        </SelectionIdentifier>
+        <Text>
+          involves fewer colonists and focuses on access to resources for export, typically to the metropole.
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q7-redundant1
+        </SelectionIdentifier>
+        <Text>
+          N/A: Redundant with question 1
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q7-redundant2
+        </SelectionIdentifier>
+        <Text>
+          N/A: Redundant with question 2
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q7-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q8</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    8. What is exploited?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q8-a1
+        </SelectionIdentifier>
+        <Text>
+          colonialism
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q8-a2
+        </SelectionIdentifier>
+        <Text>
+          resources
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q8-redundant1
+        </SelectionIdentifier>
+        <Text>
+          N/A: Redundant with question 4
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q8-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q9</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    9. Where do the exports typically go?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q9-a1
+        </SelectionIdentifier>
+        <Text>
+          the metropole
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q9-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q10</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    10. Does it focus more on colonists or access to resources?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q10-a1
+        </SelectionIdentifier>
+        <Text>
+          colonists
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q10-a2
+        </SelectionIdentifier>
+        <Text>
+          access to resources
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q10-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q11</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    11. What gets exported?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q11-a1
+        </SelectionIdentifier>
+        <Text>
+          access to resources
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q11-a2
+        </SelectionIdentifier>
+        <Text>
+          resources
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q11-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q12</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    12. Typically to where?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q12-a1
+        </SelectionIdentifier>
+        <Text>
+          the metropole
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q12-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q13</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent>
+    13. How often to metropole?
+  </QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>
+          q13-a1
+        </SelectionIdentifier>
+        <Text>
+          typically
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q13-redundant
+        </SelectionIdentifier>
+        <Text>
+          N/A: Redundant with question 12
+        </Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>
+          q13-invalid
+        </SelectionIdentifier>
+        <Text>
+          N/A: Invalid question
+        </Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+</QuestionForm>
+"""
+
+  private[this] def answerXML(qid: String, aid: String) = s"""
+<Question>
+  <QuestionIdentifier>$qid</QuestionIdentifier>
+  <AnswerOption>
+    <SelectionIdentifier>$aid</SelectionIdentifier>
+    <AnswerScore>1</AnswerScore>
+  </AnswerOption>
+</Question>
+""".trim
+  val valQualAnswerKeyString = s""" "<?xml version="1.0" encoding="UTF-8"?>
+<AnswerKey xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/AnswerKey.xsd">
+${answerXML("q1", "q1-invalid")}
+${answerXML("q2", "q2-a1")}
+${answerXML("q3", "q3-a1")}
+${answerXML("q4", "q4-a1")}
+${answerXML("q5", "q5-redundant2")}
+${answerXML("q6", "q6-a1")}
+${answerXML("q7", "q7-invalid")}
+${answerXML("q8", "q8-invalid")}
+${answerXML("q9", "q9-a1")}
+${answerXML("q10", "q10-invalid")}
+${answerXML("q11", "q11-a2")}
+${answerXML("q12", "q12-a1")}
+${answerXML("q13", "q13-invalid")}
+<PercentageMapping>
+  <MaximumSummedScore>13</MaximumSummedScore>
+</PercentageMapping>
+</AnswerKey>
+"""
+
+}
+
 class FinalExperiment(implicit config: TaskConfig) {
   val experimentName = finalExperimentName
 
@@ -95,6 +689,30 @@ class FinalExperiment(implicit config: TaskConfig) {
     valAgrQualTypeId,
     Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
     null, false)
+
+  val valTestQualTypeName = "Question answering test score"
+  val valTestQualType = config.service.searchQualificationTypes(
+    valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
+  ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
+    System.out.println("Generating validation test qualification type...")
+    config.service.createQualificationType(
+      valTestQualTypeName,
+      "language,english,question answering",
+      """Score on the qualification test for the question answering task,
+         as a test of your understanding of the instructions.""".replaceAll("\\s+", " "),
+      QualificationTypeStatus.Active,
+      1800L, // retry delay (seconds) --- 30 minutes
+      FinalExperiment.valQualTestString, // test: QuestionForm
+      FinalExperiment.valQualAnswerKeyString, // AnswerKey
+      1200L, // test time limit (seconds) --- 20 minutes
+      false, // auto granted
+      null // auto granted value
+    )
+  }
+
+  // <![CDATA[
+  //      // cdata content
+  //    ]]>
 
   // saved these manually, see code in package.scala
   lazy val origQASRLPaths = read[Vector[PTBSentencePath]](
@@ -518,8 +1136,9 @@ class FinalExperiment(implicit config: TaskConfig) {
         )
         qaPairs.sortBy(_._2.wordIndex)
       }
+      questionIndices = getWordsInQuestion(sentence, question).mkString(" ")
       _ <- append(s"${id.readableFileString}\t${id.readableSentenceIndex}\t${genWorkerId}\t")
-      _ <- append(s"${sentence(keywordIndex)} ($keywordIndex)\t$question\t")
+      _ <- append(s"${sentence(keywordIndex)} ($keywordIndex)\t$questionIndices\t$question\t")
       _ <- append(TextRendering.renderSpan(sentence, answerIndices) + s"\t$valAnswersString\t")
       _ <- append(s"${answerIndices.mkString(" ")}\t")
       _ <- append(valAnswers.map(_.getAnswer.map(_.indices.mkString(" ")).getOrElse("")).mkString("\t"))

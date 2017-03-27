@@ -297,21 +297,26 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.ul(
       <.li("""It isn't about the meaning of the sentence (for example, asking "Which word comes after...")."""),
       <.li("It is not fluent English or has grammatical or spelling errors."),
-      <.li("It is not obviously and explicitly answered in the sentence."),
+      <.li("It is not obviously answered in the sentence."),
       <.li("""It does not contain any words from the sentence (for example, "What happened?" is usually invalid). Changing the forms of words (like changing "decision" to "decide") and expanding symbols (like writing $ as dollars or ° as degrees) is fine."""),
       <.li("It is a yes/no or either/or question, or other non-open-ended question.")
     ),
     <.p("""It is okay for a question not to be a full sentence, as long as it makes sense and it is grammatical English.
-           For example, the question "Whose decision?" would be fine if the phrase "my decision" appeared in the sentence.""",
-        <.b("""Note that such short questions might lack the context we normally provide in conversational speech,
-               but this does not make them invalid.
-               Be sure to read the entire sentence to figure out what the question writer is asking about.""")),
+           For example, the question """, <.span(Styles.goodGreen, "Whose decision?"), """ would be fine if the phrase
+           "my decision" appeared in the sentence.""",
+        """Note that such short questions might lack the context we normally provide in conversational speech,
+           but this does not make them invalid.
+           Be sure to read the entire sentence to figure out what the question writer is asking about."""),
+    <.p("""Questions might also take the form of "echo questions" where the question word like "what" appears in the middle somewhere,
+           as in """, <.span(Styles.goodGreen, "Executive intervention canceled what?"), """ This is fine, but
+           if the question is excessively unnatural, like """, <.span(Styles.badRed, "The what protestors?"), """
+           or if it lacks a question word altogether and simply copies a phrase from the sentence
+           (for example, """, <.span(Styles.badRed, "The protesters celebrated after?"), """ then it should be counted invalid.
+        """),
     <.p("""If a question betrays a clear misunderstanding of the task or is clearly not written by a native English speaker,
-           it should be counted invalid."""),
-      <.p(<.b("""On average over a long period, you should expect about 1 in every 6 questions to be invalid,
-                 but it often comes in bursts and lulls
-                 because it depends on the quality of the worker writing the questions.
-                 Try to adjust your standards appropriately.""")),
+           it should be counted invalid. You should forgive minor spelling errors (e.g., who's/whose, it's/its)
+           as long as they do not change the meaning of the question."""),
+    <.p("""If a question is both invalid and redundant, please mark it invalid."""),
     <.h3("Redundancy"),
     <.p(""" Two questions are """, <.b("redundant "), """if they """,
         <.b("have the same meaning "), "and they ", <.b("have the same answer. "), """
