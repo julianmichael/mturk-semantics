@@ -694,7 +694,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     null, false)
 
   val valTestQualTypeName = "Question answering test score"
-  lazy val valTestQualType = config.service.searchQualificationTypes(
+  val valTestQualType = config.service.searchQualificationTypes(
     valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
   ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
     System.out.println("Generating validation test qualification type...")
@@ -712,6 +712,11 @@ class FinalExperiment(implicit config: TaskConfig) {
       null // auto granted value
     )
   }
+  val valTestQualTypeId = valTestQualType.getQualificationTypeId
+  val valTestRequirement = new QualificationRequirement(
+    valTestQualTypeId,
+    Comparator.GreaterThanOrEqualTo, 90,
+    null, false)
 
   // <![CDATA[
   //      // cdata content
@@ -829,7 +834,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     reward = validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement, valAgreementRequirement
+      approvalRateRequirement, locationRequirement, valAgreementRequirement, valTestRequirement
     ))
 
   lazy val valApiFlow = Flow[ValidationApiRequest].map {
