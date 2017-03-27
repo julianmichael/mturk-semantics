@@ -350,16 +350,18 @@ class FinalExperiment(implicit config: TaskConfig) {
     .merge(Source.tick(initialDelay = 0.seconds, interval = 1.minute, ()))
     .filter(_ => genManagerPeek != null && valManagerPeek != null && sentenceTrackerPeek != null)
     .map { _ =>
-    val last5Sentences = sentenceTrackerPeek.finishedSentenceStats.take(5).map { stats =>
+    val last5Sentences = sentenceTrackerPeek.finishedSentenceStats.take(5).flatMap { stats =>
       val sentence = getTokensForId(stats.id)
-      stats -> SentenceHITInfo(
-        sentence,
-        stats.genHITIds.toList
-          .map(FileManager.getHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId, _))
-          .map(_.get),
-        stats.valHITIds.toList
-          .map(FileManager.getHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId, _))
-          .map(_.get))
+      scala.util.Try(
+        stats -> SentenceHITInfo(
+          sentence,
+          stats.genHITIds.toList
+            .map(FileManager.getHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId, _))
+            .map(_.get),
+          stats.valHITIds.toList
+            .map(FileManager.getHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId, _))
+            .map(_.get))
+      ).toOptionPrinting
     }.toMap
     SummaryInfo(
       // generation
