@@ -339,7 +339,11 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
               tooltip = """This is not directly implied by the sentence, so the question is invalid.
                            (In fact, it is also wrong: it is Congress which enacts regulations, not the EPA.)"""),
       example(question = "What is Gina's last name?", answer = "McCarthy", isGood = true,
-              tooltip = """This is an acceptable question much like "What does EPA stand for?" """),
+              tooltip = """This is an acceptable question much like "What does EPA stand for?",
+                           but note that the similar question "What is the last word in Gina's name? would be invalid."""),
+      example(question = "What is the is the Agency responsible for?", answer = "Environmental Protection", isGood = true,
+              tooltip = """While "responsibility" is not explicitly mentioned in the sentence,
+                           this fact is part of the meaning of the name "Environmental Protection Agency"."""),
       example(question = "Was McCarthy aggressive or lax?", answer = "aggressive", isGood = false,
               tooltip = """This is an either/or question, which is disallowed."""),
       example(question = "What was enforced?", answer = "them", isGood = true,

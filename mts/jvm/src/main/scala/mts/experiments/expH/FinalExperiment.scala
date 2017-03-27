@@ -36,47 +36,32 @@ object FinalExperiment {
   val valQualTestString = s"""<?xml version="1.0" encoding="UTF-8"?>
 <QuestionForm xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionForm.xsd">
 <Overview>
-<Title>
-  Answering simple questions about a sentence
-</Title>
-<Text>
-  Your will read questions written by other workers and provide their answers or mark the questions as invalid or redundant according to our task criteria.
-</Text><Text>
-  Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions, focusing on some of the harder cases. It is very important for us that you follow the guidelines because you will be helping us detect question writers who are scamming, are not native English speakers, or do not correctly understand the task. In addition, your ability to remain qualified for the question-answering task will depend on your rate of agreement with other workers who are doing the question answering HIT.
-</Text><Text>
-  Suppose you get a HIT with the following sentence and list of questions. Please provide a judgment for each.
-</Text><Text>
-  Exploitation colonialism involves fewer colonists and focuses on access to resources for export, typically to the metropole.
+<Title>Answering simple questions about a sentence</Title>
+<Text>Your will read questions written by other workers and provide their answers or mark the questions as invalid or redundant according to our task criteria.</Text>
+<Text>Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions, focusing on some of the harder cases. It is very important for us that you follow the guidelines because you will be helping us detect question writers who do not correctly understand the task. In addition, your ability to remain qualified for the question-answering task will depend on your rate of agreement with other workers who are doing the question answering HIT.
 </Text>
+<Text>You can miss up to two questions on this test and still qualify for the task. If your score is too low, you can try again in half an hour.</Text>
+<Text>Suppose you get a HIT with the following sentence and list of questions. Please provide a judgment for each:</Text>
+<Text>"According to the Nonexistent Centre for Imperialism Studies, exploitation colonialism involves fewer colonists and focuses on access to resources for export, typically to the metropole." </Text>
 </Overview>
 
 <Question>
   <QuestionIdentifier>q1</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    1. Exploitation colonialism focuses on?
-  </Text></QuestionContent>
+  <QuestionContent><Text>1. Exploitation colonialism focuses on?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q1-a1
-        </SelectionIdentifier>
-        <Text>
-          access to resources for export, typically to the metropole
-        </Text>
+        <SelectionIdentifier>q1-a1</SelectionIdentifier>
+        <Text>access to resources for export, typically to the metropole</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q1-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q1-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -87,30 +72,20 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q2</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    2. What involves fewer colonists?
-  </Text></QuestionContent>
+  <QuestionContent><Text>2. What involves fewer colonists?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q2-a1
-        </SelectionIdentifier>
-        <Text>
-          Exploitation colonialism
-        </Text>
+        <SelectionIdentifier>q2-a1</SelectionIdentifier>
+        <Text>Exploitation colonialism</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q2-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q2-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -121,30 +96,20 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q3</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    3. How many colonists?
-  </Text></QuestionContent>
+  <QuestionContent><Text>3. How many colonists?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q3-a1
-        </SelectionIdentifier>
-        <Text>
-          fewer
-        </Text>
+        <SelectionIdentifier>q3-a1</SelectionIdentifier>
+        <Text>fewer</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q3-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q3-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -155,39 +120,25 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q4</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    4. What kind of colonialism?
-  </Text></QuestionContent>
+  <QuestionContent><Text>4. What kind of colonialism?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q4-a1
-        </SelectionIdentifier>
-        <Text>
-          Exploitation
-        </Text>
+        <SelectionIdentifier>q4-a1</SelectionIdentifier>
+        <Text>Exploitation</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q4-redundant
-        </SelectionIdentifier>
-        <Text>
-          N/A: Redundant with question 2
-        </Text>
+        <SelectionIdentifier>q4-redundant</SelectionIdentifier>
+        <Text>N/A: Redundant with question 2</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q4-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q4-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -198,48 +149,30 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q5</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    5. What form of colonialism involves fewer colonists?
-  </Text></QuestionContent>
+  <QuestionContent><Text>5. What form of colonialism involves fewer colonists?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q5-a1
-        </SelectionIdentifier>
-        <Text>
-          Exploitation
-        </Text>
+        <SelectionIdentifier>q5-a1</SelectionIdentifier>
+        <Text>Exploitation</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q5-redundant1
-        </SelectionIdentifier>
-        <Text>
-          N/A: Redundant with question 2
-        </Text>
+        <SelectionIdentifier>q5-redundant1</SelectionIdentifier>
+        <Text>N/A: Redundant with question 2</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q5-redundant2
-        </SelectionIdentifier>
-        <Text>
-          N/A: Redundant with question 4
-        </Text>
+        <SelectionIdentifier>q5-redundant2</SelectionIdentifier>
+        <Text>N/A: Redundant with question 4</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q5-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q5-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -250,39 +183,25 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q6</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    6. Fewer what?
-  </Text></QuestionContent>
+  <QuestionContent><Text>6. Fewer what?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q6-a1
-        </SelectionIdentifier>
-        <Text>
-          colonists
-        </Text>
+        <SelectionIdentifier>q6-a1</SelectionIdentifier>
+        <Text>colonists</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q6-redundant
-        </SelectionIdentifier>
-        <Text>
-          N/A: Redundant with question 3
-        </Text>
+        <SelectionIdentifier>q6-redundant</SelectionIdentifier>
+        <Text>N/A: Redundant with question 3</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q6-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q6-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -293,48 +212,30 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q7</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    7. What is important about exploitation colonialism?
-  </Text></QuestionContent>
+  <QuestionContent><Text>7. What is important about exploitation colonialism?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q7-a1
-        </SelectionIdentifier>
-        <Text>
-          involves fewer colonists and focuses on access to resources for export, typically to the metropole.
-        </Text>
+        <SelectionIdentifier>q7-a1</SelectionIdentifier>
+        <Text>involves fewer colonists and focuses on access to resources for export, typically to the metropole.</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q7-redundant1
-        </SelectionIdentifier>
-        <Text>
-          N/A: Redundant with question 1
-        </Text>
+        <SelectionIdentifier>q7-redundant1</SelectionIdentifier>
+        <Text>N/A: Redundant with question 1</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q7-redundant2
-        </SelectionIdentifier>
-        <Text>
-          N/A: Redundant with question 2
-        </Text>
+        <SelectionIdentifier>q7-redundant2</SelectionIdentifier>
+        <Text>N/A: Redundant with question 2</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q7-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q7-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -345,48 +246,30 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q8</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    8. What is exploited?
-  </Text></QuestionContent>
+  <QuestionContent><Text>8. What is exploited?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q8-a1
-        </SelectionIdentifier>
-        <Text>
-          colonialism
-        </Text>
+        <SelectionIdentifier>q8-a1</SelectionIdentifier>
+        <Text>colonialism</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q8-a2
-        </SelectionIdentifier>
-        <Text>
-          resources
-        </Text>
+        <SelectionIdentifier>q8-a2</SelectionIdentifier>
+        <Text>resources</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q8-redundant1
-        </SelectionIdentifier>
-        <Text>
-          N/A: Redundant with question 4
-        </Text>
+        <SelectionIdentifier>q8-redundant1</SelectionIdentifier>
+        <Text>N/A: Redundant with question 4</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q8-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q8-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -397,30 +280,20 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q9</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    9. Where do the exports typically go?
-  </Text></QuestionContent>
+  <QuestionContent><Text>9. Where do the exports typically go?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q9-a1
-        </SelectionIdentifier>
-        <Text>
-          the metropole
-        </Text>
+        <SelectionIdentifier>q9-a1</SelectionIdentifier>
+        <Text>the metropole</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q9-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q9-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -431,39 +304,25 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q10</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    10. Does it focus more on colonists or access to resources?
-  </Text></QuestionContent>
+  <QuestionContent><Text>10. Does it focus more on colonists or access to resources?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q10-a1
-        </SelectionIdentifier>
-        <Text>
-          colonists
-        </Text>
+        <SelectionIdentifier>q10-a1</SelectionIdentifier>
+        <Text>colonists</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q10-a2
-        </SelectionIdentifier>
-        <Text>
-          access to resources
-        </Text>
+        <SelectionIdentifier>q10-a2</SelectionIdentifier>
+        <Text>access to resources</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q10-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q10-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -474,39 +333,25 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q11</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    11. What gets exported?
-  </Text></QuestionContent>
+  <QuestionContent><Text>11. What gets exported?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q11-a1
-        </SelectionIdentifier>
-        <Text>
-          access to resources
-        </Text>
+        <SelectionIdentifier>q11-a1</SelectionIdentifier>
+        <Text>access to resources</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q11-a2
-        </SelectionIdentifier>
-        <Text>
-          resources
-        </Text>
+        <SelectionIdentifier>q11-a2</SelectionIdentifier>
+        <Text>resources</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q11-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q11-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -517,30 +362,20 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q12</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    12. Typically to where?
-  </Text></QuestionContent>
+  <QuestionContent><Text>12. Typically to where?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q12-a1
-        </SelectionIdentifier>
-        <Text>
-          the metropole
-        </Text>
+        <SelectionIdentifier>q12-a1</SelectionIdentifier>
+        <Text>the metropole</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q12-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q12-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -551,39 +386,121 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q13</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>
-    13. How often to metropole?
-  </Text></QuestionContent>
+  <QuestionContent><Text>13. How often to metropole?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
       <Selections>
 
         <Selection>
-        <SelectionIdentifier>
-          q13-a1
-        </SelectionIdentifier>
-        <Text>
-          typically
-        </Text>
+        <SelectionIdentifier>q13-a1</SelectionIdentifier>
+        <Text>typically</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q13-redundant
-        </SelectionIdentifier>
-        <Text>
-          N/A: Redundant with question 12
-        </Text>
+        <SelectionIdentifier>q13-redundant</SelectionIdentifier>
+        <Text>N/A: Redundant with question 12</Text>
         </Selection>
 
         <Selection>
-        <SelectionIdentifier>
-          q13-invalid
-        </SelectionIdentifier>
-        <Text>
-          N/A: Invalid question
-        </Text>
+        <SelectionIdentifier>q13-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q14</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent><Text>14. What does the Centre study?</Text></QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>q14-a1</SelectionIdentifier>
+        <Text>Imperialism</Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>q14-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q15</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent><Text>15. Is the Centre existent?</Text></QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>q15-a1</SelectionIdentifier>
+        <Text>Nonexistent</Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>q15-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q16</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent><Text>16. What is the last word of the Centre's name?</Text></QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>q16-a1</SelectionIdentifier>
+        <Text>Studies</Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>q16-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
+        </Selection>
+
+      </Selections>
+    </SelectionAnswer>
+  </AnswerSpecification>
+</Question>
+
+<Question>
+  <QuestionIdentifier>q17</QuestionIdentifier>
+  <IsRequired>true</IsRequired>
+  <QuestionContent><Text>17. What is the Centre's full name?</Text></QuestionContent>
+  <AnswerSpecification>
+    <SelectionAnswer>
+      <StyleSuggestion>radiobutton</StyleSuggestion>
+      <Selections>
+
+        <Selection>
+        <SelectionIdentifier>q17-a1</SelectionIdentifier>
+        <Text>Nonexistent Centre for Imperialism Studies</Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>q17-invalid</SelectionIdentifier>
+        <Text>N/A: Invalid question</Text>
         </Selection>
 
       </Selections>
@@ -619,6 +536,10 @@ ${answerXML("q10", "q10-invalid")}
 ${answerXML("q11", "q11-a2")}
 ${answerXML("q12", "q12-a1")}
 ${answerXML("q13", "q13-invalid")}
+${answerXML("q14", "q14-a1")}
+${answerXML("q15", "q15-invalid")}
+${answerXML("q16", "q16-invalid")}
+${answerXML("q17", "q17-a1")}
 <QualificationValueMapping>
   <PercentageMapping>
     <MaximumSummedScore>13</MaximumSummedScore>
@@ -715,7 +636,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val valTestQualTypeId = valTestQualType.getQualificationTypeId
   val valTestRequirement = new QualificationRequirement(
     valTestQualTypeId,
-    Comparator.GreaterThanOrEqualTo, 90,
+    Comparator.GreaterThanOrEqualTo, 85,
     null, false)
 
   // <![CDATA[
