@@ -338,6 +338,8 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
         these questions are """, <.b(Styles.goodGreen, "not redundant "), """ because they are asking about different things:
         the first is asking about what it is that leaked,
         and the second is asking about a characteristic of the documents."""),
+    <.p(""" You may also find that two questions ask about essentially the same thing,
+        but the order of question and answer is reversed. In these cases, the two are """, <.b(" not "), " redundant. "),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
     <.blockquote(<.i(""" In the year since the regulations were enacted,

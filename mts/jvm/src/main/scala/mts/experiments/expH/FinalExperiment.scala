@@ -40,7 +40,7 @@ object FinalExperiment {
 <Text>Your will read questions written by other workers and provide their answers or mark the questions as invalid or redundant according to our task criteria.</Text>
 <Text>Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions, focusing on some of the harder cases. It is very important for us that you follow the guidelines because you will be helping us detect question writers who do not correctly understand the task. In addition, your ability to remain qualified for the question-answering task will depend on your rate of agreement with other workers who are doing the question answering HIT.
 </Text>
-<Text>You can miss up to two questions on this test and still qualify for the task. If your score is too low, you can try again in half an hour.</Text>
+<Text>It's a good idea to open another tab with the task instructions to consult for this test. You can miss up to two questions and still qualify for the task.</Text>
 <Text>Suppose you get a HIT with the following sentence and list of questions. Please provide a judgment for each:</Text>
 <Text>"According to the Nonexistent Centre for Imperialism Studies, exploitation colonialism involves fewer colonists and focuses on access to resources for export, typically to the metropole." </Text>
 </Overview>
@@ -614,7 +614,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
     null, false)
 
-  val valTestQualTypeName = "Question answering test score"
+  val valTestQualTypeName = "Question answering guidelines test score"
   val valTestQualType = config.service.searchQualificationTypes(
     valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
   ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
@@ -625,7 +625,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       """Score on the qualification test for the question answering task,
          as a test of your understanding of the instructions.""".replaceAll("\\s+", " "),
       QualificationTypeStatus.Active,
-      1800L, // retry delay (seconds) --- 30 minutes
+      1800L, // retry delay (seconds) --- 20 minutes
       FinalExperiment.valQualTestString, // test: QuestionForm
       FinalExperiment.valQualAnswerKeyString, // AnswerKey
       1200L, // test time limit (seconds) --- 20 minutes
