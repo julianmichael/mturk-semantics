@@ -619,9 +619,11 @@ ${answerXML("q10", "q10-invalid")}
 ${answerXML("q11", "q11-a2")}
 ${answerXML("q12", "q12-a1")}
 ${answerXML("q13", "q13-invalid")}
-<PercentageMapping>
-  <MaximumSummedScore>13</MaximumSummedScore>
-</PercentageMapping>
+<QualificationValueMapping>
+  <PercentageMapping>
+    <MaximumSummedScore>13</MaximumSummedScore>
+  </PercentageMapping>
+</QualificationValueMapping>
 </AnswerKey>
 """.trim
 
