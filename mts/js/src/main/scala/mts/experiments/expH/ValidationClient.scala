@@ -284,34 +284,36 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
         <.b("answer it, "), "mark it ", <.b("invalid, "), "or mark it ", <.b("redundant.")),
     <.h3("Answers"),
     <.p("""Each answer must be """, <.b("correct "), "and ", <.b("as grammatical as possible"),
-        """. If there are multiple correct answers, include all of them in your answer if possible.
-        Include only the words necessary to completely answer the question,
-        but if all else is equal, prefer longer answers over shorter ones."""),
+        """. Include only the words relevant for answering the question,
+        but if all else is equal, prefer longer answers over shorter ones.
+        If there are multiple answers written in a list, you should choose the whole list."""),
     <.p("""In long sentences, an object may be mentioned multiple times, or a phrase may appear in the sentence multiple times.
            In cases such as this where there are multiple possible correct answers,
-           you should identify which words in the sentence the question is asking about,
-           and highlight the answer that is closest to those words.
-           This will help maximize your agreement with other workers."""),
+           you should choose the phrase that most naturally answers the question in your opinion.
+           This may be the best phrase for describing the answer,
+           or it might be the closest one to the content that the question is asking about.
+           (Since this is a small minority of cases, disagreements on these
+           should not significantly hurt your agreement numbers.)"""),
     <.h3("Invalid Questions"),
     <.p("""A question should be marked invalid if any of the following are true:"""),
     <.ul(
       <.li("""It isn't about the meaning of the sentence (for example, asking "Which word comes after...")."""),
       <.li("It is not fluent English or has grammatical or spelling errors."),
-      <.li("It is not obviously answered in the sentence."),
+      <.li("It is not obviously answered by what is expressed in the sentence."),
       <.li("""It does not contain any words from the sentence (for example, "What happened?" is usually invalid). Changing the forms of words (like changing "decision" to "decide") and expanding symbols (like writing $ as dollars or ° as degrees) is fine."""),
       <.li("It is a yes/no or either/or question, or other non-open-ended question.")
     ),
     <.p("""It is okay for a question not to be a full sentence, as long as it makes sense and it is grammatical English.
            For example, the question """, <.span(Styles.goodGreen, "Whose decision?"), """ would be fine if the phrase
-           "my decision" appeared in the sentence.""",
+           "my decision" appeared in the sentence. """,
         """Note that such short questions might lack the context we normally provide in conversational speech,
            but this does not make them invalid.
            Be sure to read the entire sentence to figure out what the question writer is asking about."""),
     <.p("""Questions might also take the form of "echo questions" where the question word like "what" appears in the middle somewhere,
            as in """, <.span(Styles.goodGreen, "Executive intervention canceled what?"), """ This is fine, but
-           if the question is excessively unnatural, like """, <.span(Styles.badRed, "The what protestors?"), """
+           if the question is excessively unnatural, like """, <.span(Styles.badRed, "The what protesters?"), """
            or if it lacks a question word altogether and simply copies a phrase from the sentence
-           (for example, """, <.span(Styles.badRed, "The protesters celebrated after?"), """ then it should be counted invalid.
+           (for example, """, <.span(Styles.badRed, "The protesters celebrated after?"), """) then it should be counted invalid.
         """),
     <.p("""If a question betrays a clear misunderstanding of the task or is clearly not written by a native English speaker,
            it should be counted invalid. You should forgive minor spelling errors (e.g., who's/whose, it's/its)
@@ -320,7 +322,6 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.h3("Redundancy"),
     <.p(""" Two questions are """, <.b("redundant "), """if they """,
         <.b("have the same meaning "), "and they ", <.b("have the same answer. "), """
-        If any question is redundant with another, you should mark it as such.
         For example, suppose you are given the following sentence and questions:"""),
     <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
     <.ul(
@@ -338,8 +339,9 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
         these questions are """, <.b(Styles.goodGreen, "not redundant "), """ because they are asking about different things:
         the first is asking about what it is that leaked,
         and the second is asking about a characteristic of the documents."""),
-    <.p(""" You may also find that two questions ask about essentially the same thing,
-        but the order of question and answer is reversed. In these cases, the two are """, <.b(" not "), " redundant. "),
+    <.p(""" You may also come upon two questions ask about essentially the same thing,
+        but where the order of question and answer is reversed. In these cases, the two are """, <.b(" not "),
+        """ redundant, since they have different answers. """),
     <.h2("""Examples"""),
     <.p("Suppose you are given the following sentence:"),
     <.blockquote(<.i(""" In the year since the regulations were enacted,
@@ -366,37 +368,39 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                            so it is unacceptable."""),
       example(question = "Who enacted the regulations?", answer = "<Invalid>", isGood = false,
               tooltip = """The question writer may have been thinking it was the EPA, but that is not
-                           stated explicitly in the sentence, so the question is invalid.
+                           actually expressed in the sentence, so the question is invalid.
                            (In fact, they were also wrong: it is Congress which enacts regulations, and not the EPA.)"""),
       example(question = "What is Gina's last name?", answer = "McCarthy", isGood = true,
               tooltip = """This is an acceptable question much like "What does EPA stand for?",
                            but note that the similar question "What is the last word in Gina's name? would be invalid."""),
       example(question = "What is the is the Agency responsible for?", answer = "Environmental Protection", isGood = true,
               tooltip = """While "responsibility" is not explicitly mentioned in the sentence,
-                           this fact is part of the meaning of the name "Environmental Protection Agency"."""),
+                           this fact is part of the meaning of the name "Environmental Protection Agency".
+                           Breaking down the meanings of names and descriptors like this is fine."""),
       example(question = "Was McCarthy aggressive or lax?", answer = "<Invalid>", isGood = false,
               tooltip = """This is an either/or question, which is disallowed.""")
     ),
     <.p("Now suppose you are given the following sentence:"),
-    <.blockquote(<.i(""" "I take full and complete responsibility," she said, "for
-                        my decision to disclose these materials to the public." """)),
+    <.blockquote(<.i("""I take full and complete responsibility for
+                        my decision to disclose these materials to the public.""")),
     <.p("""Here are some more examples:"""),
     <.ul(
-      example(question = "Who decided to disclose something?", answer = "she", isGood = true,
-              tooltip = """The answer "I" would also be acceptable here, since it also refers to the correct person. In cases like this, you should choose the answer that is closest in the sentence to what's being asked about."""),
+      example(question = "Who decided to disclose something?", answer = "I", isGood = true,
+              tooltip = """You can use pronouns like "I" and "it" to answer questions as long as they refer to the correct answer."""),
       example(question = "What is someone responsible for?", answer = "my decision to disclose these materials to the public", isGood = true,
-              tooltip = """If shorter and longer answers both suffice, favor the longer one.
+              tooltip = """If shorter and longer answers are equally correct, favor the longer one.
                            Provide this answer instead of just "my decision"."""),
       example(question = "Who made the decision?",
               answer = """<Redundant with "Who decided to disclose something?">""", isGood = false,
               tooltip = """The question has the same meaning as asking who "decided" to do it,
-                           as in the first question---and the answer is the same,
+                           as in the first question - and the answer is the same,
                            so this question is redundant."""),
-      example(question = "What did someone take?",
-              answer = "responsibility for my decision to disclose these materials to the public",
+      example(question = "Who disclosed the materials?",
+              answer = "I",
               isGood = true,
-              tooltip = """Skip over words if necessary to produce a complete and grammatical answer."""),
-      example(question = "Who leaked the documents?",
+              tooltip = """This is not redundant with the first question, because it is asking about who did the disclosing
+                           rather than who did the deciding."""),
+      example(question = "What did someone leak?",
               answer = "<Invalid>",
               isGood = false,
               tooltip = """This question does not contain any content words from the sentence.""")

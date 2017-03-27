@@ -361,11 +361,6 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                  <.span(^.className := "tooltiptext",
                         """Where possible, change nouns like "decision" to verbs in order to write short questions about them."""))),
       <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
-                 <.span("What am I responsible for? --> my thoughtless "), <.b("decision"),
-                 <.span(" to disclose these materials to the public"),
-                 <.span(^.className := "tooltiptext",
-                        "Prefer the longest answer that correctly and naturally answers the question."))),
-      <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
                  <.span("What kind of "), <.b("decision"), <.span("? --> thoughtless"),
                  <.span(^.className := "tooltiptext",
                         """To get descriptive words as answers, you may need to ask "What kind" or similar questions.""")))
