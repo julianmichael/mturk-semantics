@@ -286,7 +286,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
     <.p("""Each answer must be """, <.b("correct "), "and ", <.b("as grammatical as possible"),
         """. Include only the words relevant for answering the question,
         but if all else is equal, prefer longer answers over shorter ones.
-        If there are multiple answers written in a list, you should choose the whole list."""),
+        If there are multiple correct answers written as a list or with an "and", you should choose the whole list."""),
     <.p("""In long sentences, an object may be mentioned multiple times, or a phrase may appear in the sentence multiple times.
            In cases such as this where there are multiple possible correct answers,
            you should choose the phrase that most naturally answers the question in your opinion.
@@ -309,8 +309,8 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
         """Note that such short questions might lack the context we normally provide in conversational speech,
            but this does not make them invalid.
            Be sure to read the entire sentence to figure out what the question writer is asking about."""),
-    <.p("""Questions might also take the form of "echo questions" where the question word like "what" appears in the middle somewhere,
-           as in """, <.span(Styles.goodGreen, "Executive intervention canceled what?"), """ This is fine, but
+    <.p("""Questions might include the question word like "what" in the middle somewhere,
+           as in """, <.span(Styles.goodGreen, "Protesters celebrated after what form of intervention?"), """ This is fine, but
            if the question is excessively unnatural, like """, <.span(Styles.badRed, "The what protesters?"), """
            or if it lacks a question word altogether and simply copies a phrase from the sentence
            (for example, """, <.span(Styles.badRed, "The protesters celebrated after?"), """) then it should be counted invalid.
@@ -423,11 +423,11 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
         you will no longer qualify for the task.
         There is a grace period of several HITs before your score is allowed to drop too low;
         if your score is exactly ${(100 * validationAgreementBlockingThreshold).toInt}
-        it may be that your real accuracy is lower but you are in the grace period.
+        it may be that your real agreement rate is lower but you are in the grace period.
         The first time your score gets near or below the threshold, you will be sent a notification,
         but you can check it at any time in your qualifications.
         (Note, however, that other validators will sometimes make mistakes,
-        so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)
+        so there is an element of randomness to it: don't read too deeply into small changes in your agreement rate.)
         As long as you are qualified, your work will be approved and the bonus will be paid within an hour."""),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
