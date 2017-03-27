@@ -592,7 +592,7 @@ object FinalExperiment {
 </Question>
 
 </QuestionForm>
-"""
+""".trim
 
   private[this] def answerXML(qid: String, aid: String) = s"""
 <Question>
@@ -603,7 +603,7 @@ object FinalExperiment {
   </AnswerOption>
 </Question>
 """.trim
-  val valQualAnswerKeyString = s""" "<?xml version="1.0" encoding="UTF-8"?>
+  val valQualAnswerKeyString = s"""<?xml version="1.0" encoding="UTF-8"?>
 <AnswerKey xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/AnswerKey.xsd">
 ${answerXML("q1", "q1-invalid")}
 ${answerXML("q2", "q2-a1")}
@@ -623,7 +623,7 @@ ${answerXML("q13", "q13-invalid")}
   <MaximumSummedScore>13</MaximumSummedScore>
 </PercentageMapping>
 </AnswerKey>
-"""
+""".trim
 
 }
 
