@@ -361,7 +361,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           stats.valHITIds.toList
             .map(FileManager.getHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId, _))
             .map(_.get))
-      ).toOptionPrinting
+      ).toOption
     }.toMap
     SummaryInfo(
       // generation
