@@ -37,10 +37,9 @@ object FinalExperiment {
 <QuestionForm xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionForm.xsd">
 <Overview>
 <Title>Answering simple questions about a sentence</Title>
-<Text>Your will read questions written by other workers and provide their answers or mark the questions as invalid or redundant according to our task criteria.</Text>
-<Text>Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions, focusing on some of the harder cases. It is very important for us that you follow the guidelines because you will be helping us detect question writers who do not correctly understand the task. In addition, your ability to remain qualified for the question-answering task will depend on your rate of agreement with other workers who are doing the question answering HIT.
+<Text>Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions, focusing on some of the trickier cases. It is very important for us that you follow the guidelines because you will be helping us detect question writers who do not correctly understand the task. In addition, your ability to remain qualified for the question-answering task will depend on your rate of agreement with other workers who are doing the question answering HIT.
 </Text>
-<Text>It's a good idea to open another tab with the task instructions to consult for this test. You can miss up to two questions and still qualify for the task.</Text>
+<Text>It's a good idea have a tab open with the task preview so you can consult the instructions during this test.</Text>
 <Text>Suppose you get a HIT with the following sentence and list of questions. Please provide a judgment for each:</Text>
 <Text>"According to the Nonexistent Centre for Imperialism Studies, exploitation colonialism involves fewer colonists and focuses on access to resources for export, typically to the metropole." </Text>
 </Overview>
@@ -362,7 +361,7 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q12</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>12. Typically to where?</Text></QuestionContent>
+  <QuestionContent><Text>12. Where is typical?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -371,6 +370,11 @@ object FinalExperiment {
         <Selection>
         <SelectionIdentifier>q12-a1</SelectionIdentifier>
         <Text>the metropole</Text>
+        </Selection>
+
+        <Selection>
+        <SelectionIdentifier>q12-redundant</SelectionIdentifier>
+        <Text>Redundant with question 9</Text>
         </Selection>
 
         <Selection>
@@ -386,7 +390,7 @@ object FinalExperiment {
 <Question>
   <QuestionIdentifier>q13</QuestionIdentifier>
   <IsRequired>true</IsRequired>
-  <QuestionContent><Text>13. How often to metropole?</Text></QuestionContent>
+  <QuestionContent><Text>13. How often the metropole?</Text></QuestionContent>
   <AnswerSpecification>
     <SelectionAnswer>
       <StyleSuggestion>radiobutton</StyleSuggestion>
@@ -535,6 +539,7 @@ ${answerXML("q9", "q9-a1")}
 ${answerXML("q10", "q10-invalid")}
 ${answerXML("q11", "q11-a2")}
 ${answerXML("q12", "q12-a1")}
+${answerXML("q12", "q12-invalid")}
 ${answerXML("q13", "q13-invalid")}
 ${answerXML("q14", "q14-a1")}
 ${answerXML("q15", "q15-invalid")}
@@ -542,7 +547,7 @@ ${answerXML("q16", "q16-invalid")}
 ${answerXML("q17", "q17-a1")}
 <QualificationValueMapping>
   <PercentageMapping>
-    <MaximumSummedScore>13</MaximumSummedScore>
+    <MaximumSummedScore>17</MaximumSummedScore>
   </PercentageMapping>
 </QualificationValueMapping>
 </AnswerKey>
@@ -625,10 +630,10 @@ class FinalExperiment(implicit config: TaskConfig) {
       """Score on the qualification test for the question answering task,
          as a test of your understanding of the instructions.""".replaceAll("\\s+", " "),
       QualificationTypeStatus.Active,
-      1800L, // retry delay (seconds) --- 20 minutes
+      1800L, // retry delay (seconds) --- 10 minutes
       FinalExperiment.valQualTestString, // test: QuestionForm
       FinalExperiment.valQualAnswerKeyString, // AnswerKey
-      1200L, // test time limit (seconds) --- 20 minutes
+      1800L, // test time limit (seconds) --- 30 minutes
       false, // auto granted
       null // auto granted value
     )
@@ -636,7 +641,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val valTestQualTypeId = valTestQualType.getQualificationTypeId
   val valTestRequirement = new QualificationRequirement(
     valTestQualTypeId,
-    Comparator.GreaterThanOrEqualTo, 85,
+    Comparator.GreaterThanOrEqualTo, 80,
     null, false)
 
   // <![CDATA[
