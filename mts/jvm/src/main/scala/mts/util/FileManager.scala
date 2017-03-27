@@ -69,6 +69,12 @@ object FileManager {
     hitTypePath
   }
 
+  private[this] def hitExists(hitTypeId: String, hitId: String)(implicit config: TaskConfig) = {
+    val hitTypePath = getHITTypePath(hitTypeId)
+    val hitPath = hitTypePath.resolve(hitId)
+    Files.exists(hitPath)
+  }
+
   private[this] def getHITPath(hitTypeId: String, hitId: String)(implicit config: TaskConfig) = {
     val hitTypePath = getHITTypePath(hitTypeId)
     val hitPath = hitTypePath.resolve(hitId)
@@ -149,7 +155,8 @@ object FileManager {
     * @return hitId the HIT ID of the desired HIT
     */
   def getHIT[Prompt : Reader](hitTypeId: String, hitId: String)(implicit config: TaskConfig): Try[HIT[Prompt]] =
-    Try(loadHITUnsafe(getHITPath(hitTypeId, hitId)))
+    if(hitExists(hitTypeId, hitId)) Try(loadHITUnsafe(getHITPath(hitTypeId, hitId)))
+    else scala.util.Failure(new RuntimeException(s"HIT ($hitTypeId; $hitId) does not exist"))
 
   /** Saves an approved assignment annotation to disk.
     *
