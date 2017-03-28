@@ -94,6 +94,7 @@ class SentenceTracker(
 
   override def receive = {
     case SaveData => saveData
+    case Pring => println("Sentence tracker pringed.")
     case u @ GenerationFinished(gPrompt) => processUpdate(gPrompt.id, u)
     case u @ ValidationBegun(vPrompt) => processUpdate(vPrompt.genPrompt.id, u)
     case u @ ValidationFinished(vPrompt, _) => processUpdate(vPrompt.genPrompt.id, u)

@@ -14,6 +14,8 @@ import mts.datasets.wiki1k._
 import mts.language._
 
 trait PackagePlatformExtensions {
+  case object Pring
+
   def getTokensForId(id: SentenceId): Vector[String] = id match {
     case PTBSentenceId(path) => getPTBSentenceTokens(
       FileManager.getPTBSentence(path).get

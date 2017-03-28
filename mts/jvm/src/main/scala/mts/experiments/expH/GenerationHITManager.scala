@@ -134,6 +134,7 @@ class GenerationHITManager(
 
   override lazy val receiveAux2: PartialFunction[Any, Unit] = {
     case SaveData => saveData
+    case Pring => println("Generation manager pringed.")
     case FlagBadSentence(id) => flagBadSentence(id)
     case ValidationResult(prompt, hitId, assignmentId, numQAsValid) =>
       val hit = FileManager.getHIT[GenerationPrompt](hitTypeId, hitId).get

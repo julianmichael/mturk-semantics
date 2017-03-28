@@ -78,6 +78,7 @@ class ValidationHITManager private (
 
   override lazy val receiveAux2: PartialFunction[Any, Unit] = {
     case SaveData => saveData
+    case Pring => println("Validation manager pringed.")
   }
 
   override def promptFinished(prompt: ValidationPrompt): Unit = {
