@@ -205,7 +205,7 @@ object HITManager {
           val newInfo = curInfo.copy(assignments = assignment :: curInfo.assignments)
           activeHITInfosByPrompt.put(hit.prompt, newInfo :: filteredData)
           println
-          println(s"Approved assignment: ${assignment.assignmentId}")
+          println(s"Approved assignment for worker ${assignment.workerId}: ${assignment.assignmentId}")
           println(s"HIT for approved assignment: ${assignment.hitId}; $hitTypeId")
           FileManager.saveApprovedAssignment(assignment).recover { case e =>
             e.printStackTrace
