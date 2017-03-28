@@ -266,6 +266,7 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   lazy val sourcePrompts = sourceIds
     .drop(860) // those done in the version with blocks
+    .take(414) // those done before I had the auto-grantedness of the qual explicitly written
     .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
 
   implicit lazy val inflections = {
