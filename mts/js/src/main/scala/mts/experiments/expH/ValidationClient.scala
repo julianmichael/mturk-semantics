@@ -224,24 +224,24 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                               .map(qaField(state, sentence, hs.span))
                               .map(field => <.li(^.display := "block", field))
                           ),
-                          <.p(s"Bonus: ${dollarsToCents(validationBonus(questions.size))}c"),
-                          <.p(
-                            <.input(
-                              ^.`type` := "text",
-                              ^.name := feedbackLabel,
-                              ^.placeholder := "Feedback? (Optional)",
-                              ^.margin := "1px",
-                              ^.padding := "1px",
-                              ^.width := "484px"
-                            )
-                          ),
+                          <.p(s"Bonus: ${dollarsToCents(validationBonus(questions.size))}c")
+                        ),
+                        <.p(
                           <.input(
-                            ^.`type` := "submit",
-                            ^.disabled := !state.answers.forall(_.isComplete),
-                            ^.id := submitButtonLabel,
-                            ^.value := "submit"),
-                          instructions
-                        )
+                            ^.`type` := "text",
+                            ^.name := feedbackLabel,
+                            ^.placeholder := "Feedback? (Optional)",
+                            ^.margin := "1px",
+                            ^.padding := "1px",
+                            ^.width := "484px"
+                          )
+                        ),
+                        <.input(
+                          ^.`type` := "submit",
+                          ^.disabled := !state.answers.forall(_.isComplete),
+                          ^.id := submitButtonLabel,
+                          ^.value := "submit"),
+                        instructions
                       )
                   }
                 )
