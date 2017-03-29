@@ -110,7 +110,8 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
             ),
             ^.margin := "1px",
             ^.padding := "1px",
-            ^.width := "240px",
+            // ^.width := "240px",
+            ^.size := questionCharLimit,
             ^.maxLength := questionCharLimit,
             ^.onChange ==> (
               (e: ReactEventI) => {
@@ -181,7 +182,8 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                         Styles.mainContent,
                         <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin, """),
                             """ so you can maximize your bonuses and avoid losing your qualification. """,
-                            """ Also, while there may be few HITs available at any one time,
+                            """ To begin working on this HIT, please request the question-answer writing accuracy qualification.
+                                It is auto-granted. Also, while there may be few HITs available at any one time,
                                 more will be continuously uploaded as they are completed. """),
                         <.hr(),
                         <.p(

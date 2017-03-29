@@ -169,7 +169,10 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                         Styles.mainContent,
                         <.p(<.b("")),
                         <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
-                            """ Also, while there may be few HITs available at any one time, more will be continuously uploaded
+                            """ To begin working on this HIT, please request the question answering agreement qualification
+                                (it is auto-granted) and take the qualification test.
+                                Also, while there may be few HITs available at any one time,
+                                more will be continuously uploaded
                                 as other workers write questions for you to validate. """),
                         <.hr(),
                         <.div(

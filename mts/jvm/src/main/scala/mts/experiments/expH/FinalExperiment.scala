@@ -103,7 +103,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       """Score on the qualification test for the question answering task,
          as a test of your understanding of the instructions.""".replaceAll("\\s+", " "),
       QualificationTypeStatus.Active,
-      300L, // retry delay (seconds) --- 10 minutes
+      300L, // retry delay (seconds) --- 5 minutes
       FinalExperiment.valQualTestString, // test: QuestionForm
       FinalExperiment.valQualAnswerKeyString, // AnswerKey
       1200L, // test time limit (seconds) --- 30 minutes

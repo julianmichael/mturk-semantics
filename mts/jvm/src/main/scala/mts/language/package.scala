@@ -90,7 +90,14 @@ trait PackagePlatformExtensions {
       .tokenize.asScala.toList.map(_.word)
   }
 
-  /** POS-tags a sequence of tokens. */
+  // pos-tagging
+
+  import edu.stanford.nlp.tagger.maxent.MaxentTagger
+
   case class POSTaggedToken(token: String, pos: String)
-  def posTag(s: Vector[String]): Vector[POSTaggedToken] = ???
+
+  /** POS-tags a sequence of tokens. */
+  def posTag(s: Vector[String]): Vector[POSTaggedToken] = {
+    ???
+  }
 }
