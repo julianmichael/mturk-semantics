@@ -137,71 +137,75 @@ class GenerationHITManager(
     case Pring => println("Generation manager pringed.")
     case FlagBadSentence(id) => flagBadSentence(id)
     case ValidationResult(prompt, hitId, assignmentId, numQAsValid) =>
-      val hit = FileManager.getHIT[GenerationPrompt](hitTypeId, hitId).get
-      val assignment = FileManager.loadAssignmentsForHIT[List[WordedQAPair]](hitTypeId, hitId)
-        .find(_.assignmentId == assignmentId).get
+      val ha = for {
+        hit <- FileManager.getHIT[GenerationPrompt](hitTypeId, hitId).toOptionPrinting.toList
+        assignment <- FileManager.loadAssignmentsForHIT[List[WordedQAPair]](hitTypeId, hitId)
+      } yield (hit, assignment)
 
-      // award bonuses
-      val numSpecialWords = prompt.keywords.size
-      val numQAsProvided = assignment.response.size
-      val bonusAwarded = generationBonus(numSpecialWords, numQAsValid)
-      if(bonusAwarded > 0.0) {
-        service.grantBonus(
-          assignment.workerId, bonusAwarded, assignment.assignmentId,
-          s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
+      ha.foreach { case (hit, assignment) =>
+        // award bonuses
+        val numSpecialWords = prompt.keywords.size
+        val numQAsProvided = assignment.response.size
+        val bonusAwarded = generationBonus(numSpecialWords, numQAsValid)
+        if(bonusAwarded > 0.0) {
+          service.grantBonus(
+            assignment.workerId, bonusAwarded, assignment.assignmentId,
+            s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
             where at least $numSpecialWords were required, for a bonus of
             ${dollarsToCents(bonusAwarded)}c.""")
-      }
+        }
 
-      val stats = allWorkerStats
-        .get(assignment.workerId)
-        .getOrElse(WorkerStats.empty(assignment.workerId))
-        .addAssignment(assignment.response.size, numQAsValid,
-                       assignment.submitTime - assignment.acceptTime,
-                       taskSpec.hitType.reward + bonusAwarded)
+        val stats = allWorkerStats
+          .get(assignment.workerId)
+          .getOrElse(WorkerStats.empty(assignment.workerId))
+          .addAssignment(assignment.response.size, numQAsValid,
+                         assignment.submitTime - assignment.acceptTime,
+                         taskSpec.hitType.reward + bonusAwarded)
 
-      // update qualifications according to performance
-      val newStats = stats.warnedAt match {
-        case None =>
-          // set soft qualification since no warning yet
-          config.service.updateQualificationScore(
-            genQualificationTypeId,
-            assignment.workerId,
-            math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
-          if(stats.accuracy < generationAccuracyWarningThreshold &&
-               stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
-
-            service.notifyWorkers(
-              "Notification (warning + tips) regarding the question-answer task",
-              notificationEmailText(stats.accuracy),
-              Array(assignment.workerId))
-
-            println(s"Generation worker ${assignment.workerId} warned at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
-            stats.warned
-
-          } else stats
-        case Some(numWhenWarned) =>
-          if(stats.numAssignmentsCompleted - numWhenWarned >= generationBufferBeforeBlocking) {
-
-            config.service.updateQualificationScore(
-              genQualificationTypeId,
-              assignment.workerId,
-              math.ceil(100 * stats.accuracy).toInt)
-
-            if(math.ceil(stats.accuracy).toInt < generationAccuracyBlockingThreshold) {
-              println(s"Generation worker ${assignment.workerId} DQ'd at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
-              stats.blocked
-            } else stats
-
-          } else {
-            // set soft qualification since still in buffer zone
+        // update qualifications according to performance
+        val newStats = stats.warnedAt match {
+          case None =>
+            // set soft qualification since no warning yet
             config.service.updateQualificationScore(
               genQualificationTypeId,
               assignment.workerId,
               math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
-            stats
-          }
+            if(stats.accuracy < generationAccuracyWarningThreshold &&
+                 stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
+
+              service.notifyWorkers(
+                "Notification (warning + tips) regarding the question-answer task",
+                notificationEmailText(stats.accuracy),
+                Array(assignment.workerId))
+
+              println(s"Generation worker ${assignment.workerId} warned at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
+              stats.warned
+
+            } else stats
+          case Some(numWhenWarned) =>
+            if(stats.numAssignmentsCompleted - numWhenWarned >= generationBufferBeforeBlocking) {
+
+              config.service.updateQualificationScore(
+                genQualificationTypeId,
+                assignment.workerId,
+                math.ceil(100 * stats.accuracy).toInt)
+
+              if(math.ceil(stats.accuracy).toInt < generationAccuracyBlockingThreshold) {
+                println(s"Generation worker ${assignment.workerId} DQ'd at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
+                stats.blocked
+              } else stats
+
+            } else {
+              // set soft qualification since still in buffer zone
+              config.service.updateQualificationScore(
+                genQualificationTypeId,
+                assignment.workerId,
+                math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+              stats
+            }
+        }
+        allWorkerStats = allWorkerStats.updated(assignment.workerId, newStats)
       }
-      allWorkerStats = allWorkerStats.updated(assignment.workerId, newStats)
+
   }
 }
