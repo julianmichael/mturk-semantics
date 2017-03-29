@@ -123,7 +123,7 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                       )
                     ),
                     <.tbody(
-                      genWorkerStats.values.map {
+                      genWorkerStats.values.toVector.sortBy(-_.numAssignmentsCompleted).map {
                         case ws @ WorkerStats(
                           workerId, numAssignmentsCompleted,
                           numQAPairsWritten, numQAPairsValid,
@@ -168,7 +168,7 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                       )
                     ),
                     <.tbody(
-                      valWorkerInfo.values.map {
+                      valWorkerInfo.values.toVector.sortBy(-_.numAssignmentsCompleted).map {
                         case wi @ WorkerInfo(
                           workerId, numAssignmentsCompleted,
                           numComparisonInstances, numComparisonAgreements,

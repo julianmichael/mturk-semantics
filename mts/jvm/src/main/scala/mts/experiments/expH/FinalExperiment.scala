@@ -45,7 +45,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     Comparator.EqualTo, null,
     new Locale("US"), true)
 
-  val genAccQualTypeName = "Question-answer generation accuracy (%)"
+  val genAccQualTypeName = "Question-answer writing accuracy % (auto-granted)"
   val genAccQualType = config.service.searchQualificationTypes(
     genAccQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
   ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
@@ -69,7 +69,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     Comparator.GreaterThanOrEqualTo, (math.round(generationAccuracyBlockingThreshold * 100.0).toInt),
     null, false)
 
-  val valAgrQualTypeName = "Question answering agreement rate (%)"
+  val valAgrQualTypeName = "Question answering agreement % (auto-granted)"
   val valAgrQualType = config.service.searchQualificationTypes(
     valAgrQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
   ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
@@ -114,7 +114,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val valTestQualTypeId = valTestQualType.getQualificationTypeId
   val valTestRequirement = new QualificationRequirement(
     valTestQualTypeId,
-    Comparator.GreaterThanOrEqualTo, 80,
+    Comparator.GreaterThanOrEqualTo, 75,
     null, false)
 
   // <![CDATA[
@@ -203,8 +203,9 @@ class FinalExperiment(implicit config: TaskConfig) {
     description = s"""
       Given a sentence and some words from that sentence,
       write questions and answers involving each word.
-      Write more question-answer pairs for increasing bonuses!
-    """.trim,
+      Write more question-answer pairs for increasing bonuses, and
+      maintain high accuracy to stay qualified.
+    """.trim.replace("\\s+", " "),
     reward = generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
@@ -229,6 +230,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       Given a sentence and several questions about it,
       highlight the part of the sentence that answers each question,
       and mark questions that are invalid or redundant.
+      Maintain high agreement with others to stay qualified.
     """.trim,
     reward = validationReward,
     keywords = "language,english,question answering",
@@ -266,7 +268,7 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   lazy val sourcePrompts = sourceIds
     .drop(860) // those done in the version with blocks
-    .take(414) // those done before I had the auto-grantedness of the qual explicitly written
+    .drop(414) // those done before I had the auto-grantedness of the qual explicitly written
     .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
 
   implicit lazy val inflections = {
@@ -446,10 +448,15 @@ class FinalExperiment(implicit config: TaskConfig) {
   val oldGenHITTypeId = "3X8M0CO8US8JERH7QA0GGQIWAEHPVL"
   val oldValHITTypeId = "3OR5EJIUG2QY9PC04VUEYEGYR3Q9UL"
 
+  val oldGenHITTypeId2 = "36SUH4ZPJUVEFKCRRRIAVB1LGOZ705"
+  val oldValHITTypeId2 = "3XRW87W7OXAP1BEXLSFQFDKLIPNTQ0"
+
   def oldGenInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] =
-    FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](oldGenHITTypeId)
+    (FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](oldGenHITTypeId)
+       ++ FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](oldGenHITTypeId2))
   def oldValInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]] =
-    FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](oldValHITTypeId)
+    (FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](oldValHITTypeId)
+       ++ FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](oldValHITTypeId2))
 
   def allGenInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] =
     oldGenInfos ++ FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId)

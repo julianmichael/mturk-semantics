@@ -51,7 +51,6 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
     def updateResponse: Callback = scope.state.map { state =>
-      setSubmitEnabled(state.answers.forall(_.isComplete))
       setResponse(state.answers)
     }
 
@@ -168,7 +167,12 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
                         Styles.mainContent,
-                        instructions,
+                        <.p(<.b("")),
+                        <.p(<.b("""Note: """),
+                            """Please request the "Question answering agreement %" qualification. It will be auto-granted.
+                              Also, while there may be few HITs available at any one time, more will be continuously uploaded
+                              as other workers write questions for you to validate.""",
+                            <.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """)),
                         <.hr(),
                         <.div(
                           ^.tabIndex := 0,
@@ -222,7 +226,23 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                               .map(qaField(state, sentence, hs.span))
                               .map(field => <.li(^.display := "block", field))
                           ),
-                          <.p(s"Bonus: ${dollarsToCents(validationBonus(questions.size))}c")
+                          <.p(s"Bonus: ${dollarsToCents(validationBonus(questions.size))}c"),
+                          <.p(
+                            <.input(
+                              ^.`type` := "text",
+                              ^.name := feedbackLabel,
+                              ^.placeholder := "Feedback? (Optional)",
+                              ^.margin := "1px",
+                              ^.padding := "1px",
+                              ^.width := "484px"
+                            )
+                          ),
+                          <.input(
+                            ^.`type` := "submit",
+                            ^.disabled := !state.answers.forall(_.isComplete),
+                            ^.id := submitButtonLabel,
+                            ^.value := "submit"),
+                          instructions
                         )
                       )
                   }
@@ -256,13 +276,10 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
 
   private[this] val instructions = <.div(
     <.h2("""Task Summary"""),
-    <.p(<.b("""Please read through all of the instructions before you begin.""")),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.
            You will be presented with a selection of English text and a list of questions (usually at least four)
            prepared by other annotators."""),
-    <.p(<.b("Note: "), """While there may be few HITs available at any one time, more will be continuously uploaded
-           as other workers write questions for you to validate."""),
     <.p("""You will highlight the words in the sentence that correctly answer the question,
            as well as mark whether questions are invalid or redundant.
            For example, for the following sentence and questions, you should respond with the answers in green:"""),

@@ -59,6 +59,8 @@ abstract class TaskClient[Prompt : Reader, Response : Writer] {
     jQuery(s"#$responseLabel").attr("value", write(response))
   }
 
+  // XXX get rid of this; we now put submit button where desired with React
+  @Deprecated
   def setSubmitEnabled(enable: Boolean): Unit = {
     jQuery(s"#$submitButtonLabel").prop("disabled", !enable)
   }

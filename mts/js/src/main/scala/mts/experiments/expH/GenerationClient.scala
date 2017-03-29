@@ -78,7 +78,6 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
 
     def updateResponse: Callback = scope.state.map { st =>
       setResponse(st.qaGroups.flatten.filter(isComplete))
-      setSubmitEnabled(st.qaGroups.forall(_.filter(isComplete).size > 0))
     }
 
     def qaField(s: State, sentence: Vector[String], groupIndex: Int, qaIndex: Int) = s match {
@@ -180,7 +179,14 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
                         Styles.mainContent,
-                        instructions,
+                        <.p(<.b("Note: "),
+                            """Please request the "Question-answer writing accuracy" qualification to start working on this HIT.
+                               It will be auto-granted.
+                               Also, while there may be few HITs available at any one time,
+                               more will be continuously uploaded as they are completed. """,
+                            <.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin, """),
+                            """ so you can maximize your bonuses and avoid losing your qualification."""
+                            ),
                         <.hr(),
                         <.p(
                           Styles.unselectable,
@@ -245,7 +251,23 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                             curPotentialBonus > 0 ?= Styles.bolded,
                             s"${math.round(100 * curPotentialBonus).toInt}c"
                           )
-                        )
+                        ),
+                        <.p(
+                          <.input(
+                            ^.`type` := "text",
+                            ^.name := feedbackLabel,
+                            ^.placeholder := "Feedback? (Optional)",
+                            ^.margin := "1px",
+                            ^.padding := "1px",
+                            ^.width := "484px"
+                          )
+                        ),
+                        <.input(
+                          ^.`type` := "submit",
+                          ^.disabled := !s.qaGroups.forall(_.filter(isComplete).size > 0),
+                          ^.id := submitButtonLabel,
+                          ^.value := "submit"),
+                        instructions
                       )
                   }))
           }))
@@ -272,12 +294,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
     )
 
   private[this] val instructions = <.div(
-    <.p(<.b("Note: "), """While there may be few HITs available at any one time,
-        more will be continuously uploaded as they are completed."""),
     <.h2("""Task Summary"""),
-    <.p(Styles.bolded,
-        """You can significantly increase your earnings on this task through bonuses.
-         Please read through all of the instructions and examples so you can maximize your rewards."""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into lists of questions and answers.
         You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold."),

@@ -90,4 +90,7 @@ trait PackagePlatformExtensions {
       .tokenize.asScala.toList.map(_.word)
   }
 
+  /** POS-tags a sequence of tokens. */
+  case class POSTaggedToken(token: String, pos: String)
+  def posTag(s: Vector[String]): Vector[POSTaggedToken] = ???
 }

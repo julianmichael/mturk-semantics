@@ -77,22 +77,7 @@ object TaskPage {
           div(
             id := rootClientDivLabel,
             "Waiting for task data from server... (If this message does not disappear shortly, the server is down. Try refreshing in a minute or so.)"
-          ),
-          p(
-            input(
-              `type` := "text",
-              name := feedbackLabel,
-              placeholder := "Feedback? (Optional)",
-              margin := 1,
-              padding := 1,
-              width := 484
-            )
-          ),
-          input(
-            `type` := "submit",
-            disabled := true,
-            id := submitButtonLabel,
-            value := "submit")
+          )
         )
       )
     )
