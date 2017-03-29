@@ -168,11 +168,9 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                         ^.onMouseDown --> startHighlight,
                         Styles.mainContent,
                         <.p(<.b("")),
-                        <.p(<.b("""Note: """),
-                            """Please request the "Question answering agreement %" qualification. It will be auto-granted.
-                              Also, while there may be few HITs available at any one time, more will be continuously uploaded
-                              as other workers write questions for you to validate.""",
-                            <.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """)),
+                        <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
+                            """ Also, while there may be few HITs available at any one time, more will be continuously uploaded
+                                as other workers write questions for you to validate. """),
                         <.hr(),
                         <.div(
                           ^.tabIndex := 0,
