@@ -48,7 +48,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val genAccQualTypeName = "Question-answer writing accuracy % (auto-granted)"
   val genAccQualType = config.service.searchQualificationTypes(
     genAccQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
-  ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
+  ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == genAccQualTypeName)).getOrElse {
     System.out.println("Generating generation qualification type...")
     config.service.createQualificationType(
       genAccQualTypeName,
@@ -72,7 +72,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val valAgrQualTypeName = "Question answering agreement % (auto-granted)"
   val valAgrQualType = config.service.searchQualificationTypes(
     valAgrQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
-  ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
+  ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == valAgrQualTypeName)).getOrElse {
     System.out.println("Generating validation qualification type...")
     config.service.createQualificationType(
       valAgrQualTypeName,
@@ -95,7 +95,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   val valTestQualTypeName = "Question answering test score (%)"
   val valTestQualType = config.service.searchQualificationTypes(
     valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 1
-  ).getQualificationType.wrapNullable.flatMap(_.headOption).getOrElse {
+  ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == valTestQualTypeName)).getOrElse {
     System.out.println("Generating validation test qualification type...")
     config.service.createQualificationType(
       valTestQualTypeName,
