@@ -140,6 +140,7 @@ class GenerationHITManager(
       val ha = for {
         hit <- FileManager.getHIT[GenerationPrompt](hitTypeId, hitId).toOptionPrinting.toList
         assignment <- FileManager.loadAssignmentsForHIT[List[WordedQAPair]](hitTypeId, hitId)
+        if assignment.assignmentId == assignmentId
       } yield (hit, assignment)
 
       ha.foreach { case (hit, assignment) =>

@@ -93,11 +93,14 @@ trait PackagePlatformExtensions {
   // pos-tagging
 
   import edu.stanford.nlp.tagger.maxent.MaxentTagger
+  lazy val tagger: MaxentTagger  = new MaxentTagger("resources/corenlp/stanford-postagger-2016-10-31/models/english-left3words-distsim.tagger");
 
   case class POSTaggedToken(token: String, pos: String)
 
   /** POS-tags a sequence of tokens. */
   def posTag(s: Vector[String]): Vector[POSTaggedToken] = {
-    ???
+    tagger.tagTokenizedString(s.mkString(" ")).split(" ").toVector
+      .map(_.split("_"))
+      .map(s => POSTaggedToken(s(0), s(1)))
   }
 }

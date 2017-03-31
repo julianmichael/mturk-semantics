@@ -266,6 +266,9 @@ class FinalExperiment(implicit config: TaskConfig) {
     }
   }
 
+  lazy val allPrompts = sourceIds
+    .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
+
   lazy val sourcePrompts = sourceIds
     .drop(860) // those done in the version with blocks
     .drop(414) // those done before I had the auto-grantedness of the qual explicitly written
@@ -443,6 +446,32 @@ class FinalExperiment(implicit config: TaskConfig) {
     valManager ! SaveData
   }
 
+  // for use while it's running
+
+  def workerGenInfos(workerId: String) = for {
+    hi <- allGenInfos
+    assignment <- hi.assignments
+    if assignment.workerId == workerId
+  } yield HITInfo(hi.hit, List(assignment))
+
+  // sorted increasing by number of disagreements
+  def workerValInfos(workerId: String) = {
+    val scored = for {
+      hi <- allValInfos
+      if hi.assignments.exists(_.workerId == workerId)
+      workerAssignment = hi.assignments.find(_.workerId == workerId).get
+      nonWorkerAssignments = hi.assignments.filter(_.workerId != workerId)
+      avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(numAgreed(workerAssignment, _)).mean
+    } yield (HITInfo(hi.hit, workerAssignment :: nonWorkerAssignments), avgNumDisagreed)
+    scored.sortBy(_._2).map(_._1)
+  }
+
+  def currentGenSentences: List[(SentenceId, String)] = {
+    genHelper.activeHITInfosByPromptIterator.map(_._1.id).map(id =>
+      id -> TextRendering.renderSentence(getTokensForId(id))
+    ).toList
+  }
+
   // convenience functions
 
   val oldGenHITTypeId = "3X8M0CO8US8JERH7QA0GGQIWAEHPVL"
@@ -451,34 +480,16 @@ class FinalExperiment(implicit config: TaskConfig) {
   val oldGenHITTypeId2 = "36SUH4ZPJUVEFKCRRRIAVB1LGOZ705"
   val oldValHITTypeId2 = "3XRW87W7OXAP1BEXLSFQFDKLIPNTQ0"
 
-  def oldGenInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] =
+  lazy val oldGenInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] =
     (FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](oldGenHITTypeId)
        ++ FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](oldGenHITTypeId2))
-  def oldValInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]] =
+  lazy val oldValInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]] =
     (FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](oldValHITTypeId)
        ++ FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](oldValHITTypeId2))
 
   def allGenInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] =
     oldGenInfos ++ FileManager.loadAllHITInfo[GenerationPrompt, List[WordedQAPair]](genTaskSpec.hitTypeId)
   def allValInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]] = oldValInfos ++ FileManager.loadAllHITInfo[ValidationPrompt, List[ValidationAnswer]](valTaskSpec.hitTypeId)
-
-  def alignedInfos: Map[
-    SentenceId,
-    Map[GenerationPrompt,
-        Map[Assignment[List[WordedQAPair]],
-            List[HITInfo[ValidationPrompt, List[ValidationAnswer]]]]]
-  ] = {
-    val genInfos = allGenInfos
-    val valInfos = allValInfos
-
-    sourceIds.map { id =>
-      id -> sourcePrompts.filter(_.id == id).map { prompt =>
-        prompt -> genInfos.filter(_.hit.prompt == prompt).flatMap(_.assignments).map { genAssignment =>
-          genAssignment -> valInfos.filter(_.hit.prompt.sourceAssignmentId == genAssignment.assignmentId)
-        }.toMap
-      }.toMap
-    }.toMap
-  }
 
   def allSentenceStats: Map[SentenceId, SentenceStats] = {
     val genInfosById = allGenInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
@@ -553,9 +564,11 @@ class FinalExperiment(implicit config: TaskConfig) {
         )
         qaPairs.sortBy(_._2.wordIndex)
       }
-      questionIndices = getWordsInQuestion(sentence, question).mkString(" ")
+      questionTokens = tokenize(question).toVector
+      questionSentenceAlignments = getQuestionSentenceAlignments(sentence, questionTokens) // q-s
+      qsAlignmentsString = questionSentenceAlignments.map { case (q, s) => s"$q-$s" }.mkString(" ")
       _ <- append(s"${id.readableFileString}\t${id.readableSentenceIndex}\t${genWorkerId}\t")
-      _ <- append(s"${sentence(keywordIndex)} ($keywordIndex)\t$questionIndices\t$question\t")
+      _ <- append(s"${sentence(keywordIndex)} ($keywordIndex)\t$qsAlignmentsString\t${questionTokens.mkString(" ")}\t")
       _ <- append(TextRendering.renderSpan(sentence, answerIndices) + s"\t$valAnswersString\t")
       _ <- append(s"${answerIndices.mkString(" ")}\t")
       _ <- append(valAnswers.map(_.getAnswer.map(_.indices.mkString(" ")).getOrElse("")).mkString("\t"))
@@ -578,6 +591,8 @@ class FinalExperiment(implicit config: TaskConfig) {
     FileManager.saveDataFile(experimentName, "test.tsv", makeTSV(testIds, genInfos, valInfos))
   }
 
+  /* do not use any of these above or outside the console since they become outdated */
+
   lazy val assignmentCosts = allValInfos.map {
     case HITInfo(hit, assignments) =>
       val numSpecialWords = hit.prompt.genPrompt.keywords.size
@@ -588,40 +603,38 @@ class FinalExperiment(implicit config: TaskConfig) {
       0.20 + genBonus + (2 * valReward)
   }
 
-  def assignmentNumQAs = allValInfos.map {
+  lazy val assignmentNumQAs = allValInfos.map {
     case HITInfo(hit, assignments) => hit.prompt.qaPairs.size
   }
 
-  def assignmentNumValids = allValInfos.map {
+  lazy val assignmentNumValids = allValInfos.map {
     case HITInfo(hit, assignments) =>
       math.round(assignments.map(_.response.filter(_.isAnswer).size).mean - 0.01).toInt
   }
 
-  def assignmentNumRedundants = allValInfos.map {
+  lazy val assignmentNumRedundants = allValInfos.map {
     case HITInfo(hit, assignments) =>
       math.round(assignments.map(_.response.filter(_.isRedundant).size).mean).toInt
   }
 
-  def numBothAnswered = allValInfos.map(
+  lazy val assignmentNumBothAnswered = allValInfos.map(
     _.assignments
       .map(a => a.response.map(resolveRedundancy(_, a.response)))
       .transpose
       .filter(_.forall(_.isAnswer))
-      .size
-  )
+      .size)
 
-  def numBothAnsweredAndNoIntersection = allValInfos.map(
+  lazy val assignmentNumBothAnsweredAndNoIntersection = allValInfos.map(
     _.assignments
       .map(a => a.response.map(resolveRedundancy(_, a.response)))
       .transpose
       .filter(_.forall(_.isAnswer))
       .filter(_.flatMap(_.getAnswer).map(_.indices).reduce(_ intersect _).isEmpty)
-      .size
-  ).sum
+      .size)
 
-  def numAgreements = allValInfos.map(hi => numAgreed(hi.assignments(0), hi.assignments(1)))
+  lazy val assignmentNumAgreements = allValInfos.map(hi => numAgreed(hi.assignments(0), hi.assignments(1)))
 
-  def numQAPairsEachSpecialWordInHIT = for {
+  lazy val assignmentNumQAPairsEachSpecialWordInHIT = for {
     HITInfo(hit, assignments) <- allGenInfos
     sentence = getTokensForId(hit.prompt.id)
     assignment <- assignments
@@ -630,7 +643,7 @@ class FinalExperiment(implicit config: TaskConfig) {
     .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
     .filter(_.contains(keyword)).size
 
-  def assignmentsMissingSpecialWords = for {
+  lazy val assignmentsMissingSpecialWords = for {
     HITInfo(hit, assignments) <- allGenInfos
     sentence = getTokensForId(hit.prompt.id)
     assignment <- assignments
@@ -650,9 +663,82 @@ class FinalExperiment(implicit config: TaskConfig) {
     pairs.toSet
   }
 
+  lazy val alignedInfos: Map[
+    SentenceId,
+    Map[GenerationPrompt,
+        Map[Assignment[List[WordedQAPair]],
+            List[HITInfo[ValidationPrompt, List[ValidationAnswer]]]]]
+  ] = {
+    val genInfos = allGenInfos
+    val valInfos = allValInfos
+
+    sourceIds.map { id =>
+      id -> allPrompts.filter(_.id == id).map { prompt =>
+        prompt -> genInfos.filter(_.hit.prompt == prompt).flatMap(_.assignments).map { genAssignment =>
+          genAssignment -> valInfos.filter(_.hit.prompt.sourceAssignmentId == genAssignment.assignmentId)
+        }.toMap
+      }.toMap
+    }.toMap
+  }
+
+  lazy val alignedQAs: Map[SentenceId, Map[WordedQAPair, List[ValidationAnswer]]] = {
+    val genInfosByPrompt = allGenInfos.groupBy(_.hit.prompt)
+    val valInfosByGenAssignment = allValInfos.groupBy(_.hit.prompt.sourceAssignmentId)
+    allPrompts.groupBy(_.id).flatMap { case (id, prompts) =>
+      val qaToAnswers = for {
+        prompt <- prompts
+        genInfo <- genInfosByPrompt.get(prompt).toList.flatten
+        assignment <- genInfo.assignments
+        validationResponses = for {
+          valInfo <- valInfosByGenAssignment.get(assignment.assignmentId).toList.flatten
+          assignment <- valInfo.assignments
+        } yield assignment.response
+        pair <- assignment.response.zip(validationResponses.transpose)
+      } yield pair
+      qaToAnswers.onlyIf(_.nonEmpty).map(id -> _.toMap)
+    }.toMap
+  }
+
+  lazy val validQAs: Map[SentenceId, Map[WordedQAPair, List[Set[Int]]]] = {
+    alignedQAs.map { case (id, qasToAnswers) =>
+      id -> qasToAnswers.flatMap { case (wqa, vAnswers) =>
+        vAnswers
+          .onlyIf(_.forall(_.isAnswer))
+          .map(_.flatMap(_.getAnswer).map(_.indices))
+          .map(wqa -> _)
+      }.toMap
+    }.toMap
+  }
+
+  def validQAsForNumQuestionWords(p: Int => Boolean) = validQAs.map { case (id, qas) =>
+    val tokens = getTokensForId(id)
+    id -> qas.filter { case (wqa, answers) => p(getWordsInQuestion(tokens, wqa.question).size) }
+  }.toMap
+
+  def renderSentenceEntry(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
+    qas.map { case (wqa, as) => renderValidQA(getTokensForId(id), wqa, as) }.mkString("\n")
+  }
+
+  def renderValidQA(tokens: Vector[String], wqa: WordedQAPair, validations: List[Set[Int]]) = {
+    val sentenceString = TextRendering.renderSentence(tokens)
+    val answerString = TextRendering.renderSpan(tokens, wqa.answer)
+    val validationStrings = validations.map(TextRendering.renderSpan(tokens, _)).mkString(" \t")
+    s"$sentenceString \n\t${wqa.question} --> $answerString \t|$validationStrings"
+  }
+
+  def getExternalVocabulary(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
+    val tokens = getTokensForId(id)
+    qas.flatMap { case (wqa, as) =>
+      val qTokens = tokenize(wqa.question).toVector
+      qTokens.indices
+        .filterNot(getAlignedQuestionIndices(tokens, qTokens))
+        .map(qTokens.apply _)
+    }.toList
+  }
+
   def sampleQAPairs(id: SentenceId, n: Int = 1) = {
-    val promptToAlignments = alignedInfos(id)
-    val sentence = getTokensForId(id)
+      val promptToAlignments = alignedInfos(id)
+      val sentence = getTokensForId(id)
     val qas = promptToAlignments.values.flatMap { alignment =>
       // sample n assignments
       val sample = util.Random.shuffle(alignment.keys.toVector).take(n)
@@ -685,7 +771,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       id -> PairCoverage(id, pairs)
   }.toMap
 
-  def coverageCountsBySentence = {
+  lazy val coverageCountsBySentence = {
     val coverages = (1 to 5).map(nSamplePairCoverage).toList
     sourceIds.map { id =>
       id -> coverages.map(_(id)).map(_.numCovered)
@@ -700,7 +786,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       .toList.transpose.map(_.mean)
   }
 
-  def avgQAsPerKeywordByWorker = allGenInfos.flatMap(_.assignments).groupBy(_.workerId).map {
+  lazy val avgQAsPerKeywordByWorker = allGenInfos.flatMap(_.assignments).groupBy(_.workerId).map {
     case (worker, as) => worker -> {
       val nums = as.flatMap(_.response).groupBy(_.wordIndex).map(_._2.size).toList
       (nums.mean, nums.size)
@@ -778,30 +864,9 @@ class FinalExperiment(implicit config: TaskConfig) {
       nomBankPR(path, qas.toList)
   }.toList
 
-  def workerGenInfos(workerId: String) = for {
-    hi <- allGenInfos
-    assignment <- hi.assignments
-    if assignment.workerId == workerId
-  } yield HITInfo(hi.hit, List(assignment))
-
-  // sorted increasing by number of disagreements
-  def workerValInfos(workerId: String) = {
-    val scored = for {
-      hi <- allValInfos
-      if hi.assignments.exists(_.workerId == workerId)
-      workerAssignment = hi.assignments.find(_.workerId == workerId).get
-      nonWorkerAssignments = hi.assignments.filter(_.workerId != workerId)
-      avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(numAgreed(workerAssignment, _)).mean
-    } yield (HITInfo(hi.hit, workerAssignment :: nonWorkerAssignments), avgNumDisagreed)
-    scored.sortBy(_._2).map(_._1)
+  lazy val assignmentNumOneQuestionWord = allValInfos.map {
+    case HITInfo(hit, assignments) => hit.prompt.qaPairs.size
   }
-
-  def currentGenSentences: List[(SentenceId, String)] = {
-    genHelper.activeHITInfosByPromptIterator.map(_._1.id).map(id =>
-      id -> TextRendering.renderSentence(getTokensForId(id))
-    ).toList
-  }
-
 }
 
 object FinalExperiment {

@@ -31,6 +31,37 @@ trait PackagePlatformExtensions {
     sentence.zipWithIndex.filter(p => generalizedTokens.contains(p._1.lowerCase)).map(_._2).toSet
   }
 
+  def getAlignedQuestionIndices(sentence: Vector[String], questionTokens: Vector[String])(implicit inflections: Inflections): Set[Int] = {
+    val lowerSentence = sentence.map(_.lowerCase)
+    val allIndices = for {
+      (t, index) <- questionTokens.zipWithIndex
+      if !isReallyUninteresting(t)
+      lowerToken = TextRendering.normalizeToken(t).lowerCase
+      tokenForm <- t.lowerCase :: inflections.getAllForms(lowerToken).toList
+      if lowerSentence.contains(tokenForm)
+    } yield index
+    allIndices.toSet
+  }
+
+  def getQuestionSentenceAlignments(
+    sentence: Vector[String],
+    questionTokens: Vector[String])(
+    implicit inflections: Inflections): Set[(Int, Int)] = {
+    val lowerSentence = sentence.map(_.lowerCase)
+    val lowerQuestion = questionTokens.map(_.lowerCase)
+    val allIndices = for {
+      (qToken, qIndex) <- lowerQuestion.zipWithIndex
+      if !isReallyUninteresting(qToken)
+      lowerQToken = TextRendering.normalizeToken(qToken).lowerCase
+      qTokenForm <- qToken :: inflections.getAllForms(lowerQToken).toList
+      (sToken, sIndex) <- lowerSentence.zipWithIndex
+      lowerSToken = TextRendering.normalizeToken(sToken).lowerCase
+      sTokenForm <- sToken :: inflections.getAllForms(lowerSToken).toList
+      if qTokenForm.equals(sTokenForm)
+    } yield (qIndex, sIndex)
+    allIndices.toSet
+  }
+
   def splitNum(n: Int): List[Int] =
     if(n <= 0) Nil
     else if(n <= 3) List(n)
