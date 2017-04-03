@@ -81,7 +81,7 @@ class Inflections(
 }
 object Inflections {
   final val doVerbs = Set(
-    "do", "does", "did", "done").map(_.lowerCase)
+    "do", "does", "doing", "did", "done").map(_.lowerCase)
   final val beVerbs = Set(
     "be", "being", "been",
     "am", "'m",

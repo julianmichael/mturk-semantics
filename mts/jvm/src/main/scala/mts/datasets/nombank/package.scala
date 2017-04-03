@@ -16,13 +16,13 @@ trait PackagePlatformExtensions {
   object NomBankFileManager {
     private[this] val nomBankAnnotationPath = Paths.get("nombank.1.0/nombank.1.0")
 
-    import com.softwaremill.macmemo.memoize
-    import com.softwaremill.macmemo.MemoCacheBuilder
-    implicit val cacheProvider = MemoCacheBuilder.guavaMemoCacheBuilder
+    // import com.softwaremill.macmemo.memoize
+    // import com.softwaremill.macmemo.MemoCacheBuilder
+    // implicit val cacheProvider = MemoCacheBuilder.guavaMemoCacheBuilder
 
     // this is stupid and due to the lack of a proper builder for immutable.Map
-    // @memoize(maxSize = 1, expiresAfter = 1 hour)
-    private[this] def getNomBankUnsafe: collection.Map[PTBSentencePath, List[NomBankEntry]] = {
+    lazy val getNomBankUnsafe: collection.Map[PTBSentencePath, List[NomBankEntry]] = {
+      println("wow!")
       val fileResource = FileManager.loadResource(nomBankAnnotationPath).map { lines =>
         val map = collection.mutable.Map.empty[PTBSentencePath, List[NomBankEntry]]
         lines.foreach { line =>

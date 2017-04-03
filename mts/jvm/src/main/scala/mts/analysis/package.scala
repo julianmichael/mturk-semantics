@@ -10,7 +10,6 @@ package object analysis {
       l.contains("C-") || l.contains("R-") ||
       l == "rel"// || l == "Support"
   }
-  val copulas = Set("be", "am", "are", "is", "was", "were", "have", "has", "had")
 
   case class QuestionAnswerPair(question: String, answer: Set[Int])
 

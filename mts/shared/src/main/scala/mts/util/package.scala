@@ -119,6 +119,10 @@ package object util extends PackagePlatformExtensions {
     def wrapNullable: Option[A] = if(a == null) None else Some(a) // TODO probably Option(A) works here
   }
 
+  implicit class RichValForFunctions[A](val a: A) extends AnyVal {
+    def <|[B] (f: A => B): B = f(a)
+  }
+
   implicit class RichTry[A](val t: Try[A]) extends AnyVal {
     def toOptionPrinting: Option[A] = t match {
       case Success(a) =>

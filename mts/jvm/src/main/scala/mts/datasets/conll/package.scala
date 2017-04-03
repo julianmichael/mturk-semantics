@@ -27,10 +27,22 @@ import java.nio.file.{Paths, Path, Files}
   */
 trait PackagePlatformExtensions {
 
+  import mts.datasets.ptb
+  def ptbToCoNLLPath(ptbPath: ptb.PTBPath): Option[CoNLLPath] = {
+    val wsjPathRegex = """(.*)\.MRG""".r
+    val wsjPathRegex(suffix) = ptbPath.suffix
+    val conllPath = CoNLLPath(s"nw/wsj/${suffix.toLowerCase}.v4_gold_conll")
+    FileManager.getCoNLLFile(conllPath).toOption.map(_ => conllPath)
+  }
+  def ptbToCoNLLSentencePath(ptbPath: ptb.PTBSentencePath): Option[CoNLLSentencePath] =
+    ptbToCoNLLPath(ptbPath.filePath).map(
+      CoNLLSentencePath(_, ptbPath.sentenceNum)
+    )
+
   /** Implicitly converts vanilla FileManager to the CoNLL one,
     * so you don't have to remember how to prefix the term "FileManager" to call these methods.
     */
-  implicit def fileManagerToCoNLL(fm: FileManager.type) = CoNLLFileManager
+  implicit def fileManagerToCoNLL(fm: FileManager.type): CoNLLFileManager.type = CoNLLFileManager
 
   object CoNLLFileManager {
 
@@ -38,17 +50,22 @@ trait PackagePlatformExtensions {
     import com.softwaremill.macmemo.MemoCacheBuilder
     implicit val cacheProvider = MemoCacheBuilder.guavaMemoCacheBuilder
 
-    // development
-    private[this] val conllAnnotationPath = Paths.get("conll-2012/v4/data/development/data/english/annotations")
+    private[this] val conllTrainPath = Paths.get("conll-2012/v4/data/train/data/english/annotations")
+    private[this] val conllDevPath = Paths.get("conll-2012/v4/data/development/data/english/annotations")
 
     @memoize(maxSize = 200, expiresAfter = 1 hour)
     private[this] def getCoNLLFileUnsafe(path: CoNLLPath): CoNLLFile = {
-      val fullPath = conllAnnotationPath.resolve(path.get)
-      val fileResource = for {
-        lines <- FileManager.loadResource(fullPath)
-        file = Parsing.readFile(lines)
-      } yield file
-      fileResource.tried.get
+      def getFromRoot(rootPath: Path) = {
+        val fullPath = rootPath.resolve(path.get)
+        for {
+          lines <- FileManager.loadResource(fullPath)
+          file = Parsing.readFile(lines)
+        } yield file
+      }
+      getFromRoot(conllDevPath).tried.recoverWith {
+        case e: java.nio.file.NoSuchFileException => getFromRoot(conllTrainPath).tried
+        case e => e.printStackTrace; Failure(e)
+      }.get
     }
 
     def getCoNLLFile(path: CoNLLPath): Try[CoNLLFile] =

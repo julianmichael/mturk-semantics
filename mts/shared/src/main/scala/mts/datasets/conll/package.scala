@@ -75,6 +75,7 @@ package object conll extends PackagePlatformExtensions {
         predicateLemma = arr(6)
         if !predicateLemma.equals("-")
         framesetId = arr(7)
+        if !framesetId.equals("-")
         head = words(index)
       } yield Predicate(head, predicateLemma, framesetId)
       val paStructures = for {

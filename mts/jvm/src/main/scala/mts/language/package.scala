@@ -98,8 +98,8 @@ trait PackagePlatformExtensions {
   case class POSTaggedToken(token: String, pos: String)
 
   /** POS-tags a sequence of tokens. */
-  def posTag(s: Vector[String]): Vector[POSTaggedToken] = {
-    tagger.tagTokenizedString(s.mkString(" ")).split(" ").toVector
+  def posTag(s: List[String]): List[POSTaggedToken] = {
+    tagger.tagTokenizedString(s.mkString(" ")).split(" ").toList
       .map(_.split("_"))
       .map(s => POSTaggedToken(s(0), s(1)))
   }

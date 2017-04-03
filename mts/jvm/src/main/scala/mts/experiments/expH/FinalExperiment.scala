@@ -4,7 +4,6 @@ import mts.analysis._
 import mts.experiments._
 import mts.core._
 import mts.tasks._
-import mts.tasks._
 import mts.datasets.conll._
 import mts.datasets.ptb._
 import mts.datasets.wiki1k._
@@ -92,7 +91,8 @@ class FinalExperiment(implicit config: TaskConfig) {
     Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
     null, false)
 
-  val valTestQualTypeName = "Question answering test score (%)"
+  val valTestQualTypeName = if(config.isProduction) "Question answering test score (%)"
+                            else "Sandbox test score qual"
   val valTestQualType = config.service.searchQualificationTypes(
     valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
   ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == valTestQualTypeName)).getOrElse {
@@ -104,8 +104,8 @@ class FinalExperiment(implicit config: TaskConfig) {
          as a test of your understanding of the instructions.""".replaceAll("\\s+", " "),
       QualificationTypeStatus.Active,
       300L, // retry delay (seconds) --- 5 minutes
-      FinalExperiment.valQualTestString, // test: QuestionForm
-      FinalExperiment.valQualAnswerKeyString, // AnswerKey
+      QualTest.valQualTestString, // test: QuestionForm
+      QualTest.valQualAnswerKeyString, // AnswerKey
       1200L, // test time limit (seconds) --- 30 minutes
       false, // auto granted
       null // auto granted value
@@ -220,7 +220,8 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleGenPrompt = GenerationPrompt(sourceIds(5), idSplits(sourceIds(5))(0))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    frozenHITTypeId = Some("3554GQY3BJXDVEL54N24OMP560NSLM"))
 
   // validation task definition
 
@@ -251,7 +252,8 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    frozenHITTypeId = Some("3AYVNGH59IZRTO9MQCW5NV51ECHYDQ"))
 
   // hit management --- circularly defined so they can communicate
 
@@ -582,7 +584,9 @@ class FinalExperiment(implicit config: TaskConfig) {
     genInfos: List[HITInfo[GenerationPrompt, List[WordedQAPair]]] = allGenInfos,
     valInfos: List[HITInfo[ValidationPrompt, List[ValidationAnswer]]] = allValInfos
   ) = {
-    val allIds = genInfos.map(_.hit.prompt.id).toSet.toList
+    val allIds = genInfos.map(_.hit.prompt.id).collect {
+      case id @ WikiSentenceId(_) => id
+    }.toSet.toList
     val trainIds = allIds.filter(isTrain)
     val devIds = allIds.filter(isDev)
     val testIds = allIds.filter(isTest)
@@ -592,76 +596,6 @@ class FinalExperiment(implicit config: TaskConfig) {
   }
 
   /* do not use any of these above or outside the console since they become outdated */
-
-  lazy val assignmentCosts = allValInfos.map {
-    case HITInfo(hit, assignments) =>
-      val numSpecialWords = hit.prompt.genPrompt.keywords.size
-      val numQAsProvided = hit.prompt.qaPairs.size
-      val numQAsValid = math.round(assignments.map(_.response.filter(_.isAnswer).size).mean - 0.01).toInt
-      val genBonus = (1 to (numQAsValid - numSpecialWords)).map(bonusFor).sum
-      val valReward = 0.15 + (0.03 * math.max(0, numQAsProvided - 4))
-      0.20 + genBonus + (2 * valReward)
-  }
-
-  lazy val assignmentNumQAs = allValInfos.map {
-    case HITInfo(hit, assignments) => hit.prompt.qaPairs.size
-  }
-
-  lazy val assignmentNumValids = allValInfos.map {
-    case HITInfo(hit, assignments) =>
-      math.round(assignments.map(_.response.filter(_.isAnswer).size).mean - 0.01).toInt
-  }
-
-  lazy val assignmentNumRedundants = allValInfos.map {
-    case HITInfo(hit, assignments) =>
-      math.round(assignments.map(_.response.filter(_.isRedundant).size).mean).toInt
-  }
-
-  lazy val assignmentNumBothAnswered = allValInfos.map(
-    _.assignments
-      .map(a => a.response.map(resolveRedundancy(_, a.response)))
-      .transpose
-      .filter(_.forall(_.isAnswer))
-      .size)
-
-  lazy val assignmentNumBothAnsweredAndNoIntersection = allValInfos.map(
-    _.assignments
-      .map(a => a.response.map(resolveRedundancy(_, a.response)))
-      .transpose
-      .filter(_.forall(_.isAnswer))
-      .filter(_.flatMap(_.getAnswer).map(_.indices).reduce(_ intersect _).isEmpty)
-      .size)
-
-  lazy val assignmentNumAgreements = allValInfos.map(hi => numAgreed(hi.assignments(0), hi.assignments(1)))
-
-  lazy val assignmentNumQAPairsEachSpecialWordInHIT = for {
-    HITInfo(hit, assignments) <- allGenInfos
-    sentence = getTokensForId(hit.prompt.id)
-    assignment <- assignments
-    keyword <- hit.prompt.keywords
-  } yield assignment.response
-    .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
-    .filter(_.contains(keyword)).size
-
-  lazy val assignmentsMissingSpecialWords = for {
-    HITInfo(hit, assignments) <- allGenInfos
-    sentence = getTokensForId(hit.prompt.id)
-    assignment <- assignments
-    keyword <- hit.prompt.keywords
-    if assignment.response
-    .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
-    .filter(_.contains(keyword)).isEmpty
-  } yield (sentence, TextRendering.renderSentence(sentence), keyword,
-           TextRendering.normalizeToken(sentence(keyword)),
-           assignment.response)
-
-  def orderedPairsCovered(sentence: Vector[String], question: String, answerIndices: Set[Int]) = {
-    val pairs = for {
-      qi <- getWordsInQuestion(sentence, question)
-      ai <- answerIndices
-    } yield (math.min(qi, ai), math.max(qi, ai))
-    pairs.toSet
-  }
 
   lazy val alignedInfos: Map[
     SentenceId,
@@ -681,6 +615,11 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.toMap
   }
 
+  lazy val trainingAlignedInfos = alignedInfos.filter {
+    case (id @ WikiSentenceId(_), _) => isTrain(id)
+    case _ => false
+  }.toMap
+
   lazy val alignedQAs: Map[SentenceId, Map[WordedQAPair, List[ValidationAnswer]]] = {
     val genInfosByPrompt = allGenInfos.groupBy(_.hit.prompt)
     val valInfosByGenAssignment = allValInfos.groupBy(_.hit.prompt.sourceAssignmentId)
@@ -699,6 +638,11 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.toMap
   }
 
+  lazy val trainingAlignedQAs = alignedQAs.filter {
+    case (id @ WikiSentenceId(_), _) => isTrain(id)
+    case _ => false
+  }.toMap
+
   lazy val validQAs: Map[SentenceId, Map[WordedQAPair, List[Set[Int]]]] = {
     alignedQAs.map { case (id, qasToAnswers) =>
       id -> qasToAnswers.flatMap { case (wqa, vAnswers) =>
@@ -710,9 +654,14 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.toMap
   }
 
-  def validQAsForNumQuestionWords(p: Int => Boolean) = validQAs.map { case (id, qas) =>
-    val tokens = getTokensForId(id)
-    id -> qas.filter { case (wqa, answers) => p(getWordsInQuestion(tokens, wqa.question).size) }
+  lazy val trainValidQAs = validQAs.filter {
+    case (id @ WikiSentenceId(_), _) => isTrain(id)
+    case _ => false
+  }.toMap
+
+  lazy val devValidQAs = validQAs.filter {
+    case (id @ WikiSentenceId(_), _) => isDev(id)
+    case _ => false
   }.toMap
 
   def renderSentenceEntry(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
@@ -726,19 +675,9 @@ class FinalExperiment(implicit config: TaskConfig) {
     s"$sentenceString \n\t${wqa.question} --> $answerString \t|$validationStrings"
   }
 
-  def getExternalVocabulary(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
-    val tokens = getTokensForId(id)
-    qas.flatMap { case (wqa, as) =>
-      val qTokens = tokenize(wqa.question).toVector
-      qTokens.indices
-        .filterNot(getAlignedQuestionIndices(tokens, qTokens))
-        .map(qTokens.apply _)
-    }.toList
-  }
-
   def sampleQAPairs(id: SentenceId, n: Int = 1) = {
-      val promptToAlignments = alignedInfos(id)
-      val sentence = getTokensForId(id)
+    val promptToAlignments = alignedInfos(id)
+    val sentence = getTokensForId(id)
     val qas = promptToAlignments.values.flatMap { alignment =>
       // sample n assignments
       val sample = util.Random.shuffle(alignment.keys.toVector).take(n)
@@ -748,555 +687,399 @@ class FinalExperiment(implicit config: TaskConfig) {
         (wqa, index) <- genAssignment.response.zipWithIndex
         qResponses = valResponses.map(_(index))
         if qResponses.forall(!_.isInvalid)
-        allValIndices = qResponses.flatMap(_.getAnswer).map(_.indices).foldLeft(Set.empty[Int])(_ union _)
-      } yield WordedQAPair(wqa.wordIndex, wqa.question, allValIndices ++ wqa.answer)
+        answer <- wqa.answer :: qResponses.flatMap(_.getAnswer).map(_.indices)
+      } yield WordedQAPair(wqa.wordIndex, wqa.question, answer)
     }
     qas
   }
 
-  case class PairCoverage(
-    id: SentenceId,
-    pairs: Set[(Int, Int)]) {
-    def sentence = getTokensForId(id)
-    def numCovered = pairs.size
-    def numPossible = math.pow(sentence.size, 2).toInt
-  }
-  def nSamplePairCoverage(n: Int): Map[SentenceId, PairCoverage] = alignedInfos.map {
-    case (id, promptToAlignments) =>
-      val sentence = getTokensForId(id)
-      val wqas = sampleQAPairs(id, n)
-      val pairs = wqas.map {
-        case WordedQAPair(_, question, answer) => orderedPairsCovered(sentence, question, answer)
-      }.foldLeft(Set.empty[(Int, Int)])(_ union _)
-      id -> PairCoverage(id, pairs)
-  }.toMap
+  // def allQAPairSamplings(id: SentenceId, n: Int = 1) = {
+  //   val promptToAlignments = alignedInfos(id)
+  //   val sentence = getTokensForId(id)
+  //   val qas = promptToAlignments.values.flatMap { alignment =>
+  //     // sample n assignments
+  //     val samples = alignment.keys.toVector.combinations(n)
+  //     samples.map { sample =>
+  //       for {
+  //         genAssignment <- sample
+  //         valResponses = alignment(genAssignment).flatMap(_.assignments).map(_.response)
+  //                                                                           (wqa, index) <- genAssignment.response.zipWithIndex
+  //         qResponses = valResponses.map(_(index))
+  //         if qResponses.forall(!_.isInvalid)
+  //         answer <- wqa.answer :: qResponses.flatMap(_.getAnswer).map(_.indices)
+  //       } yield WordedQAPair(wqa.wordIndex, wqa.question, answer)
+  //     }
+  //   }
+  //   qas
+  // }
 
-  lazy val coverageCountsBySentence = {
-    val coverages = (1 to 5).map(nSamplePairCoverage).toList
-    sourceIds.map { id =>
-      id -> coverages.map(_(id)).map(_.numCovered)
+  class QuestionModeling(theseValidQAs: Map[SentenceId, Map[WordedQAPair, List[Set[Int]]]]) {
+    def validQAsForNumQuestionWords(p: Int => Boolean) = theseValidQAs.map { case (id, qas) =>
+      val tokens = getTokensForId(id)
+      id -> qas.filter { case (wqa, answers) => p(getWordsInQuestion(tokens, wqa.question).size) }
     }.toMap
-  }
 
-  def avgCoveragePercentages(n: Int = 20) = {
-    coverageCountsBySentence.values.toVector
-      .sortBy(_.last)
-      .take(n)
-      .map(counts => counts.map(_ * 100.0 / counts.last))
-      .toList.transpose.map(_.mean)
-  }
-
-  lazy val avgQAsPerKeywordByWorker = allGenInfos.flatMap(_.assignments).groupBy(_.workerId).map {
-    case (worker, as) => worker -> {
-      val nums = as.flatMap(_.response).groupBy(_.wordIndex).map(_._2.size).toList
-      (nums.mean, nums.size)
+    def getExternalVocabulary(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
+      val tokens = getTokensForId(id)
+      qas.flatMap { case (wqa, as) =>
+        val qTokens = tokenize(wqa.question.toLowerCase).toVector
+        qTokens.indices
+          .filterNot(getAlignedQuestionIndices(tokens, qTokens))
+          .map(qTokens.apply _)
+      }.toList
     }
-  }
 
-  def alignToPAS(words: Vector[String], qas: List[WordedQAPair], paStructures: List[PredicateArgumentStructure]) = {
-    case class PredArg(pred: Predicate, arg: ArgumentSpan)
-    import mts.analysis
-    val predArgs = paStructures
-      .flatMap(pas => pas.arguments.map(PredArg(pas.pred, _)))
-      .filterNot(pa => analysis.labelIsIrrelevant(pa.arg.label))
-      .filterNot(pa => analysis.copulas.contains(pa.pred.head.token.toLowerCase))
-      .filterNot(pa => pa.arg.words.contains(pa.pred.head))
-    val alignedPAs = qas.map {
-      case WordedQAPair(_, question, answer) =>
-        val qWords = getWordsInQuestion(words, question)
-        def alignment(predSide: Set[Int], argSide: Set[Int]) = predArgs
-          .filter(pa => predSide.contains(pa.pred.head.index))
-          .map(pa => pa -> argSide.intersect(pa.arg.words.map(_.index).toSet).size.toDouble / argSide.union(pa.arg.words.map(_.index).toSet).size)
-          .filter(_._2 > 0)
-          .sortBy(-_._2)
-          .headOption
-        val bestAlignment = List(
-          alignment(qWords, answer),
-          alignment(answer, qWords)
-        ).flatten.sortBy(-_._2).map(_._1).headOption
-        bestAlignment
+    def externalWordReport(sum: Double)(word: String, count: Int) =
+      f"$word%s\t$count%d\t${count.toDouble / sum}%.4f"
+
+    lazy val externalWordCounts = theseValidQAs.iterator.flatMap(
+      Function.tupled(getExternalVocabulary)
+    ) <| Scorer.apply[String, Int]
+
+    lazy val externalWordReports = externalWordCounts.iterator.toVector
+      .sortBy(-_._2)
+      .map(Function.tupled(externalWordReport(externalWordCounts.sum)))
+
+    lazy val externalNonStopwordCounts = theseValidQAs.iterator.flatMap(
+      Function.tupled(getExternalVocabulary)
+    ).filterNot(isReallyUninteresting) <| Scorer.apply[String, Int]
+
+    lazy val externalNonStopwordReports = externalNonStopwordCounts.iterator.toVector
+      .sortBy(-_._2)
+      .map(Function.tupled(externalWordReport(externalNonStopwordCounts.sum)))
+
+    lazy val allValidQuestions = theseValidQAs.map {
+      case (id, qaMap) => id -> qaMap.keys.map(wqa => posTag(tokenize(wqa.question)))
+    }.toMap
+
+    lazy val numValidQuestions = allValidQuestions.map(_._2.size).sum
+
+    class NGramReport(tokenizedStrings: Iterator[List[String]]) {
+      lazy val prefixes = tokenizedStrings.flatMap(tokens =>
+        (tokens ++ List("<End>")).inits.filter(_.nonEmpty)
+      ) <| Scorer.apply[List[String], Int]
+
+      lazy val orderedPrefixes = prefixes.iterator.toVector.sortBy(-_._2)
+
+      def prefixReport(prefix: List[String], count: Int) =
+        f"${prefix.mkString(" ")}%s\t$count%d\t${count.toDouble / numValidQuestions}%.4f"
+
+      lazy val orderedPrefixReports = orderedPrefixes.map(Function.tupled(prefixReport))
     }
-    // collapse QAs redundantly aligned... TODO: try without collapsing
-    val pasCovered = alignedPAs.flatten.toSet
-    val numPredictions = alignedPAs.filter(_ == None).size + pasCovered.size
 
-    val missedDeps = predArgs.filterNot(pasCovered).mkString("\n")
-    println(s"Missed deps:\n$missedDeps")
+    lazy val questionNGrams = new NGramReport(allValidQuestions.iterator.flatMap(_._2).map(_.map(_.token.toLowerCase)))
 
-    PrecisionRecall(
-      numPredicted = numPredictions,
-      numGold = predArgs.size,
-      numCorrect = pasCovered.size,
-      numCovered = pasCovered.size
-    )
-  }
-
-  def propBankPR(path: PTBSentencePath, qas: List[WordedQAPair]): PrecisionRecall = {
-    import mts.datasets.propbank._
-    val pbPath = ptbToPropBankSentencePath(path)
-    pbPath
-      .flatMap((p => FileManager.getPropBankSentence(p)) andThen (_.toOption))
-      .fold(PrecisionRecall(qas.size, 0, 0, 0)) { pbSentence =>
-      val paStructures = pbSentence.predicateArgumentStructures
-      alignToPAS(getTokensForId(PTBSentenceId(path)), qas, paStructures)
+    lazy val collapsedQuestions = allValidQuestions.map {
+      case (id, questions) => id -> questions.map { q =>
+        val alignedTokens = getAlignedQuestionIndices(getTokensForId(id), q.map(_.token).toVector)
+        val collapsedTokens = q.zipWithIndex.foldRight(List.empty[POSTaggedToken]) { case ((posToken, index), acc) =>
+          if(alignedTokens.contains(index)) {
+            if(acc.headOption.fold(true)(_.token != "<>")) POSTaggedToken("<>", "<>") :: acc
+            else acc
+          } else posToken.copy(token = posToken.token.toLowerCase) :: acc
+        }
+        collapsedTokens
+      }
     }
+
+    lazy val collapsedQuestionNGrams = new NGramReport(collapsedQuestions.iterator.flatMap(_._2).map(_.map(_.token)))
+
+    lazy val auxCollapsedQuestions = collapsedQuestions.map {
+      case (id, cQuestions) => id -> cQuestions.map { tokens =>
+        tokens.map { case t =>
+          if(inflections.isCopulaVerb(t.token.lowerCase)) POSTaggedToken("<be>", "<be>")
+          else if(Inflections.doVerbs.contains(t.token.lowerCase)) POSTaggedToken("<do>", "<do>")
+          else t
+        }
+      }
+    }
+
+    lazy val auxCollapsedQuestionNGrams = new NGramReport(auxCollapsedQuestions.iterator.flatMap(_._2).map(_.map(_.token)))
+
+    lazy val delexicalizedQuestionNGrams = new NGramReport(auxCollapsedQuestions.iterator.flatMap(_._2).map(_.map(_.pos)))
+
+    // val determiners = Set("the", "a", "this")
+    // val pronouns = Set("i", "we", "you", "he", "she", "him", "her", "it", "something", "someone", "they", "them")
+    // val kindCats = Set("kind", "type", "types")
+    // val whCats = Set("year", "country", "part", "month", "day", "people", "nationality", "city", "place", "thing",
+    //                  "group", "event", "time", "number", "man", "things", "language", "person", "album", "position",
+    //                  "animal", "years", "state", "size", "color", "score", "percentage", "date", "gender", "countries",
+    //                  "direction", "organization", "level", "religion", "profession", "company", "job")
+    // val ofCats = Set("name", "title")
+    // val howCats = Set("long", "old")
+
+    def delexicalizeQuestion(id: SentenceId, question: String) = {
+      val qTokens = tokenize(question)
+      val sentenceTokens = getTokensForId(id)
+      val alignedQIs = getAlignedQuestionIndices(sentenceTokens, qTokens.toVector)
+      val posTagged = posTag(qTokens)
+      posTagged.zipWithIndex.map {
+        case (POSTaggedToken(token, pos), index) =>
+          if(alignedQIs.contains(index)) (token, s"*$pos")
+          else if(inflections.isCopulaVerb(token.lowerCase)) (token, "<be>")
+          else if(Inflections.doVerbs.contains(token.lowerCase)) (token, "<do>")
+          else (token, pos)
+      }
+    }
+
+    def writeTemplatedQuestions(filename: String) = {
+      val sb = new StringBuilder
+      for {
+        (id, qaPairToAnswers) <- theseValidQAs
+        sentenceTokens = posTag(getTokensForId(id).toList)
+        (wqa, answers) <- qaPairToAnswers
+        (qTokens, qTags) = delexicalizeQuestion(id, wqa.question).unzip
+        alignments = getQuestionSentenceAlignments(sentenceTokens.toVector.map(_.token), qTokens.toVector)
+        sQuestionIndices = alignments.map(_._2)
+        qSentenceIndices = alignments.map(_._1)
+        answer <- wqa.answer :: answers
+      } yield {
+        val sTags = sentenceTokens.zipWithIndex.map { case(POSTaggedToken(_, pos), i) =>
+          val placementTag = if(sQuestionIndices(i)) "Q" else if(answer(i)) "A" else "O"
+          s"$placementTag-$pos"
+        }.mkString(" ")
+        val line = s"${sentenceTokens.map(_.token).mkString(" ")} ||| $sTags ||| ${qTokens.mkString(" ")} ||| ${qTags.mkString(" ")}\n"
+        sb.append(line)
+      }
+
+      FileManager.saveDataFile(experimentName, filename, sb.toString)
+    }
+
   }
 
-  def allPropBankPRs(n: Int = 1) = alignedInfos.collect {
-    case (id @ PTBSentenceId(path), promptToAlignments) =>
+  lazy val trainQuestionModeling = new QuestionModeling(trainValidQAs)
+  lazy val devQuestionModeling = new QuestionModeling(devValidQAs)
+
+  object PTBAnalysis {
+
+    lazy val finishedPTBIds = alignedInfos.collect {
+      case (id @ PTBSentenceId(path), infosByPrompt)
+          if infosByPrompt.forall(_._2.size == 5) => id
+    }.toSet
+
+    lazy val validPTBQAs = validQAs.filter {
+      case (id @ PTBSentenceId(_), _) => finishedPTBIds.contains(id)
+      case _ => false
+    }
+
+    def alignToPAS(
+      words: Vector[String],
+      qas: List[WordedQAPair],
+      paStructures: List[PredicateArgumentStructure]) = {
+      case class PredArg(pred: Predicate, arg: ArgumentSpan)
+      val predArgs = paStructures
+        .flatMap(pas => pas.arguments.map(PredArg(pas.pred, _)))
+        .filterNot(pa => labelIsIrrelevant(pa.arg.label))
+        .filterNot(pa => Inflections.auxiliaryVerbs.contains(pa.pred.head.token.lowerCase))
+        .filterNot(pa => pa.arg.words.contains(pa.pred.head))
+      val alignedPAs = qas.map {
+        case WordedQAPair(_, question, answer) =>
+          val qWords = getWordsInQuestion(words, question)
+          def alignment(predSide: Set[Int], argSide: Set[Int]) = predArgs
+            .filter(pa => predSide.contains(pa.pred.head.index))
+            .map(pa => pa -> argSide.intersect(pa.arg.words.map(_.index).toSet).size.toDouble / argSide.union(pa.arg.words.map(_.index).toSet).size)
+            .filter(_._2 > 0)
+            .sortBy(-_._2)
+            .headOption
+          val bestAlignment = List(
+            alignment(qWords, answer),
+            alignment(answer, qWords)
+          ).flatten.sortBy(-_._2).map(_._1).headOption
+          bestAlignment
+      }
+      // collapse QAs redundantly aligned... TODO: try without collapsing
+      val pasCovered = alignedPAs.flatten.toSet
+      val numPredictions = alignedPAs.filter(_ == None).size// + pasCovered.size // TODO why was I adding this?
+
+      val sentenceString = TextRendering.renderSentence(words)
+      val missedDeps = predArgs.filterNot(pasCovered).mkString("\n")
+      println(s"\n\n$sentenceString\nMissed deps:\n$missedDeps")
+
+      PrecisionRecall(
+        numPredicted = numPredictions,
+        numGold = predArgs.size,
+        numCorrect = pasCovered.size,
+        numCovered = pasCovered.size
+      )
+    }
+
+    def propBankPR(path: PTBSentencePath, qas: List[WordedQAPair]): PrecisionRecall = {
+      import mts.datasets.propbank._
+      val pbPath = ptbToPropBankSentencePath(path)
+      pbPath
+        .flatMap((p => FileManager.getPropBankSentence(p)) andThen (_.toOption))
+        .fold(PrecisionRecall(qas.size, 0, 0, 0)) { pbSentence =>
+        val paStructures = pbSentence.predicateArgumentStructures
+        alignToPAS(getTokensForId(PTBSentenceId(path)), qas, paStructures)
+      }
+    }
+
+    def allPropBankPRs(n: Int = 1) = finishedPTBIds.map { case id @ PTBSentenceId(path) =>
       val sentence = getTokensForId(id)
       val qas = sampleQAPairs(id, n)
       propBankPR(path, qas.toList)
-  }.toList
+    }.toList
 
-  def nomBankPR(path: PTBSentencePath, qas: List[WordedQAPair]): PrecisionRecall = {
-    import mts.datasets.nombank._
-    FileManager.getNomBankPredArgStructuresReindexed(path).toOption
-      .fold(PrecisionRecall(qas.size, 0, 0, 0)) { paStructures =>
-      alignToPAS(getTokensForId(PTBSentenceId(path)), qas, paStructures)
+    lazy val pbRecalls = (1 to 5).map(i => List.fill((2 * (5 - i)) + 1)(allPropBankPRs(i).reduce(_ aggregate _).recall))
+    lazy val pbRecallDists = pbRecalls.map(r => (r.mean, r.stdev))
+    lazy val pbRecallReport = pbRecallDists.zip(1 to 5)
+      .map { case ((mean, stdev), n) => f"$n%d annotators: $mean%.4f ± $stdev%.4f" }
+      .mkString("\n")
+
+    def nomBankPR(path: PTBSentencePath, qas: List[WordedQAPair]): PrecisionRecall = {
+      import mts.datasets.nombank._
+      FileManager.getNomBankPredArgStructuresReindexed(path).toOption
+        .fold(PrecisionRecall(qas.size, 0, 0, 0)) { paStructures =>
+        alignToPAS(getTokensForId(PTBSentenceId(path)), qas, paStructures)
+      }
+    }
+
+    def allNomBankPRs(n: Int = 1) = finishedPTBIds.map { case id @ PTBSentenceId(path) =>
+        val sentence = getTokensForId(id)
+        val qas = sampleQAPairs(id, n)
+        nomBankPR(path, qas.toList)
+    }.toList
+
+    lazy val nbRecalls = (1 to 5).map(i => List.fill((2 * (5 - i)) + 1)(allNomBankPRs(i).reduce(_ aggregate _).recall))
+    lazy val nbRecallDists = nbRecalls.map(r => (r.mean, r.stdev))
+    lazy val nbRecallReport = nbRecallDists.zip(1 to 5)
+      .map { case ((mean, stdev), n) => f"$n%d annotators: $mean%.4f ± $stdev%.4f" }
+      .mkString("\n")
+
+    // only 5 sentences have coref data :( should do that qualitatively
+
+    // qasrl comparison too
+
+    lazy val fullReport: String = {
+      s"PropBank:\n$pbRecallReport \nNombank:\n$nbRecallReport"
     }
   }
 
-  def allNomBankPRs(n: Int = 1) = alignedInfos.collect {
-    case (id @ PTBSentenceId(path), promptToAlignments) =>
-      val sentence = getTokensForId(id)
-      val qas = sampleQAPairs(id, n)
-      nomBankPR(path, qas.toList)
-  }.toList
+  // if do manual annotation interface...
+  // - propbank
+  // - nombank
+  // - coref
+  // - relations
+  // - coordination scope
+  // - pp attachment? probably not interesting enough...
 
-  lazy val assignmentNumOneQuestionWord = allValInfos.map {
-    case HITInfo(hit, assignments) => hit.prompt.qaPairs.size
+  object ValidationStats {
+    lazy val assignmentCosts = allValInfos.map {
+      case HITInfo(hit, assignments) =>
+        val numSpecialWords = hit.prompt.genPrompt.keywords.size
+        val numQAsProvided = hit.prompt.qaPairs.size
+        val numQAsValid = math.round(assignments.map(_.response.filter(_.isAnswer).size).mean - 0.01).toInt
+        val genBonus = (1 to (numQAsValid - numSpecialWords)).map(bonusFor).sum
+        val valReward = 0.15 + (0.03 * math.max(0, numQAsProvided - 4))
+        0.20 + genBonus + (2 * valReward)
+    }
+
+    lazy val assignmentNumQAs = allValInfos.map {
+      case HITInfo(hit, assignments) => hit.prompt.qaPairs.size
+    }
+
+    lazy val assignmentNumValids = allValInfos.map {
+      case HITInfo(hit, assignments) =>
+        math.round(assignments.map(_.response.filter(_.isAnswer).size).mean - 0.01).toInt
+    }
+
+    lazy val assignmentNumRedundants = allValInfos.map {
+      case HITInfo(hit, assignments) =>
+        math.round(assignments.map(_.response.filter(_.isRedundant).size).mean).toInt
+    }
+
+    lazy val assignmentNumBothAnswered = allValInfos.map(
+      _.assignments
+        .map(a => a.response.map(resolveRedundancy(_, a.response)))
+        .transpose
+        .filter(_.forall(_.isAnswer))
+        .size)
+
+    lazy val assignmentNumBothAnsweredAndNoIntersection = allValInfos.map(
+      _.assignments
+        .map(a => a.response.map(resolveRedundancy(_, a.response)))
+        .transpose
+        .filter(_.forall(_.isAnswer))
+        .filter(_.flatMap(_.getAnswer).map(_.indices).reduce(_ intersect _).isEmpty)
+        .size)
+
+    lazy val assignmentNumAgreements = allValInfos.map(hi => numAgreed(hi.assignments(0), hi.assignments(1)))
+
+    lazy val assignmentNumQAPairsEachSpecialWordInHIT = for {
+      HITInfo(hit, assignments) <- allGenInfos
+      sentence = getTokensForId(hit.prompt.id)
+      assignment <- assignments
+      keyword <- hit.prompt.keywords
+    } yield assignment.response
+      .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
+      .filter(_.contains(keyword)).size
+
+    lazy val assignmentsMissingSpecialWords = for {
+      HITInfo(hit, assignments) <- allGenInfos
+      sentence = getTokensForId(hit.prompt.id)
+      assignment <- assignments
+      keyword <- hit.prompt.keywords
+      if assignment.response
+      .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
+      .filter(_.contains(keyword)).isEmpty
+    } yield (sentence, TextRendering.renderSentence(sentence), keyword,
+             TextRendering.normalizeToken(sentence(keyword)),
+             assignment.response)
   }
-}
 
-object FinalExperiment {
-  val valQualTestString = s"""<?xml version="1.0" encoding="UTF-8"?>
-<QuestionForm xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionForm.xsd">
-<Overview>
-<Title>Answering simple questions about a sentence</Title>
-<Text>Please carefully read over the instructions for our task named "Answer simple questions about a sentence". This qualification test will evaluate your understanding of those instructions, focusing on some of the trickier cases. It is very important for us that you follow the guidelines because you will be helping us detect question writers who do not correctly understand the task. The guidelines are also important because everyone has slightly different intuitions about how to answer these questions, but we need everyone to perform consistently so that you can accurately be judged by how well you agree with each other.
-</Text>
-<Text>It's a good idea have a tab open with the task preview so you can consult the instructions during this test. Feel free to take it as many times as necessary; your score can be a good form of feedback on how well you understand the expectations.</Text>
-<Text>Suppose you get a HIT with the following sentence and list of questions. Please provide a judgment for each:</Text>
-<Text>"According to the Nonexistent Centre for Imperialism Studies, exploitation colonialism involves fewer colonists and focuses on access to resources for export, typically to the metropole." </Text>
-</Overview>
-
-<Question>
-  <QuestionIdentifier>q1</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>1. Exploitation colonialism focuses on?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q1-a1</SelectionIdentifier>
-        <Text>access to resources for export, typically to the metropole</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q1-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q2</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>2. What involves fewer colonists?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q2-a1</SelectionIdentifier>
-        <Text>Exploitation colonialism</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q2-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q3</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>3. How many colonists?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q3-a1</SelectionIdentifier>
-        <Text>fewer</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q3-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q4</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>4. What kind of colonialism?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q4-a1</SelectionIdentifier>
-        <Text>Exploitation</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q4-redundant</SelectionIdentifier>
-        <Text>N/A: Redundant with question 2</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q4-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q5</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>5. What form of colonialism involves fewer colonists?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q5-a1</SelectionIdentifier>
-        <Text>Exploitation</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q5-redundant1</SelectionIdentifier>
-        <Text>N/A: Redundant with question 2</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q5-redundant2</SelectionIdentifier>
-        <Text>N/A: Redundant with question 4</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q5-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q6</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>6. Fewer what?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q6-a1</SelectionIdentifier>
-        <Text>colonists</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q6-redundant</SelectionIdentifier>
-        <Text>N/A: Redundant with question 3</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q6-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q7</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>7. What is exploited?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q7-a1</SelectionIdentifier>
-        <Text>colonialism</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q7-a2</SelectionIdentifier>
-        <Text>resources</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q7-redundant1</SelectionIdentifier>
-        <Text>N/A: Redundant with question 4</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q7-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q8</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>8. Where do the exports typically go?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q8-a1</SelectionIdentifier>
-        <Text>the metropole</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q8-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q9</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>9. Does it focus more on colonists or access to resources?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q9-a1</SelectionIdentifier>
-        <Text>colonists</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q9-a2</SelectionIdentifier>
-        <Text>access to resources</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q9-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q10</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>10. What gets exported?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q10-a1</SelectionIdentifier>
-        <Text>access to resources</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q10-a2</SelectionIdentifier>
-        <Text>resources</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q10-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q11</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>11. What is the last word of the Centre?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q11-a1</SelectionIdentifier>
-        <Text>Studies</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q11-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q12</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>12. What is the Centre's full name?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q12-a1</SelectionIdentifier>
-        <Text>Nonexistent Centre for Imperialism Studies</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q12-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q13</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>13. What does the Centre study?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q13-a1</SelectionIdentifier>
-        <Text>Imperialism</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q13-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-<Question>
-  <QuestionIdentifier>q14</QuestionIdentifier>
-  <IsRequired>true</IsRequired>
-  <QuestionContent><Text>14. Is the Centre existent?</Text></QuestionContent>
-  <AnswerSpecification>
-    <SelectionAnswer>
-      <StyleSuggestion>radiobutton</StyleSuggestion>
-      <Selections>
-
-        <Selection>
-        <SelectionIdentifier>q14-a1</SelectionIdentifier>
-        <Text>Nonexistent</Text>
-        </Selection>
-
-        <Selection>
-        <SelectionIdentifier>q14-invalid</SelectionIdentifier>
-        <Text>N/A: Invalid question</Text>
-        </Selection>
-
-      </Selections>
-    </SelectionAnswer>
-  </AnswerSpecification>
-</Question>
-
-</QuestionForm>
-""".trim
-  private[this] def answerXML(qid: String, aid: String): String = answerXML(qid, List(aid))
-  private[this] def answerXML(qid: String, aids: List[String]): String = {
-    val opts = aids.map(aid => s"""
-<AnswerOption>
-  <SelectionIdentifier>$aid</SelectionIdentifier>
-  <AnswerScore>1</AnswerScore>
-</AnswerOption>
-""".trim).mkString("\n")
-    s"""
-<Question>
-<QuestionIdentifier>$qid</QuestionIdentifier>
-$opts
-</Question>
-""".trim
+  object CoverageStats {
+
+    def orderedPairsCovered(sentence: Vector[String], question: String, answerIndices: Set[Int]) = {
+      val pairs = for {
+        qi <- getWordsInQuestion(sentence, question)
+        ai <- answerIndices
+      } yield (math.min(qi, ai), math.max(qi, ai))
+      pairs.toSet
+    }
+
+
+    case class PairCoverage(
+      id: SentenceId,
+      pairs: Set[(Int, Int)]) {
+      def sentence = getTokensForId(id)
+      def numCovered = pairs.size
+      def numPossible = math.pow(sentence.size, 2).toInt
+    }
+    def nSamplePairCoverage(n: Int): Map[SentenceId, PairCoverage] = alignedInfos.map {
+      case (id, promptToAlignments) =>
+        val sentence = getTokensForId(id)
+        val wqas = sampleQAPairs(id, n)
+        val pairs = wqas.map {
+          case WordedQAPair(_, question, answer) => orderedPairsCovered(sentence, question, answer)
+        }.foldLeft(Set.empty[(Int, Int)])(_ union _)
+        id -> PairCoverage(id, pairs)
+    }.toMap
+
+    lazy val coverageCountsBySentence = {
+      val coverages = (1 to 5).map(nSamplePairCoverage).toList
+      sourceIds.map { id =>
+        id -> coverages.map(_(id)).map(_.numCovered)
+      }.toMap
+    }
+
+    def avgCoveragePercentages(n: Int = 20) = {
+      coverageCountsBySentence.values.toVector
+        .sortBy(_.last)
+        .take(n)
+        .map(counts => counts.map(_ * 100.0 / counts.last))
+        .toList.transpose.map(_.mean)
+    }
+
+    lazy val avgQAsPerKeywordByWorker = allGenInfos.flatMap(_.assignments).groupBy(_.workerId).map {
+      case (worker, as) => worker -> {
+        val nums = as.flatMap(_.response).groupBy(_.wordIndex).map(_._2.size).toList
+        (nums.mean, nums.size)
+      }
+    }
 
   }
-  val valQualAnswerKeyString = s"""<?xml version="1.0" encoding="UTF-8"?>
-<AnswerKey xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/AnswerKey.xsd">
-${answerXML("q1", "q1-invalid")}
-${answerXML("q2", "q2-a1")}
-${answerXML("q3", "q3-a1")}
-${answerXML("q4", "q4-a1")}
-${answerXML("q5", "q5-redundant2")}
-${answerXML("q6", "q6-a1")}
-${answerXML("q7", List("q7-invalid", "q7-a2"))}
-${answerXML("q8", "q8-a1")}
-${answerXML("q9", "q9-invalid")}
-${answerXML("q10", "q10-a2")}
-${answerXML("q11", "q11-invalid")}
-${answerXML("q12", "q12-a1")}
-${answerXML("q13", "q13-a1")}
-${answerXML("q14", "q14-invalid")}
-<QualificationValueMapping>
-  <PercentageMapping>
-    <MaximumSummedScore>14</MaximumSummedScore>
-  </PercentageMapping>
-</QualificationValueMapping>
-</AnswerKey>
-""".trim
 
+  // lazy val assignmentNumOneQuestionWord = allValInfos.map {
+  //   case HITInfo(hit, assignments) => hit.prompt.qaPairs.size
+  // }
 }
