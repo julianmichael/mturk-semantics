@@ -136,6 +136,8 @@ class FinalExperiment(implicit config: TaskConfig) {
     (train, dev, test)
   }
 
+  lazy val ptb100ForAMR = FileManager.allPTBSentencePaths.take(103).map(PTBSentenceId.apply).toList
+
   def getWikiSentences(rand: util.Random, filePaths: Vector[Wiki1kPath], numSentences: Int) = {
     rand.shuffle(
       filePaths.flatMap(p => FileManager.getWiki1kFile(p).get.paragraphs)
@@ -220,8 +222,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val sampleGenPrompt = GenerationPrompt(sourceIds(5), idSplits(sourceIds(5))(0))
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt, List[WordedQAPair], GenerationApiRequest, GenerationApiResponse](
-    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
-    frozenHITTypeId = Some("3554GQY3BJXDVEL54N24OMP560NSLM"))
+    TaskIndex.expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
 
   // validation task definition
 
@@ -252,8 +253,7 @@ class FinalExperiment(implicit config: TaskConfig) {
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt, List[ValidationAnswer], ValidationApiRequest, ValidationApiResponse](
-    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
-    frozenHITTypeId = Some("3AYVNGH59IZRTO9MQCW5NV51ECHYDQ"))
+    TaskIndex.expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
 
   // hit management --- circularly defined so they can communicate
 
@@ -271,10 +271,13 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val allPrompts = sourceIds
     .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
 
-  lazy val sourcePrompts = sourceIds
-    .drop(860) // those done in the version with blocks
-    .drop(414) // those done before I had the auto-grantedness of the qual explicitly written
-    .flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
+  lazy val sourcePrompts = (
+    ptb100ForAMR ++ (
+      sourceIds
+        .drop(860) // those done in the version with blocks
+        .drop(414) // those done before I had the auto-grantedness of the qual explicitly written
+    )
+  ).flatMap(id => idSplits(id).map(GenerationPrompt(id, _)))
 
   implicit lazy val inflections = {
     val tokens = for {
@@ -593,6 +596,142 @@ class FinalExperiment(implicit config: TaskConfig) {
     FileManager.saveDataFile(experimentName, "train.tsv", makeTSV(trainIds, genInfos, valInfos))
     FileManager.saveDataFile(experimentName, "dev.tsv", makeTSV(devIds, genInfos, valInfos))
     FileManager.saveDataFile(experimentName, "test.tsv", makeTSV(testIds, genInfos, valInfos))
+  }
+
+  def writePTBTSVs = {
+    val genInfos = allGenInfos
+    val valInfos = allValInfos
+    val trainIds = ptbTrain.map(PTBSentenceId.apply).toList
+    val devIds = ptbDev.map(PTBSentenceId.apply).toList
+    val testIds = ptbTest.map(PTBSentenceId.apply).toList
+    FileManager.saveDataFile(experimentName, "ptb-train.tsv", makeTSV(trainIds, genInfos, valInfos))
+    FileManager.saveDataFile(experimentName, "ptb-dev.tsv", makeTSV(devIds, genInfos, valInfos))
+    FileManager.saveDataFile(experimentName, "ptb-test.tsv", makeTSV(testIds, genInfos, valInfos))
+  }
+
+
+  // assumes nonempty span ... checks it though
+  def getOffsetAndSpan(reference: Seq[String], span: Set[Int]) = {
+    import scalaz._
+    import Scalaz._
+    if(span.isEmpty) {
+      System.err.println("Identifying offset of empty span for reference:\n" + TextRendering.renderSentence(reference))
+    }
+    if(span.exists(i => i < 0 || i >= reference.size)) {
+      System.err.println("Identifying offset of span containing indices outside of reference:\n" +
+                           TextRendering.renderSentence(reference) + "\n" +
+                           span.mkString(" "))
+    }
+
+    @Lenses case class OffsetState(curOffset: Int, inSpan: Boolean, beginOffset: Int, phrase: String)
+    type ST[A] = State[OffsetState, A]
+    val firstWord = span.min
+    val lastWord = span.max
+    def possiblyAddToPhrase(text: String) =
+      State.modify(OffsetState.curOffset.modify(_ + text.length)) >>
+        State.modify(s =>
+          if(s.inSpan) OffsetState.phrase.modify(_ + text)(s) else s
+        )
+    def emitToken(token: String, index: Int): ST[String] = {
+      val normalizedToken = TextRendering.normalizeToken(token)
+      for {
+        _ <- State.modify(if(index == firstWord) OffsetState.inSpan.set(true) else identity[OffsetState])
+        _ <- State.modify(if(index == firstWord) (s: OffsetState) => OffsetState.beginOffset.set(s.curOffset)(s)
+                          else identity[OffsetState])
+        _ <- possiblyAddToPhrase(normalizedToken)
+        _ <- State.modify(if(index == lastWord) OffsetState.inSpan.set(false) else identity[OffsetState])
+      } yield normalizedToken
+    }
+
+    val OffsetState(_, _, begin, phrase) = TextRendering.renderSentenceM[(String, Int), ST, String](
+      reference.zipWithIndex,
+      _._1,
+      _ => emitToken(" ", -1),
+      Function.tupled(emitToken)
+    ).exec(OffsetState(0, false, -1, ""))
+
+    val sentence = TextRendering.renderSentence(reference)
+    val reproPhrase = sentence.substring(begin, math.min(begin + phrase.length, sentence.length))
+    if(reproPhrase != phrase) {
+        System.err.println(
+          s"Problem for sentence\n$sentence \nGiven answer:\n$phrase \nRepro answer:\n$reproPhrase")
+    }
+
+    (begin, phrase)
+  }
+
+  def squadFormattedFile(validQAs: Map[SentenceId, Map[WordedQAPair, List[Set[Int]]]]): String = {
+    import argonaut._
+    import Argonaut._
+    val idsByFile = validQAs.keys.collect {
+      case id @ WikiSentenceId(wikiPath) => id
+    }.groupBy(_.path.filePath)
+
+    def getAnswerSpanJson(tokens: Vector[String], answer: Set[Int]) = {
+      val filledOutAnswer = (answer.min to answer.max).toSet
+      val renderedSentence = TextRendering.renderSentence(tokens)
+      val (answerStart, answerText) = getOffsetAndSpan(tokens, filledOutAnswer)
+      // stuff looked good (better, in fact, bc of treatment of quotes). if there are more problems, uncomment this and investigate.
+      // val otherText = TextRendering.renderSpan(tokens, filledOutAnswer).trim
+      // if(!answerText.equals(otherText)) {
+      //   System.err.println(
+      //     s"Problem for sentence\n${TextRendering.renderSentence(tokens)}\nExpected answer:\n$otherText \nPrinted answer:\n$answerText")
+      // }
+      Json.obj(
+        "answer_start" -> jNumber(answerStart),
+        "text" -> jString(answerText)
+      )
+    }
+
+    def getQAJson(sentenceId: WikiSentenceId, sentenceTokens: Vector[String], qIndex: Int, wqa: WordedQAPair, answers: List[Set[Int]]) = {
+      Json.obj(
+        "answers" -> Json.array(answers.map(a => getAnswerSpanJson(sentenceTokens, a)): _*),
+        "question" -> jString(wqa.question),
+        "id" -> jString(s"${sentenceId.readableFileString}::${sentenceId.readableSentenceIndex}::$qIndex")
+      )
+    }
+
+    def getSentenceJson(sentenceId: WikiSentenceId) = {
+      val sentenceTokens = getTokensForId(sentenceId)
+      val qas = validQAs(sentenceId).zipWithIndex.map {
+        case ((wqa, answers), qIndex) => getQAJson(sentenceId, sentenceTokens, qIndex, wqa, answers)
+      }.toSeq
+
+      Json.obj(
+        "context" -> jString(TextRendering.renderSentence(getTokensForId(sentenceId))),
+        "qas" -> Json.array(qas: _*)
+      )
+    }
+
+    val files: Seq[Json] = idsByFile.keys.toSeq.map { filePath =>
+      val wikiFile = FileManager.getWiki1kFile(filePath).get
+      val title = wikiFile.title
+      val sentenceIds = idsByFile(filePath)
+      val sentenceJsons = sentenceIds.map(getSentenceJson)
+      Json.obj(
+        "title" -> jString(title),
+        "paragraphs" -> Json.array(sentenceJsons.toSeq: _*)
+      )
+    }
+
+    val result = Json.obj(
+      "data" -> Json.array(files: _*),
+      "version" -> jString("1.1")
+    )
+
+    result.nospaces
+  }
+
+  def writeAllSquadFormatted = {
+    val allIds = allGenInfos.map(_.hit.prompt.id).collect {
+      case id @ WikiSentenceId(_) => id
+    }.toSet.toList
+    val trainQAs = validQAs.filter(p => isTrain(p._1))
+    val devQAs = validQAs.filter(p => isDev(p._1))
+    val testQAs = validQAs.filter(p => isTest(p._1))
+    FileManager.saveDataFile(experimentName, "squad-train.json", squadFormattedFile(trainQAs))
+    FileManager.saveDataFile(experimentName, "squad-dev.json",  squadFormattedFile(devQAs))
+    FileManager.saveDataFile(experimentName, "squad-test.json",  squadFormattedFile(testQAs))
   }
 
   /* do not use any of these above or outside the console since they become outdated */
@@ -1014,6 +1153,10 @@ class FinalExperiment(implicit config: TaskConfig) {
       .map(wqa => getWordsInQuestion(sentence, wqa.question) ++ wqa.answer)
       .filter(_.contains(keyword)).size
 
+    lazy val totalNumKeywordAssignments = allGenInfos
+      .map(hi => hi.assignments.size + hi.hit.prompt.keywords.size)
+      .sum
+
     lazy val assignmentsMissingSpecialWords = for {
       HITInfo(hit, assignments) <- allGenInfos
       sentence = getTokensForId(hit.prompt.id)
@@ -1025,7 +1168,24 @@ class FinalExperiment(implicit config: TaskConfig) {
     } yield (sentence, TextRendering.renderSentence(sentence), keyword,
              TextRendering.normalizeToken(sentence(keyword)),
              assignment.response)
+
+    def pct(num: Int, denom: Int): String =
+      f"$num%d (${num * 100.0 / denom}%.2f)"
+    def dist[N](iter: Seq[N])(implicit N : Numeric[N]): String =
+      f"${N.toDouble(iter.sum)}%.2f (${iter.mean}%.2f ± ${iter.stdev}%.4f)"
+
+    lazy val report = f"""
+Total cost: ${dist(assignmentCosts)}%s
+Number of questions: ${dist(assignmentNumQAs)}%s
+Number of valid questions: ${pct(assignmentNumBothAnswered.sum, assignmentNumQAs.sum)}%s
+Number of validator agreements: ${pct(assignmentNumAgreements.sum, assignmentNumQAs.sum)}%s
+Number of valid questions with no validator overlap: ${pct(assignmentNumBothAnsweredAndNoIntersection.sum, assignmentNumBothAnswered.sum)}%s
+Number of keywords: $totalNumKeywordAssignments%d
+Number of keywords missing: ${pct(assignmentsMissingSpecialWords.size, totalNumKeywordAssignments)}%s
+""".trim
   }
+
+  // scatter : length / num QA pairs
 
   object CoverageStats {
 
@@ -1036,7 +1196,6 @@ class FinalExperiment(implicit config: TaskConfig) {
       } yield (math.min(qi, ai), math.max(qi, ai))
       pairs.toSet
     }
-
 
     case class PairCoverage(
       id: SentenceId,

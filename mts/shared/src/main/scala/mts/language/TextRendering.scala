@@ -42,22 +42,24 @@ object TextRendering {
     case w => w.replaceAll("\\\\/", "/")
   }
 
-  // TODO restrict to just monoid imports
+  // TODO restrict to just monoid and monad imports
   import scalaz._
   import Scalaz._
+  import scala.language.higherKinds
 
   /**
     * Returns a best-effort properly spaced representation of a sequence of tokens. (Bear in mind you need to normalize PTB tokens.)
     * Allows you to specify how to render spaces and words so you can use this to create interactive DOM elements in JS.
+    * And it's M O N A D I C C
     */
-  def renderSentence[Word, M](
+  def renderSentenceM[Word, M[_], Result](
     words: Seq[Word],
     getToken: Word => String,
-    spaceFromNextWord: Word => M,
-    renderWord: Word => M)(
-    implicit M: Monoid[M]): M = {
+    spaceFromNextWord: Word => M[Result],
+    renderWord: Word => M[Result])(implicit Monad: Monad[M], Monoid: Monoid[Result]): M[Result] = {
     val hasSingleQuoteOnly = words.map(getToken).filter(t => t == "'" || t == "`").size == 1
-    words.foldLeft((M.zero, true, false, false)) {
+    // TODO: why was foldable missing on List? oh well. use Vector instead
+    words.toVector.foldLeftM[M, (Result, Boolean, Boolean, Boolean)]((Monoid.zero, true, false, false)) {
       case ((acc, skipSpace, insideSingleQuotes, insideDoubleQuotes), word) =>
         val token = getToken(word)
 
@@ -80,11 +82,29 @@ object TextRendering {
           )
 
         if(skipPrevSpace || noSpaceBefore.contains(normalizeToken(token))) {
-          (acc |+| renderWord(word), skipNextSpace, nowInsideSingleQuotes, nowInsideDoubleQuotes)
+          for {
+            w <- renderWord(word)
+          } yield {
+            (acc |+| w, skipNextSpace, nowInsideSingleQuotes, nowInsideDoubleQuotes)
+          }
         } else {
-          (acc |+| spaceFromNextWord(word) |+| renderWord(word), skipNextSpace, nowInsideSingleQuotes, nowInsideDoubleQuotes)
+          for {
+            space <- spaceFromNextWord(word)
+            w <- renderWord(word)
+          } yield {
+            (acc |+| space |+| w, skipNextSpace, nowInsideSingleQuotes, nowInsideDoubleQuotes)
+          }
         }
-    }._1
+    }.map(_._1)
+  }
+
+  def renderSentence[Word, M](
+    words: Seq[Word],
+    getToken: Word => String,
+    spaceFromNextWord: Word => M,
+    renderWord: Word => M)(
+    implicit M: Monoid[M]): M = {
+    renderSentenceM[Word, Id, M](words, getToken, spaceFromNextWord, renderWord)
   }
 
   /** Convenience method for rendering a sequence of PTB tokens directly to a string. */
