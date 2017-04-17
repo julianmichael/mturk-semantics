@@ -106,6 +106,10 @@ object FileManager {
   def loadResource(path: Path): ManagedResource[Iterator[String]] =
     loadFile(resourcePath.resolve(path))
 
+  // TODO doc. saves a resource
+  def saveResource(path: Path, contents: String): Try[Unit] =
+    saveFile(resourcePath.resolve(path), contents)
+
   /** Loads a JavaScript file compiled from the Scala.js portion of this project.
     *
     * @param the name of the JavaScript file

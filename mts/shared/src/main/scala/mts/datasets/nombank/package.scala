@@ -1,6 +1,7 @@
 package mts.datasets
 
 import ptb._
+import mts.util.IntMatch
 
 package object nombank extends PackagePlatformExtensions {
   type Word = ptb.Word
@@ -81,13 +82,6 @@ package object nombank extends PackagePlatformExtensions {
   /** Provides parsing of argument spans. */
   object Parsing {
     val PTBString = """wsj/(.*)""".r
-    object IntMatch {
-      val IntMatchRegex = "(\\d+)".r
-      def unapply(s: String): Option[Int] = s match {
-        case IntMatchRegex(num) => Some(num.toInt)
-        case _ => None
-      }
-    }
 
     def readEntry(line: String) = line.split(" ").toList match {
       case PTBString(pathSuffix) :: IntMatch(sentenceNum) :: IntMatch(headIndex) :: predLemma :: framesetId :: argStrings =>

@@ -61,6 +61,19 @@ trait PackagePlatformExtensions {
                           "whose", "which", "much", "many")
 
   // NOTE: can get java code with pronouns from HITL stuff
+  // for now, settle with this
+
+  val pronouns = Set(
+    "I", "me", "my", "mine",
+    "we", "us", "our", "ours",
+    "you", "your", "yours",
+    "he", "him", "his",
+    "she", "her", "hers",
+    "it", "its",
+    "they", "them", "their",
+    "someone", "something",
+    "this", "that"
+  ).map(_.lowerCase)
 
   lazy val uninterestingTokens = stopwords ++ punctuation ++ contractions
   lazy val reallyUninterestingTokens = conservativeStopwords ++ punctuation ++ contractions ++ questionWords

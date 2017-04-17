@@ -21,7 +21,7 @@ trait PackagePlatformExtensions {
     import com.softwaremill.macmemo.MemoCacheBuilder
     implicit val cacheProvider = MemoCacheBuilder.guavaMemoCacheBuilder
 
-    @memoize(maxSize = 900, expiresAfter = 1 hour)
+    @memoize(maxSize = 2000, expiresAfter = 1 hour)
     private[this] def getWiki1kFileUnsafe(path: Wiki1kPath): Wiki1kFile = {
       val fullPath = wiki1kDatasetPath.resolve(path.get)
       val fileResource = for {

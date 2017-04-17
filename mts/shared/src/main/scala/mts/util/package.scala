@@ -97,16 +97,39 @@ package object util extends PackagePlatformExtensions {
     override def representatives[A](fa: Set[SortedSet[A]]): Iterator[A] = fa.iterator.map(_.head)
   }
 
+  // == smart matchers ==
+
+  object IntMatch {
+    val IntMatchRegex = "(\\d+)".r
+    def unapply(s: String): Option[Int] = s match {
+      case IntMatchRegex(num) => Some(num.toInt)
+      case _ => None
+    }
+  }
+
   // == Extension methods ==
+
+  def pctString(num: Int, denom: Int): String =
+    f"$num%d (${num * 100.0 / denom}%.2f%%)"
+  def distString[N](iter: Seq[N])(implicit N : Numeric[N]): String =
+    f"${N.toDouble(iter.sum)}%.2f (${iter.mean}%.2f ± ${iter.stdev}%.4f)"
+  def noSumDistString[N](iter: Seq[N])(implicit N : Numeric[N]): String =
+    f"${iter.mean}%.2f ± ${iter.stdev}%.4f"
+
+  def const[A](a: A): Any => A = _ => a
 
   // TODO make this return an option
   implicit class RichSeq[A](val a: Seq[A]) extends AnyVal {
-    def mean(implicit N: Numeric[A]) = N.toDouble(a.sum) / a.size
-    def variance(implicit N: Numeric[A]) = {
+    def mean(implicit N: Numeric[A]): Double = N.toDouble(a.sum) / a.size
+    def sse(implicit N: Numeric[A]): Double = {
       val m = a.mean
-      a.map(x => math.pow(N.toDouble(x) - m, 2)).mean
+      a.map(x => math.pow(N.toDouble(x) - m, 2)).sum
     }
+    def variance(implicit N: Numeric[A]) = a.sse / a.size
+    def varianceSample(implicit N: Numeric[A]) = a.sse / (a.size - 1)
+
     def stdev(implicit N: Numeric[A]) = math.sqrt(a.variance)
+    def stdevSample(implicit N: Numeric[A]) = math.sqrt(a.varianceSample)
   }
 
   implicit class RichList[A](val a: List[A]) extends AnyVal {
@@ -121,6 +144,14 @@ package object util extends PackagePlatformExtensions {
 
   implicit class RichValForFunctions[A](val a: A) extends AnyVal {
     def <|[B] (f: A => B): B = f(a)
+  }
+
+  implicit class RichValForLists[A](val a: A) extends AnyVal {
+    def unfoldList[B](f: A => Option[(B, A)]): List[B] = f(a) match {
+      case None => Nil
+      case Some((head, tailToGo)) => head :: tailToGo.unfoldList(f)
+    }
+    def unfoldList[B](f: PartialFunction[A, (B, A)]): List[B] = a.unfoldList(f.lift)
   }
 
   implicit class RichTry[A](val t: Try[A]) extends AnyVal {

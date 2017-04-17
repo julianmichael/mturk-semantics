@@ -51,6 +51,7 @@ object TextRendering {
     * Returns a best-effort properly spaced representation of a sequence of tokens. (Bear in mind you need to normalize PTB tokens.)
     * Allows you to specify how to render spaces and words so you can use this to create interactive DOM elements in JS.
     * And it's M O N A D I C C
+    * TODO change to foldable LOL
     */
   def renderSentenceM[Word, M[_], Result](
     words: Seq[Word],
