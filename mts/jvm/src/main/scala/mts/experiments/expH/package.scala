@@ -1,43 +1,52 @@
-package mts.experiments.expH
+package mts.experiments
+package expH
 
 import akka.actor.ActorRef
 
 import java.nio.file.Paths
 
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.datasets.conll._
+import nlpdata.util.Text
 import nlpdata.datasets.ptb._
 import nlpdata.datasets.wiki1k._
+import nlpdata.datasets.wiktionary.Inflections
 
 import mts.util._
 import mts.core._
 import mts.tasks._
-
 
 trait PackagePlatformExtensions {
   case object Pring
 
   def getTokensForId(id: SentenceId): Vector[String] = id match {
     case PTBSentenceId(path) => getPTBSentenceTokens(
-      FileManager.getPTBSentence(path).get
+      PTB.getSentence(path).get
     )
     case WikiSentenceId(path) =>
-      FileManager.getWiki1kSentence(path).get.tokens
+      Wiki1k.getSentence(path).get.tokens
   }
 
-  def getWordsInQuestion(sentence: Vector[String], string: String)(implicit inflections: Inflections): Set[Int] = {
+  def getWordsInQuestion(
+    sentence: Vector[String],
+    string: String)(
+    implicit inflections: Inflections
+  ): Set[Int] = {
     val tokens = tokenize(string).filterNot(isReallyUninteresting)
-    val moreTokens = tokens.map(t => TextRendering.normalizeToken(t).lowerCase).flatMap(inflections.getAllForms)
+    val moreTokens = tokens.map(t => Text.normalizeToken(t).lowerCase).flatMap(inflections.getAllForms)
     val generalizedTokens = tokens.map(_.lowerCase) ++ moreTokens
     sentence.zipWithIndex.filter(p => generalizedTokens.contains(p._1.lowerCase)).map(_._2).toSet
   }
 
-  def getAlignedQuestionIndices(sentence: Vector[String], questionTokens: Vector[String])(implicit inflections: Inflections): Set[Int] = {
+  def getAlignedQuestionIndices(
+    sentence: Vector[String],
+    questionTokens: Vector[String])(
+    implicit inflections: Inflections
+  ): Set[Int] = {
     val lowerSentence = sentence.map(_.lowerCase)
     val allIndices = for {
       (t, index) <- questionTokens.zipWithIndex
       if !isReallyUninteresting(t)
-      lowerToken = TextRendering.normalizeToken(t).lowerCase
+      lowerToken = Text.normalizeToken(t).lowerCase
       tokenForm <- t.lowerCase :: inflections.getAllForms(lowerToken).toList
       if lowerSentence.contains(tokenForm)
     } yield index
@@ -47,16 +56,17 @@ trait PackagePlatformExtensions {
   def getQuestionSentenceAlignments(
     sentence: Vector[String],
     questionTokens: Vector[String])(
-    implicit inflections: Inflections): Set[(Int, Int)] = {
+    implicit inflections: Inflections
+  ): Set[(Int, Int)] = {
     val lowerSentence = sentence.map(_.lowerCase)
     val lowerQuestion = questionTokens.map(_.lowerCase)
     val allIndices = for {
       (qToken, qIndex) <- lowerQuestion.zipWithIndex
       if !isReallyUninteresting(qToken)
-      lowerQToken = TextRendering.normalizeToken(qToken).lowerCase
+      lowerQToken = Text.normalizeToken(qToken).lowerCase
       qTokenForm <- qToken :: inflections.getAllForms(lowerQToken).toList
       (sToken, sIndex) <- lowerSentence.zipWithIndex
-      lowerSToken = TextRendering.normalizeToken(sToken).lowerCase
+      lowerSToken = Text.normalizeToken(sToken).lowerCase
       sTokenForm <- sToken :: inflections.getAllForms(lowerSToken).toList
       if qTokenForm.equals(sTokenForm)
     } yield (qIndex, sIndex)
@@ -90,38 +100,13 @@ trait PackagePlatformExtensions {
 
   case object SaveData
 
-  import PTBFileManager._
-
-  def qaSRLPTBSentenceTokens = FileManager.loadResource(Paths.get("qasrl_train_sents_c09.txt"))
-    .map(_.toList).tried.get
-    .map(_.split(" "))
-
-  def findQASRLPTBPaths = {
-    import scala.collection.mutable
-    val paths = mutable.Set.empty[PTBSentencePath]
-    val sentencesNoSpaces = mutable.Set.empty[String]
-    qaSRLPTBSentenceTokens
-      .map(_.map(TextRendering.normalizeToken).mkString("").replaceAll("\\s", ""))
-      .foreach(s => sentencesNoSpaces += s)
-
-    allPTBSentencePaths.foreach { sPath =>
-      val sentence = TextRendering.renderSentence(getPTBSentence(sPath).get).replaceAll("\\s", "")
-      if(sentencesNoSpaces.contains(sentence)) {
-        sentencesNoSpaces -= sentence
-        paths += sPath
-        println(sPath)
-      }
-    }
-
-    (paths.toSet, sentencesNoSpaces.toSet)
-  }
-
   def makeStats(
     status: SentenceStatus,
     genHITTypeId: String,
     valHITTypeId: String)(
     implicit config: TaskConfig,
-    inflections: Inflections): SentenceStats = {
+    inflections: Inflections
+  ): SentenceStats = {
     val allValidations = status.finishedAssignments
     val id = status.id
     val sentence = getTokensForId(id)
@@ -200,8 +185,10 @@ trait PackagePlatformExtensions {
     val sentence = getTokensForId(id)
     val allKeywords = sentence.indices
       .filter(i => !isReallyUninteresting(sentence(i)))
-
       .toSet
-    SentenceStatus(id, allKeywords, Set.empty[Int], Set.empty[ValidationPrompt], List.empty[Assignment[List[ValidationAnswer]]])
+    SentenceStatus(
+      id, allKeywords,
+      Set.empty[Int], Set.empty[ValidationPrompt],
+      List.empty[Assignment[List[ValidationAnswer]]])
   }
 }

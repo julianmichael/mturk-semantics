@@ -139,7 +139,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
             case Redundant(other) => <.span("Redundant with ", <.i(questions(other)))
             case Answer(span) if span.isEmpty && isFocused =>
               "Highlight answer above, move with arrow keys, or click on a redundant question"
-            case Answer(span) => TextRendering.renderSentence(
+            case Answer(span) => Text.render(
               sentence.zipWithIndex.filter(p => span.contains(p._2)).map(_._1))
           }
         )
@@ -193,7 +193,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                           ),
                           <.p(
                             Styles.unselectable,
-                            TextRendering.renderSentence(
+                            Text.render(
                               sentence.indices,
                               getToken = (index: Int) => sentence(index),
                               spaceFromNextWord = (nextIndex: Int) => List(
@@ -217,7 +217,7 @@ object ValidationClient extends TaskClient[ValidationPrompt, List[ValidationAnsw
                                       startHighlight >> touchWord(index)
                                     }
                                   ),
-                                  TextRendering.normalizeToken(sentence(index))
+                                  Text.normalizeToken(sentence(index))
                                 ))
                             )),
                           <.ul(

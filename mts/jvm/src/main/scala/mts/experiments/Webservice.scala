@@ -1,6 +1,5 @@
 package mts.experiments
 
-import nlpdata.datasets.conll._
 import mts.util._
 import mts.tasks._
 

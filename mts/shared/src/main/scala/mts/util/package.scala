@@ -9,7 +9,7 @@ import scala.language.implicitConversions
 /** Provides miscellaneous utility classes and methods.
   *
   * This includes mutable data structures (LazyStackQueue, QueueMap, Counter),
-  * file management (FileManager), text rendering (TextRendering),
+  * file management (FileManager), text rendering (Text),
   * type-level lowercase strings, extension methods for Scala stdlib types,
   * and some random stuff (the latter three on this object).
   */

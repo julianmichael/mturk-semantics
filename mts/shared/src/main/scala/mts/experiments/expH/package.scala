@@ -2,6 +2,7 @@ package mts.experiments
 
 import nlpdata.datasets.ptb._
 import nlpdata.datasets.wiki1k._
+import nlpdata.util.Text
 import mts.util._
 
 package object expH extends PackagePlatformExtensions {
@@ -35,7 +36,7 @@ package object expH extends PackagePlatformExtensions {
   ): String = va match {
     case InvalidQuestion => "<Invalid>"
     case Redundant(i) => s"<Redundant with ${referenceQAs(i).question}>"
-    case Answer(span) => TextRendering.renderSpan(sentence, span)
+    case Answer(span) => Text.renderSpan(sentence, span)
   }
 
   val finalExperimentName = "h_final"

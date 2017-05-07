@@ -142,7 +142,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
             if(isAnswerEmpty && isFocused) {
               "Highlight your answer above"
             } else {
-              TextRendering.renderSpan(sentence, answer)
+              Text.renderSpan(sentence, answer)
             }
           )
         )
@@ -187,7 +187,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                         <.hr(),
                         <.p(
                           Styles.unselectable,
-                          TextRendering.renderSentence(
+                          Text.render(
                             sentence.indices,
                             (index: Int) => sentence(index),
                             (nextIndex: Int) => List(
@@ -219,7 +219,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                                     startHighlight >> touchWord(index)
                                   }
                                 ),
-                                TextRendering.normalizeToken(sentence(index))
+                                Text.normalizeToken(sentence(index))
                               ))
                           )),
                         <.div(
@@ -227,7 +227,7 @@ object GenerationClient extends TaskClient[GenerationPrompt, List[WordedQAPair]]
                             <.div(
                               <.p(
                                 Styles.bolded,
-                                TextRendering.normalizeToken(sentence(prompt.keywords(groupIndex)))
+                                Text.normalizeToken(sentence(prompt.keywords(groupIndex)))
                               ),
                               <.ul(
                                 Styles.listlessList,

@@ -198,7 +198,7 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                       import sentenceStats._
                       <.div(
                         ^.padding := "10px",
-                        TextRendering.renderSentence(sentence),
+                        Text.render(sentence),
                         <.div(s"Num keywords: $numKeywords"),
                         <.div(s"Num QA pairs: $numQAPairs"),
                         <.div(s"Num valid QA pairs: $numValidQAPairs"),
@@ -224,8 +224,8 @@ object DashboardClient extends TaskClient[Unit, Unit] {
                             } yield <.tr(
                               List(
                                 genAssignment.workerId,
-                                TextRendering.normalizeToken(sentence(keywordIndex)),
-                                question, TextRendering.renderSpan(sentence, answer)
+                                Text.normalizeToken(sentence(keywordIndex)),
+                                question, Text.renderSpan(sentence, answer)
                               ).map(<.td(_)),
                               validationCells
                             )

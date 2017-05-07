@@ -3,8 +3,6 @@ package mts.experiments.sample
 import mts.experiments._
 import mts.tasks._
 
-import nlpdata.datasets.conll._
-
 import scalajs.js
 import org.scalajs.dom
 import org.scalajs.dom.raw._
@@ -32,7 +30,7 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
     message: String
   ) extends State
   @Lenses case class Loaded(
-    sentence: CoNLLSentence,
+    sentence: String,
     isGood: Boolean
   ) extends State
   object State {
@@ -48,7 +46,7 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
         val socket = new dom.WebSocket(websocketUri)
         socket.onopen = { (event: Event) =>
           scope.setState(Loading("Retrieving data")).runNow
-          socket.send(write(SentenceRequest(prompt.path)))
+          socket.send(write(SentenceRequest(prompt.id)))
         }
         socket.onerror = { (event: ErrorEvent) =>
           val msg = s"Connection failure. Error code: ${event.colno}"
@@ -58,14 +56,13 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
         socket.onmessage = { (event: MessageEvent) ⇒
           val response = read[ApiResponse](event.data.toString)
           response match {
-            case SentenceResponse(path, sentence) =>
+            case SentenceResponse(id, sentence) =>
               scope.setState(Loaded(sentence, false)).runNow
           }
         }
         socket.onclose = { (event: Event) =>
           val msg = s"Connection lost."
           System.err.println(msg)
-          // TODO maybe retry or something
         }
       case Loaded(_, _) =>
         System.err.println("Data already loaded.")
@@ -84,7 +81,7 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
             <.p(s"Loading sentence ($msg)...")
           case Loaded(sentence, isGood) =>
             <.div(
-              <.p(TextRendering.renderSentence(sentence)),
+              <.p(sentence),
               <.p(
                 <.label(
                   <.input(
@@ -113,23 +110,25 @@ object Client extends TaskClient[SamplePrompt, SampleResponse] {
     ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
   }
 
-  // QA specification methods
-
   private[this] val instructions = <.div(
     <.h2("""Task Summary"""),
     <.p("""This is a sample task. Please indicate whether the given sentence is good.
            Examples of good sentences include:"""),
     <.ul(
       <.li("""Why did you vote for Hillary when you knew she would send me to war?"""),
-      <.li("""Make America great again."""),
-      <.li("""Tell her that a double-income family is actually the true Igbo tradition because in pre-colonial times, mothers farmed and traded."""),
-      <.li("""Chudi does not deserve any special gratitude or praise, nor do you ---
-             you both made the choice to bring a child into the world, and the responsibility for that child belongs equally to you both.""")),
+      <.li("""Tell her that a double-income family is actually the true Igbo tradition
+           because in pre-colonial times, mothers farmed and traded."""),
+      <.li("""Chudi does not deserve any special gratitude or praise, nor do you -
+           you both made the choice to bring a child into the world,
+           and the responsibility for that child belongs equally to you both.""")),
     <.p("""Examples of not-good sentences include:"""),
     <.ul(
       <.li("""So because of her unfounded concern over vote rigging, she committed voter fraud."""),
-      <.li("""Comey told FBI employees he didn't want to "be misleading to the American people" by not supplementing the record of the investigation."""),
-      <.li("""Donald Trump and Vladimir Putin's bromance has been the weirdest subplot of America's wild presidential election.""")),
+      <.li("""Make America great again."""),
+      <.li("""Comey told FBI employees he didn't want to "be misleading to the American people"
+           by not supplementing the record of the investigation."""),
+      <.li("""Donald Trump and Vladimir Putin's bromance has been
+           the weirdest subplot of America's wild presidential election.""")),
     <.hr(),
     <.p(s"""Please indicate whether the following sentence is good:""")
   )

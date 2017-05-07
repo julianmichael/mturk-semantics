@@ -1,4 +1,4 @@
-package mts.language
+package mts.util
 
 case class DependencyTree[Node, EdgeLabel](
   node: Node,

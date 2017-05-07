@@ -5,8 +5,8 @@ import mts.core._
 import mts.util._
 import mts.tasks._
 import mts.tasks._
+
 import nlpdata.datasets.conll._
-import mts.language.tokenize
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
@@ -17,7 +17,6 @@ import scala.language.postfixOps
 class SampleExperiment(implicit config: TaskConfig) {
   val experimentName = "sample"
 
-  // for now, must agree with a string specified on the client as well. TODO refactor this
   val sampleHITType = HITType(
     title = s"Sample task: is this sentence good?",
     description = s"""
@@ -26,11 +25,15 @@ class SampleExperiment(implicit config: TaskConfig) {
     reward = 0.10,
     keywords = "language,english,question answering")
 
+  val sentences = List(
+    "Hello, this is a sentence.",
+    "This is another sentence.")
+
   lazy val sampleApiFlow = Flow[ApiRequest].map {
-    case SentenceRequest(path) => SentenceResponse(path, FileManager.getCoNLLSentence(path).get)
+    case SentenceRequest(id) => SentenceResponse(id, sentences(id))
   }
 
-  val samplePrompt = SamplePrompt(sentences.head._1)
+  val samplePrompt = SamplePrompt(0)
 
   lazy val taskSpec = TaskSpecification[SamplePrompt, SampleResponse, ApiRequest, ApiResponse](
     TaskIndex.sampleTaskKey, sampleHITType, sampleApiFlow, samplePrompt)

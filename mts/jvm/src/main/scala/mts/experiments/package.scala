@@ -3,7 +3,8 @@ package mts.experiments
 import mts.core._
 import mts.util._
 
-import nlpdata.datasets.conll._
+import nlpdata.datasets._
+import nlpdata.datasets.wiktionary.Inflections
 
 import scala.util.Try
 
@@ -11,37 +12,34 @@ import resource.managed
 import resource.ManagedResource
 
 trait PackagePlatformExtensions {
-  val annotationFilepaths = List(
-    "bn/abc/00/abc_0010.v4_gold_conll",
-    "mz/sinorama/10/ectb_1010.v4_gold_conll",
-    "bc/msnbc/00/msnbc_0000.v4_gold_conll",
-    "nw/wsj/24/wsj_2400.v4_gold_conll",
-    "nw/xinhua/00/chtb_0010.v4_gold_conll",
-    "pt/nt/40/nt_4010.v4_gold_conll",
-    "wb/eng/00/eng_0000.v4_gold_conll"
-  ).map(CoNLLPath.apply)
 
-  def allSentences = for {
-    path <- annotationFilepaths.iterator
-    file <- FileManager.getCoNLLFile(path).toOptionPrinting.iterator
-    sentence <- file.sentences
-    if sentence.sentenceNum % 2 == 0 || sentence.sentenceNum % 5 == 0 // skip some of the sentences
-    if sentence.words.size > 6 // don't do the super short sentences
-  } yield (CoNLLSentencePath(path, sentence.sentenceNum), sentence)
+  val CoNLL = new conll.CoNLLFileSystemService(
+    FileManager.getResourcePath.resolve("conll-2012")
+  )
 
-  lazy val sentences: List[(CoNLLSentencePath, CoNLLSentence)] = {
-    allSentences.take(100).toList
-  }
+  val PTB = new ptb.PTBFileSystemService(
+    FileManager.getResourcePath.resolve("ptb")
+  )
 
-  lazy val inflections = {
-    val tokens = for {
-      path <- annotationFilepaths.iterator
-      file <- FileManager.getCoNLLFile(path).toOptionPrinting.iterator
-      sentence <- file.sentences
-      word <- sentence.words
-    } yield word.token
-    getInflectionsForTokens(tokens)
-  }
+  val PropBank = new propbank.PropBankFileSystemService(
+    FileManager.getResourcePath.resolve("propbank-release-master")
+  )
+
+  val NomBank = new nombank.NomBankFileSystemService(
+    FileManager.getResourcePath.resolve("nombank.1.0"), PTB
+  )
+
+  val QASRL = new qasrl.QASRLFileSystemService(
+    FileManager.getResourcePath.resolve("qasrl"), PTB
+  )
+
+  val Wiki1k = new wiki1k.Wiki1kFileSystemService(
+    FileManager.getResourcePath.resolve("wiki1k")
+  )
+
+  val Wiktionary = new wiktionary.WiktionaryFileSystemService(
+    FileManager.getResourcePath.resolve("wiktionary")
+  )
 
   import java.nio.file.{Paths, Path, Files}
   private[this] val experimentRootPath = Paths.get("experiments")

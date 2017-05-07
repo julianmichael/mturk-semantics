@@ -1,4 +1,4 @@
-package mts.language
+package mts.util
 
 case class Hyperedge[Node, EdgeLabel](
   label: EdgeLabel,

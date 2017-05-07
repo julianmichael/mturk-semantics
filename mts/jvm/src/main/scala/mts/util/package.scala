@@ -13,6 +13,7 @@ trait PackagePlatformExtensions {
   // analysis
 
   import mts.util._
+  import nlpdata.util._
   import nlpdata.datasets.conll._
 
   // the pred itself, discourse markers, negations, and auxiliaries we don't care about

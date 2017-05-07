@@ -1,14 +1,16 @@
 package mts.experiments.expH
 
-import mts.analysis._
 import mts.experiments._
 import mts.core._
 import mts.tasks._
 import mts.util._
 
+import nlpdata.structure._
 import nlpdata.datasets.ptb._
 import nlpdata.datasets.wiki1k._
+import nlpdata.datasets.wiktionary.Inflections
 import nlpdata.util.LowerCaseStrings._
+import nlpdata.util.Text
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
@@ -132,15 +134,15 @@ class FinalExperiment(implicit config: TaskConfig) {
     (train, dev, test)
   }
 
-  lazy val ptb100ForAMR = FileManager.allPTBSentencePaths.take(103).map(PTBSentenceId.apply).toList
+  lazy val ptb100ForAMR = PTB.allPTBSentencePaths.get.take(103).map(PTBSentenceId.apply).toList
 
   def getWikiSentences(rand: util.Random, filePaths: Vector[Wiki1kPath], numSentences: Int) = {
     rand.shuffle(
-      filePaths.flatMap(p => FileManager.getWiki1kFile(p).get.paragraphs)
+      filePaths.flatMap(p => Wiki1k.getFile(p).get.paragraphs)
     ).filter(p =>
       !p.exists(sentence =>
         sentence.tokens.exists(t =>
-          TextRendering.normalizeToken(t) == "\\"))
+          Text.normalizeToken(t) == "\\"))
     ).flatten.map(s => s.path).take(numSentences)
   }
 
@@ -150,7 +152,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val (wikipediaTrain, wikipediaDev, wikipediaTest) = {
     val shuffleRand = new util.Random(1230976L)
     val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
-      FileManager.wiki1kPathsForDomain("wikipedia")
+      Wiki1k.wiki1kPathsForDomain("wikipedia")
     ).splitAt(640)
     val (devFiles, testRestFiles) = devTestRestFiles.splitAt(80)
     val testFiles = testRestFiles.take(80)
@@ -167,7 +169,7 @@ class FinalExperiment(implicit config: TaskConfig) {
   lazy val (wikinewsTrain, wikinewsDev, wikinewsTest) = {
     val shuffleRand = new util.Random(1246902L)
     val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
-      FileManager.wiki1kPathsForDomain("wikinews")
+      Wiki1k.wiki1kPathsForDomain("wikinews")
         .sortBy(-_.suffix.toInt) // relies on wikinews IDs being ints... true as of now
         .take(1000)
     ).splitAt(800)
@@ -287,7 +289,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       id <- allIds.iterator
       word <- getTokensForId(id).iterator
     } yield word
-    getInflectionsForTokens(tokens)
+    Wiktionary.getInflectionsForTokens(tokens)
   }
 
   import config.actorSystem
@@ -476,7 +478,7 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   def currentGenSentences: List[(SentenceId, String)] = {
     genHelper.activeHITInfosByPromptIterator.map(_._1.id).map(id =>
-      id -> TextRendering.renderSentence(getTokensForId(id))
+      id -> Text.render(getTokensForId(id))
     ).toList
   }
 
@@ -524,10 +526,10 @@ class FinalExperiment(implicit config: TaskConfig) {
   def renderValidation(info: HITInfo[ValidationPrompt, List[ValidationAnswer]]) = {
     val sentence = getTokensForId(info.hit.prompt.genPrompt.id)
     info.assignments.map { assignment =>
-      TextRendering.renderSentence(sentence) + "\n" +
+      Text.render(sentence) + "\n" +
         info.hit.prompt.qaPairs.zip(assignment.response).map {
           case (WordedQAPair(kwIndex, question, answerIndices), valAnswer) =>
-            val answerString = TextRendering.renderSpan(sentence, answerIndices)
+            val answerString = Text.renderSpan(sentence, answerIndices)
             val validationString = renderValidationAnswer(sentence, valAnswer, info.hit.prompt.qaPairs)
             s"\t$question --> $answerString \t|$validationString"
         }.mkString("\n")
@@ -576,7 +578,7 @@ class FinalExperiment(implicit config: TaskConfig) {
       qsAlignmentsString = questionSentenceAlignments.map { case (q, s) => s"$q-$s" }.mkString(" ")
       _ <- append(s"${id.readableFileString}\t${id.readableSentenceIndex}\t${keywords.toVector.sorted.mkString(" ")}\t${genWorkerId}\t")
       _ <- append(s"${sentence(keywordIndex)} ($keywordIndex)\t$qsAlignmentsString\t${questionTokens.mkString(" ")}\t${valAnswers.size + 1}\t")
-      _ <- append(TextRendering.renderSpan(sentence, answerIndices) + s"\t$valAnswersString\t")
+      _ <- append(Text.renderSpan(sentence, answerIndices) + s"\t$valAnswersString\t")
       _ <- append(s"${answerIndices.mkString(" ")}\t")
       _ <- append(valAnswers.map(_.getAnswer.map(_.indices.mkString(" ")).getOrElse("")).mkString("\t"))
       _ <- append(s"\t$valFeedback")
@@ -616,14 +618,17 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   // assumes nonempty span ... checks it though
   def getOffsetAndSpan(reference: Seq[String], span: Set[Int]) = {
-    import scalaz._
-    import Scalaz._
+
+    import cats._
+    import cats.data._
+    import cats.implicits._
+
     if(span.isEmpty) {
-      System.err.println("Identifying offset of empty span for reference:\n" + TextRendering.renderSentence(reference))
+      System.err.println("Identifying offset of empty span for reference:\n" + Text.render(reference))
     }
     if(span.exists(i => i < 0 || i >= reference.size)) {
       System.err.println("Identifying offset of span containing indices outside of reference:\n" +
-                           TextRendering.renderSentence(reference) + "\n" +
+                           Text.render(reference) + "\n" +
                            span.mkString(" "))
     }
 
@@ -637,7 +642,7 @@ class FinalExperiment(implicit config: TaskConfig) {
           if(s.inSpan) OffsetState.phrase.modify(_ + text)(s) else s
         )
     def emitToken(token: String, index: Int): ST[String] = {
-      val normalizedToken = TextRendering.normalizeToken(token)
+      val normalizedToken = Text.normalizeToken(token)
       for {
         _ <- State.modify(if(index == firstWord) OffsetState.inSpan.set(true) else identity[OffsetState])
         _ <- State.modify(if(index == firstWord) (s: OffsetState) => OffsetState.beginOffset.set(s.curOffset)(s)
@@ -647,14 +652,14 @@ class FinalExperiment(implicit config: TaskConfig) {
       } yield normalizedToken
     }
 
-    val OffsetState(_, _, begin, phrase) = TextRendering.renderSentenceM[(String, Int), ST, String](
-      reference.zipWithIndex,
+    val OffsetState(_, _, begin, phrase) = Text.renderM[(String, Int), List, ST, String](
+      reference.zipWithIndex.toList,
       _._1,
       _ => emitToken(" ", -1),
       Function.tupled(emitToken)
-    ).exec(OffsetState(0, false, -1, ""))
+    ).runS(OffsetState(0, false, -1, "")).value
 
-    val sentence = TextRendering.renderSentence(reference)
+    val sentence = Text.render(reference)
     val reproPhrase = sentence.substring(begin, math.min(begin + phrase.length, sentence.length))
     if(reproPhrase != phrase) {
         System.err.println(
@@ -740,22 +745,22 @@ class FinalExperiment(implicit config: TaskConfig) {
 
   def renderQAs(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
     val sentence = getTokensForId(id)
-    TextRendering.renderSentence(sentence) + "\n" +
+    Text.render(sentence) + "\n" +
       qas.map { case (WordedQAPair(kwIndex, question, answerIndices), valAnswers) =>
-        val answerStrings = (answerIndices :: valAnswers).map(TextRendering.renderSpan(sentence, _)).mkString(" \t| ")
+        val answerStrings = (answerIndices :: valAnswers).map(Text.renderSpan(sentence, _)).mkString(" \t| ")
         s"\t$question --> \t$answerStrings"
       }.mkString("\n")
   }
 
   // TODO think these are repetitive and can be removed
-  // def renderSentenceEntry(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
+  // def renderEntry(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
   //   qas.map { case (wqa, as) => renderValidQA(getTokensForId(id), wqa, as) }.mkString("\n")
   // }
 
   // def renderValidQA(tokens: Vector[String], wqa: WordedQAPair, validations: List[Set[Int]]) = {
-  //   val sentenceString = TextRendering.renderSentence(tokens)
-  //   val answerString = TextRendering.renderSpan(tokens, wqa.answer)
-  //   val validationStrings = validations.map(TextRendering.renderSpan(tokens, _)).mkString(" \t")
+  //   val sentenceString = Text.render(tokens)
+  //   val answerString = Text.renderSpan(tokens, wqa.answer)
+  //   val validationStrings = validations.map(Text.renderSpan(tokens, _)).mkString(" \t")
   //   s"$sentenceString \n\t${wqa.question} --> $answerString \t|$validationStrings"
   // }
 
@@ -1001,7 +1006,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
         // because I use qas.size below, I should be consistent here. don't really care about precision anyway...
         val numPredictions = qas.size
 
-        val sentenceString = TextRendering.renderSentence(words)
+        val sentenceString = Text.render(words)
         val missedDeps = predArgs.filterNot(pasCovered).mkString("\n")
         // println(s"\n\n$sentenceString\nMissed deps:\n$missedDeps")
 
@@ -1029,7 +1034,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
         qas: List[SourcedQA],
         paStructures: List[PredicateArgumentStructure]): PASAlignment = {
 
-        // println(s"Sentence:\n${TextRendering.renderSentence(tokens)}")
+        // println(s"Sentence:\n${Text.render(tokens)}")
         def breakIntoContiguous(s: Set[Int]): List[Set[Int]] = {
           if(s.isEmpty) Nil else {
             val min = s.min
@@ -1046,7 +1051,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
           val qSpan = getWordsInQuestion(tokens, sqa.question)
           (qSpan :: sqa.answers).flatMap(breakIntoContiguous)
         }
-        // println(s"Contiguous spans:\n${allContiguousSpans.map(TextRendering.renderSpan(tokens, _)).mkString("\n")}")
+        // println(s"Contiguous spans:\n${allContiguousSpans.map(Text.renderSpan(tokens, _)).mkString("\n")}")
         val minimalContiguousSpans = allContiguousSpans.filter(span =>
           !allContiguousSpans.exists(otherSpan =>
             otherSpan.subsetOf(span) && !span.subsetOf(otherSpan)
@@ -1058,7 +1063,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
             breakIntoContiguous(qSpan).filter(minimalContiguousSpans.contains)
           }
         )
-        // println(s"Minimal contiguous spans:\n${minimalContiguousSpans.map(TextRendering.renderSpan(tokens, _)).mkString("\n")}")
+        // println(s"Minimal contiguous spans:\n${minimalContiguousSpans.map(Text.renderSpan(tokens, _)).mkString("\n")}")
         val minimalSpanAllAppearanceCounts = Scorer[Set[Int], Int](
           allContiguousSpans.filter(minimalContiguousSpans.contains)
         )
@@ -1068,11 +1073,11 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
             .sortBy(-_._2)
             .map(_._1)
         }
-        // println(s"Spans by salience:\n${spansByPredicateness.map(TextRendering.renderSpan(tokens, _)).mkString("\n")}")
+        // println(s"Spans by salience:\n${spansByPredicateness.map(Text.renderSpan(tokens, _)).mkString("\n")}")
 
         val allPredArgs = paStructures.flatMap(getRelevantPredArgs)
         val alignedQAs = qas.map { sqa =>
-          // println(s"QA Pair:\t${sqa.question}\t${sqa.answers.map(TextRendering.renderSpan(tokens, _))}")
+          // println(s"QA Pair:\t${sqa.question}\t${sqa.answers.map(Text.renderSpan(tokens, _))}")
           val questionWords = getWordsInQuestion(tokens, sqa.question)
           val questionPAs = for {
             qNode <- spansByPredicateness.filter(_.subsetOf(questionWords))
@@ -1123,7 +1128,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
       import nlpdata.datasets.propbank._
 
       def propBankPR(path: PropBankSentencePath, tokens: Vector[String], qas: List[SourcedQA]) = {
-        val pbSentence = FileManager.getPropBankSentence(path).get
+        val pbSentence = PropBank.getSentence(path).get
         val paStructures = pbSentence.predicateArgumentStructures
         alignToPAS(tokens, qas, paStructures)
       }
@@ -1131,7 +1136,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
       lazy val numPropBankSentences = {
         val pbPaths = for {
           PTBSentenceId(path) <- ptbData.sentenceToQAs.keys.iterator
-          pbPath <- ptbToPropBankSentencePath(path).iterator
+          pbPath <- PropBank.ptbToPropBankSentencePath(path).toOption.iterator
         } yield pbPath
         pbPaths.toSet.size
       }
@@ -1139,7 +1144,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
       def allPropBankPRs(n: Int = 1) = {
         val res = for {
           (id @ PTBSentenceId(path), qas) <- ptbData.sentenceToQAs.iterator
-          pbPath <- ptbToPropBankSentencePath(path).iterator
+          pbPath <- PropBank.ptbToPropBankSentencePath(path).toOption.iterator
           tokens = getTokensForId(id)
           sampledQAs = sampleQAPairs(qas, n)
         } yield propBankPR(pbPath, tokens, sampledQAs.toList).stats
@@ -1155,7 +1160,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
       import nlpdata.datasets.nombank._
 
       def nomBankPR(path: PTBSentencePath, tokens: Vector[String], qas: List[SourcedQA]) = {
-        val pas = FileManager.getNomBankPredArgStructuresReindexed(path).get
+        val pas = NomBank.getPredArgStructuresReindexed(path).get
         alignToPAS(tokens, qas, pas)
       }
 
@@ -1177,7 +1182,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
         .mkString("\n")
 
       import nlpdata.datasets.qasrl._
-      val qasrl = FileManager.getQASRL.get
+      val qasrl = QASRL.getQASRL.get
 
       // assumes path is stored
       def qasrlPR(path: PTBSentencePath, tokens: Vector[String], qas: List[SourcedQA]) = {
@@ -1214,13 +1219,14 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
           val qas = ptbData.sentenceToQAs(id)
           val tokens = getTokensForId(id)
 
-          val pbAlignmentOpt = ptbToPropBankSentencePath(path).map(propBankPR(_, tokens, qas))
+          val pbAlignmentOpt = PropBank.ptbToPropBankSentencePath(path)
+            .toOption.map(propBankPR(_, tokens, qas))
           val nbAlignment = nomBankPR(path, tokens, qas)
           val qasrlAlignment = qasrlPR(path, tokens, qas)
 
           def addPA(pa: PredArg): Unit = pa match { case PredArg(pred, arg) =>
             sb.append(s"\t${pred.head.token} (${pred.head.index}) --" + arg.label + "-> ")
-            sb.append(TextRendering.renderSentence(arg.words.map(_.token)) + "\n")
+            sb.append(Text.render(arg.words.map(_.token)) + "\n")
 
             // find relevant QA pairs
             val relevantQAs = qas.filter { qa =>
@@ -1233,33 +1239,33 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
               val relevantToArg = (
                 allQAIndices.intersect(arg.words.map(_.index).toSet).nonEmpty ||
                   qa.question.toLowerCase.contains(
-                    TextRendering.renderSpan(tokens, arg.words.map(_.index).toSet).toLowerCase
+                    Text.renderSpan(tokens, arg.words.map(_.index).toSet).toLowerCase
                   ))
               relevantToPred & relevantToArg
             }
 
             relevantQAs.foreach { qa =>
-              val answers = qa.answers.map(TextRendering.renderSpan(tokens, _)).distinct.mkString(" / ")
+              val answers = qa.answers.map(Text.renderSpan(tokens, _)).distinct.mkString(" / ")
               sb.append(s"|\t${qa.question}\t$answers\t")
               pbAlignmentOpt.flatMap(_.alignedQAs(qa)) match {
                 case None => sb.append("No PB alignment")
                 case Some(PredArg(p, a)) =>
                   sb.append(s"${p.head.token} (${p.head.index}) --" + a.label + "-> ")
-                  sb.append(TextRendering.renderSentence(a.words.map(_.token)))
+                  sb.append(Text.render(a.words.map(_.token)))
               }
               sb.append("\t")
               nbAlignment.alignedQAs(qa) match {
                 case None => sb.append("No NB alignment")
                 case Some(PredArg(p, a)) =>
                   sb.append(s"${p.head.token} (${p.head.index}) --" + a.label + "-> ")
-                  sb.append(TextRendering.renderSentence(a.words.map(_.token)))
+                  sb.append(Text.render(a.words.map(_.token)))
               }
               sb.append("\n")
             }
           }
 
           if(pbAlignmentOpt.fold(false)(_.missedDeps.nonEmpty) || nbAlignment.missedDeps.nonEmpty || qasrlAlignment.missedDeps.nonEmpty) {
-            sb.append("==\t" + TextRendering.renderSentence(tokens) + "\n")
+            sb.append("==\t" + Text.render(tokens) + "\n")
             pbAlignmentOpt.fold[Unit](sb.append("--\tNo PropBank data\n")) { pbAlignment =>
               sb.append("--\tPropBank dependencies missed:\n")
               pbAlignment.missedDeps.sortBy(_.pred.head.index).foreach(addPA)
@@ -1322,7 +1328,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
       }
 
       lazy val allSpanClassifications = theseQAs.iterator.collect { case (PTBSentenceId(path), sqas) =>
-        val sentence = FileManager.getPTBSentence(path).get
+        val sentence = PTB.getSentence(path).get
         val answerSpans = sqas.flatMap(_.answers)
         val subtrees = getSubtrees(sentence.syntaxTree, false)
         answerSpans.map(classifySpan(subtrees, _))
@@ -1419,7 +1425,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
         val sentence = getTokensForId(id)
         sb.append("\t\t\t" + sentence.mkString(" ") + "\n")
         for(sqa <- sqas.iterator) {
-          val answerStrings = sqa.answers.map(TextRendering.renderSpan(sentence, _))
+          val answerStrings = sqa.answers.map(Text.renderSpan(sentence, _))
           val questionSentenceAlignments = getQuestionSentenceAlignments(sentence, sqa.questionTokens.toVector) // q-s
           val qsAlignmentsString = questionSentenceAlignments.map { case (q, s) => s"$q-$s" }.mkString(" ")
           sb.append(s"${id.readableFileString}\t${id.readableSentenceIndex}\t")
@@ -1963,10 +1969,10 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
           _ <- append(s"Below are all question-answer pairs we collected for a sample of ${allQAs.size} sentences. (tab-separated; best viewed as a spreadsheet)")
           (id, qas) <- iter(allQAs)
           sentenceTokens = getTokensForId(id)
-          _ <- append("\n" + TextRendering.renderSentence(sentenceTokens) + "\n")
+          _ <- append("\n" + Text.render(sentenceTokens) + "\n")
           sqa <- iter(qas)
           _ <- append(s"${sqa.question}\t")
-          _ <- append(sqa.answers.map(a => TextRendering.renderSpan(sentenceTokens, a)).mkString("\t") + "\n")
+          _ <- append(sqa.answers.map(a => Text.renderSpan(sentenceTokens, a)).mkString("\t") + "\n")
         } yield ()
         printer.run.exec(Nil).reverse.mkString
       }
@@ -2025,10 +2031,10 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
           _ <- append("\nCode\tPhrases\tQuestion\tOriginal Answer\tValidator Answers\n")
           (id, qas) <- iter(allQAs.toList)
           sentenceTokens = getTokensForId(id)
-          _ <- append("==\t" + TextRendering.renderSentence(sentenceTokens) + "\n")
+          _ <- append("==\t" + Text.render(sentenceTokens) + "\n")
           (phrases, (sqa)) <- iter(qas.toList)
           _ <- append("\t" + phrases.mkString("; ") + s"\t${sqa.question}\t")
-          _ <- append(sqa.answers.map(a => TextRendering.renderSpan(sentenceTokens, a)).mkString("\t") + "\n")
+          _ <- append(sqa.answers.map(a => Text.renderSpan(sentenceTokens, a)).mkString("\t") + "\n")
         } yield ()
         printer.run.exec(Nil).reverse.mkString
       }
@@ -2038,10 +2044,10 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
           _ <- append("\nCode\tQuestion\tOriginal Answer\tValidator Answers\n")
           (id, qas) <- iter(allQAs.toList)
           sentenceTokens = getTokensForId(id)
-          _ <- append("==\t" + TextRendering.renderSentence(sentenceTokens) + "\n")
+          _ <- append("==\t" + Text.render(sentenceTokens) + "\n")
           sqa <- iter(qas)
           _ <- append(s"\t${sqa.question}\t")
-          _ <- append(sqa.answers.map(a => TextRendering.renderSpan(sentenceTokens, a)).mkString("\t") + "\n")
+          _ <- append(sqa.answers.map(a => Text.renderSpan(sentenceTokens, a)).mkString("\t") + "\n")
         } yield ()
         printer.run.exec(Nil).reverse.mkString
       }
@@ -2075,7 +2081,7 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
         val sentence = getTokensForId(id)
         sb.append("\t\t\t" + sentence.mkString(" ") + "\n")
         for(sqa <- sqas.iterator) {
-          val answerStrings = sqa.answers.map(TextRendering.renderSpan(sentence, _))
+          val answerStrings = sqa.answers.map(Text.renderSpan(sentence, _))
           val questionSentenceAlignments = getQuestionSentenceAlignments(sentence, sqa.questionTokens.toVector) // q-s
           val qsAlignmentsString = questionSentenceAlignments.map { case (q, s) => s"$q-$s" }.mkString(" ")
           sb.append(s"${id.readableFileString}\t${id.readableSentenceIndex}\t")
@@ -2098,7 +2104,7 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
       val idsByFile = data.sentenceToQAs.keys.collect {
         case id @ WikiSentenceId(wikiPath) => id
       }.groupBy(_.path.filePath).filter { case (filePath, _) =>
-          val title = FileManager.getWiki1kFile(filePath).get.title
+          val title = Wiki1k.getFile(filePath).get.title
           if(!excludedTitles.contains(title)) {
             true
           } else {
@@ -2109,13 +2115,13 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
 
       def getAnswerSpanJson(tokens: Vector[String], answer: Set[Int]) = {
         val filledOutAnswer = (answer.min to answer.max).toSet
-        val renderedSentence = TextRendering.renderSentence(tokens)
+        val renderedSentence = Text.render(tokens)
         val (answerStart, answerText) = getOffsetAndSpan(tokens, filledOutAnswer)
         // stuff looked good (better, in fact, bc of treatment of quotes). if there are more problems, uncomment this and investigate.
-        // val otherText = TextRendering.renderSpan(tokens, filledOutAnswer).trim
+        // val otherText = Text.renderSpan(tokens, filledOutAnswer).trim
         // if(!answerText.equals(otherText)) {
         //   System.err.println(
-        //     s"Problem for sentence\n${TextRendering.renderSentence(tokens)}\nExpected answer:\n$otherText \nPrinted answer:\n$answerText")
+        //     s"Problem for sentence\n${Text.render(tokens)}\nExpected answer:\n$otherText \nPrinted answer:\n$answerText")
         // }
         Json.obj(
           "answer_start" -> jNumber(answerStart),
@@ -2138,13 +2144,13 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
         }.toSeq
 
         Json.obj(
-          "context" -> jString(TextRendering.renderSentence(getTokensForId(sentenceId))),
+          "context" -> jString(Text.render(getTokensForId(sentenceId))),
           "qas" -> Json.array(qas: _*)
         )
       }
 
       val files: Seq[Json] = idsByFile.keys.toSeq.map { filePath =>
-        val wikiFile = FileManager.getWiki1kFile(filePath).get
+        val wikiFile = Wiki1k.getFile(filePath).get
         val title = wikiFile.title
         val sentenceIds = idsByFile(filePath)
         val sentenceJsons = sentenceIds.map(getSentenceJson)
@@ -2312,7 +2318,7 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
   //     }
   //     sb.append("\t\t\t" + sentence.mkString(" ") + "\n")
   //     for(sqa <- sqas.iterator) {
-  //       val answerStrings = sqa.answers.map(TextRendering.renderSpan(sentence, _))
+  //       val answerStrings = sqa.answers.map(Text.renderSpan(sentence, _))
   //       val questionSentenceAlignments = getQuestionSentenceAlignments(sentence, sqa.questionTokens.toVector) // q-s
   //       val qsAlignmentsString = questionSentenceAlignments.map { case (q, s) => s"$q-$s" }.mkString(" ")
   //       sb.append(s"${id.readableFileString}\t${id.readableSentenceIndex}\t")

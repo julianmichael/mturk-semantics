@@ -6,7 +6,7 @@ import mts.tasks._
 import mts.util._
 import mts.experiments._
 
-import nlpdata.datasets.ptb._
+import nlpdata.datasets.wiktionary.Inflections
 
 import upickle.default._
 

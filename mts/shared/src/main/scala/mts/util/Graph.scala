@@ -1,4 +1,4 @@
-package mts.language
+package mts.util
 
 // undirected
 case class Graph[Node](
