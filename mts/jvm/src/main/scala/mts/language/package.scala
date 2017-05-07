@@ -81,21 +81,6 @@ trait PackagePlatformExtensions {
   def isReallyUninteresting(t: String) = reallyUninterestingTokens.contains(t) ||
     reallyUninterestingTokens.contains(t.toLowerCase)
 
-  /** Constructs an Inflections object containing all known inflections
-    * for a given set of words.
-    *
-    * @param tokens an iterator over all words we might want inflections for
-    */
-  def getInflectionsForTokens(tokens: Iterator[String]): Inflections = {
-    // XXX should rework this to use standard location instead of hack
-    val wiktionaryFilepath = Paths.get("resources/wiktionary").resolve("en_verb_inflections.txt")
-    val wordDict = new CountDictionary()
-    tokens.foreach(wordDict.addString)
-    val inflDict = new VerbInflectionDictionary(wordDict)
-    inflDict.loadDictionaryFromFile(wiktionaryFilepath.toString)
-    new Inflections(inflDict)
-  }
-
   /** Tokenizes an English string. */
   def tokenize(s: String): List[String] = {
     import scala.collection.JavaConverters._

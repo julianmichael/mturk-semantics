@@ -116,10 +116,6 @@ class FinalExperiment(implicit config: TaskConfig) {
     Comparator.GreaterThanOrEqualTo, 75,
     null, false)
 
-  // <![CDATA[
-  //      // cdata content
-  //    ]]>
-
   // saved these manually, see code in package.scala
   lazy val origQASRLPaths = read[Vector[PTBSentencePath]](
     FileManager.loadDataFile(experimentName, "origQASRLPaths.txt").get.head
