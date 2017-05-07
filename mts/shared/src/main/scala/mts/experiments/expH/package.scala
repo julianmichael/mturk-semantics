@@ -1,8 +1,7 @@
 package mts.experiments
 
-import mts.datasets.ptb._
-import mts.datasets.wiki1k._
-import mts.language._
+import nlpdata.datasets.ptb._
+import nlpdata.datasets.wiki1k._
 import mts.util._
 
 package object expH extends PackagePlatformExtensions {

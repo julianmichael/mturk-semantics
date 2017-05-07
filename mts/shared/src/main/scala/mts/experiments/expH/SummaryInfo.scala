@@ -1,7 +1,7 @@
 package mts.experiments.expH
 
 import mts.core._
-import mts.datasets.ptb.PTBSentence
+import nlpdata.datasets.ptb.PTBSentence
 
 case class ValidatedAssignment(
   genHIT: HIT[GenerationPrompt],

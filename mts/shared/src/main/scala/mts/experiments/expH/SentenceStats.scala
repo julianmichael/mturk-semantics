@@ -2,7 +2,7 @@ package mts.experiments.expH
 
 import mts.core._
 import mts.util._
-import mts.datasets.ptb._
+import nlpdata.datasets.ptb._
 
 case class SentenceStatus(
   id: SentenceId,

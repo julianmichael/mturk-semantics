@@ -4,14 +4,15 @@ import akka.actor.ActorRef
 
 import java.nio.file.Paths
 
+import nlpdata.util.LowerCaseStrings._
+import nlpdata.datasets.conll._
+import nlpdata.datasets.ptb._
+import nlpdata.datasets.wiki1k._
+
 import mts.util._
-import mts.util.LowerCaseStrings._
 import mts.core._
 import mts.tasks._
-import mts.datasets.conll._
-import mts.datasets.ptb._
-import mts.datasets.wiki1k._
-import mts.language._
+
 
 trait PackagePlatformExtensions {
   case object Pring

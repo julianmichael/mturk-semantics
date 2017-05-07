@@ -4,11 +4,11 @@ import mts.analysis._
 import mts.experiments._
 import mts.core._
 import mts.tasks._
-import mts.datasets.ptb._
-import mts.datasets.wiki1k._
-import mts.language._
 import mts.util._
-import mts.util.LowerCaseStrings._
+
+import nlpdata.datasets.ptb._
+import nlpdata.datasets.wiki1k._
+import nlpdata.util.LowerCaseStrings._
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
@@ -963,8 +963,8 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
 
     object PASAnalysis {
 
-      import mts.datasets.propbank._
-      import mts.datasets.nombank._
+      import nlpdata.datasets.propbank._
+      import nlpdata.datasets.nombank._
 
       case class PredArg(pred: Predicate, arg: ArgumentSpan)
       def getRelevantPredArgs(pas: PredicateArgumentStructure) = pas.arguments
@@ -1120,7 +1120,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
         paStructures: List[PredicateArgumentStructure]
       ) = alignToPASSmarter(tokens, qas, paStructures)
 
-      import mts.datasets.propbank._
+      import nlpdata.datasets.propbank._
 
       def propBankPR(path: PropBankSentencePath, tokens: Vector[String], qas: List[SourcedQA]) = {
         val pbSentence = FileManager.getPropBankSentence(path).get
@@ -1152,7 +1152,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
         .map { case ((mean, stdev), n) => f"$n%d annotators: $mean%.4f ± $stdev%.4f" }
         .mkString("\n")
 
-      import mts.datasets.nombank._
+      import nlpdata.datasets.nombank._
 
       def nomBankPR(path: PTBSentencePath, tokens: Vector[String], qas: List[SourcedQA]) = {
         val pas = FileManager.getNomBankPredArgStructuresReindexed(path).get
@@ -1176,7 +1176,7 @@ QAs with and/or beside a WH: $numQAsWithCoordWh%d (${numQAsWithCoordWh * 100.0 /
         .map { case ((mean, stdev), n) => f"$n%d annotators: $mean%.4f ± $stdev%.4f" }
         .mkString("\n")
 
-      import mts.datasets.qasrl._
+      import nlpdata.datasets.qasrl._
       val qasrl = FileManager.getQASRL.get
 
       // assumes path is stored

@@ -1,9 +1,9 @@
 package mts.experiments
 
 import mts.core._
-import mts.datasets.conll._
 import mts.util._
-import mts.language._
+
+import nlpdata.datasets.conll._
 
 import scala.util.Try
 

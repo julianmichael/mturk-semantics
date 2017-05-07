@@ -3,11 +3,10 @@ import akka.actor.Actor
 
 import mts.core._
 import mts.tasks._
-import mts.datasets.ptb._
 import mts.util._
 import mts.experiments._
-import mts.language._
 
+import nlpdata.datasets.ptb._
 
 import upickle.default._
 

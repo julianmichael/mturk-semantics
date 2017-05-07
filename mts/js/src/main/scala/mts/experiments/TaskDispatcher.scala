@@ -21,12 +21,6 @@ object TaskDispatcher extends JSApp {
     // dispatch to specific task
     taskKey match {
       case TaskIndex.`sampleTaskKey` => sample.Client.main()
-      case TaskIndex.`expEQAGenTaskKey` => expE.QAGenClient.main()
-      case TaskIndex.`expFAnswerValidationTaskKey` => expF.AnswerValidationClient.main()
-      case TaskIndex.`expFQuestionValidationTaskKey` => expF.QuestionValidationClient.main()
-      case TaskIndex.`expFLongAnswerValidationTaskKey` => expF.LongAnswerValidationClient.main()
-      case TaskIndex.`expGWordLimQValTaskKey` => expG.WordLimitingQuestionValidationClient.main()
-      case TaskIndex.`expGManualQATaskKey` => expG.ManualQAClient.main()
       case TaskIndex.`expHGenerationTaskKey` => expH.GenerationClient.main()
       case TaskIndex.`expHValidationTaskKey` => expH.ValidationClient.main()
       case TaskIndex.`expHDashboardTaskKey` => expH.DashboardClient.main()

@@ -1,9 +1,9 @@
 package mts.experiments.sample
 
 import mts.experiments._
-import mts.datasets.conll._
 import mts.tasks._
-import mts.language._
+
+import nlpdata.datasets.conll._
 
 import scalajs.js
 import org.scalajs.dom
