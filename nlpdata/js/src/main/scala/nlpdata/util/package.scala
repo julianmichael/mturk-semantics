@@ -1,4 +1,3 @@
-package mts
-package util
+package nlpdata.util
 
 trait PackagePlatformExtensions

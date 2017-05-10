@@ -42,9 +42,11 @@ lazy val turkey = crossProject.settings(
     "com.lihaoyi" %%% "autowire" % "0.2.5",
     "com.lihaoyi" %%% "fastparse" % "0.3.7",
     "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
-    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion,
+    "com.jsuereth" % "scala-arm_2.11" % "2.0-RC1",
+    "com.softwaremill.macmemo" %% "macros" % "0.4-SNAPSHOT"
   ),
-  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full),
+  addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
 ).jvmSettings(
   fork in console := true,
   libraryDependencies ++= Seq(
@@ -64,9 +66,15 @@ lazy val turkey = crossProject.settings(
     "xerces" % "xercesImpl" % "2.9.1"
   )
 ).jsSettings(
+  addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full),
   libraryDependencies ++= Seq(
     "org.scala-js" %%% "scalajs-dom" % "0.9.0",
     "be.doeraene" %%% "scalajs-jquery" % "0.9.0",
+    "com.github.japgolly.scalajs-react" %%% "core" % scalaJSReactVersion,
+    "com.github.japgolly.scalajs-react" %%% "ext-monocle" % scalaJSReactVersion,
+    "com.github.japgolly.scalacss" %%% "core" % "0.4.1",
+    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1"
+    // "com.github.julien-truffaut" %%% "monocle-law"   % monocleVersion % "test"
   ),
   relativeSourceMaps := true,
   scalaJSStage in Global := FastOptStage,
@@ -75,7 +83,24 @@ lazy val turkey = crossProject.settings(
   skip in packageJSDependencies := false,
   jsDependencies ++= Seq(
     RuntimeDOM,
-    "org.webjars" % "jquery" % "2.1.4" / "2.1.4/jquery.js"
+    "org.webjars" % "jquery" % "2.1.4" / "2.1.4/jquery.js",
+
+    "org.webjars.bower" % "react" % "15.0.2"
+      /        "react-with-addons.js"
+      minified "react-with-addons.min.js"
+      commonJSName "React",
+
+    "org.webjars.bower" % "react" % "15.0.2"
+      /         "react-dom.js"
+      minified  "react-dom.min.js"
+      dependsOn "react-with-addons.js"
+      commonJSName "ReactDOM",
+
+    "org.webjars.bower" % "react" % "15.0.2"
+      /         "react-dom-server.js"
+      minified  "react-dom-server.min.js"
+      dependsOn "react-dom.js"
+      commonJSName "ReactDOMServer"
   )
 )
 
@@ -157,21 +182,20 @@ lazy val mts = crossProject.settings(
 )
 
 lazy val nlpdataJS = nlpdata.js
-lazy val nlpdataJVM = nlpdata.jvm.settings(
-  (resources in Compile) += (fastOptJS in (nlpdataJS, Compile)).value.data,
-  (resources in Compile) += (packageScalaJSLauncher in (nlpdataJS, Compile)).value.data,
-  (resources in Compile) += (packageJSDependencies in (nlpdataJS, Compile)).value
-)
+lazy val nlpdataJVM = nlpdata.jvm
 
 lazy val turkeyJS = turkey.js
-lazy val turkeyJVM = turkey.jvm.settings(
-  (resources in Compile) += (fastOptJS in (turkeyJS, Compile)).value.data,
-  (resources in Compile) += (packageScalaJSLauncher in (turkeyJS, Compile)).value.data,
-  (resources in Compile) += (packageJSDependencies in (turkeyJS, Compile)).value
-)
+lazy val turkeyJVM = turkey.jvm
 
-lazy val mtsJS = mts.js.dependsOn(nlpdataJS)
-lazy val mtsJVM = mts.jvm.dependsOn(nlpdataJVM).settings(
+// lazy val turkeySampleJS = turkeySample.js.dependsOn(turkeyJS)
+// lazy val turkeySampleJVM = turkeySample.jvm.dependsOn(turkeyJVM).settings(
+//   (resources in Compile) += (fastOptJS in (turkeyJS, Compile)).value.data,
+//   (resources in Compile) += (packageScalaJSLauncher in (turkeyJS, Compile)).value.data,
+//   (resources in Compile) += (packageJSDependencies in (turkeyJS, Compile)).value
+// )
+
+lazy val mtsJS = mts.js.dependsOn(nlpdataJS, turkeyJS)
+lazy val mtsJVM = mts.jvm.dependsOn(nlpdataJVM, turkeyJVM).settings(
   (resources in Compile) += (fastOptJS in (mtsJS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (mtsJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (mtsJS, Compile)).value

@@ -6,54 +6,11 @@ import scala.collection.TraversableOnce
 
 import scala.language.implicitConversions
 
-/** Provides miscellaneous utility classes and methods.
-  *
-  * This includes mutable data structures (LazyStackQueue, QueueMap, Counter),
-  * file management (FileManager), text rendering (Text),
-  * type-level lowercase strings, extension methods for Scala stdlib types,
-  * and some random stuff (the latter three on this object).
-  */
 package object util extends PackagePlatformExtensions {
 
   def majorities[A](sets: Iterable[Set[A]]): Set[A] = {
     sets.flatten.toSet
       .filter(ai => sets.filter(_.contains(ai)).size >= (sets.size / 2))
-  }
-
-  // == typeclass instances ==
-
-  import scala.collection.immutable.SortedSet
-    // basic, inefficient immutable union-find based on sets
-  implicit object SetBasedUnionFind extends OrderedUnionFind[({ type λ[A] = Set[SortedSet[A]]})#λ] {
-    override def empty[A : Ordering] =
-      Set.empty[SortedSet[A]]
-
-    override def add[A: Ordering](fa: Set[SortedSet[A]], a: A): Set[SortedSet[A]] =
-      if(fa.forall(!_.contains(a))) fa + SortedSet[A](a)
-      else fa
-
-    override def find[A](fa: Set[SortedSet[A]], a: A): Option[A] =
-      fa.find(_.contains(a)).map(_.head)
-
-    override def union[A](fa: Set[SortedSet[A]], a: A, b: A): Option[Set[SortedSet[A]]] = for {
-      aSet <- fa.find(_.contains(a))
-      bSet <- fa.find(_.contains(b))
-    } yield if(aSet != bSet) {
-      fa - aSet - bSet + (aSet ++ bSet)
-    }
-    else fa
-
-    override def representatives[A](fa: Set[SortedSet[A]]): Iterator[A] = fa.iterator.map(_.head)
-  }
-
-  // == smart matchers ==
-
-  object IntMatch {
-    val IntMatchRegex = "(\\d+)".r
-    def unapply(s: String): Option[Int] = s match {
-      case IntMatchRegex(num) => Some(num.toInt)
-      case _ => None
-    }
   }
 
   // == Extension methods ==

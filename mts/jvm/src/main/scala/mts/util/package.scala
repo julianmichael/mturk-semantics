@@ -1,4 +1,7 @@
-package mts.util
+package mts
+package util
+
+import turkey.util._
 
 trait PackagePlatformExtensions {
   def sendToClipboard(s: String): Unit = {
@@ -12,7 +15,6 @@ trait PackagePlatformExtensions {
 
   // analysis
 
-  import mts.util._
   import nlpdata.util._
   import nlpdata.datasets.conll._
 
@@ -69,8 +71,8 @@ trait PackagePlatformExtensions {
 
   import nlpdata.util.LowerCaseStrings._
 
-  private[this] val stopwordFilePath = Paths.get("english.stop.txt")
-  private[this] val conservativeStopwordFilePath = Paths.get("english-stop-conservative.txt")
+  private[this] val stopwordFilePath = resourcePath.resolve("english.stop.txt")
+  private[this] val conservativeStopwordFilePath = resourcePath.resolve("english-stop-conservative.txt")
 
   /** Stopword set from a local file.
     *
@@ -78,18 +80,16 @@ trait PackagePlatformExtensions {
     * from Dan Garrette's undergrad NLP class.
     */
   lazy val stopwords: Set[LowerCaseString] = {
-    val setResource = for {
-      lines <- FileManager.loadResource(stopwordFilePath)
-    } yield (lines.toSet ++ Set("hm", "uh", "um")).map(_.lowerCase)
-    setResource.tried.get
+    import scala.collection.JavaConverters._
+    val wordLines = Files.lines(stopwordFilePath).iterator.asScala.toSet
+    (wordLines ++ Set("hm", "uh", "um")).map(_.lowerCase)
   }
 
   // I deleted some stopwords that we actually want
   lazy val conservativeStopwords: Set[LowerCaseString] = {
-    val setResource = for {
-      lines <- FileManager.loadResource(conservativeStopwordFilePath)
-    } yield (lines.toSet ++ Set("hm", "uh", "um")).map(_.lowerCase)
-    setResource.tried.get
+    import scala.collection.JavaConverters._
+    val wordLines = Files.lines(conservativeStopwordFilePath).iterator.asScala.toSet
+    (wordLines ++ Set("hm", "uh", "um")).map(_.lowerCase)
   }
 
   /** (non-normalized as well as normalized PTB tokens.) */
