@@ -10,7 +10,8 @@
 # It's the same data, and the directory structure seems to be the same too.
 
 # NOTE: If you already have this data somewhere, go ahead and just symlink
-# resources/conll-2012/(and resources/ontonotes-release-5.0/ if necessary) to it, and this script should accommodate you.
+# resources/<dirname> to it (for whatever dirname it expects in this script)
+# and it will accommodate you.
 
 if [ ! -e "mturk.properties" ]
 then
@@ -76,9 +77,7 @@ then
         if [ ! -e "ontonotes-url.txt" ]
         then
             echo "Missing file: ontonotes-url.txt"
-            echo "Please add a file named `ontonotes-url.txt`, consisting only of a download URL for the OntoNotes 5.0 release."
-            echo "Or, place a copy of the OntoNotes 5.0 release in a folder named `ontonotes-release-5.0`."
-            echo "A download URL may not be included in the repository because the data is not publicly available."
+            echo "Please add a file named `ontonotes-url.txt`, consisting only of a download URL for the OntoNotes 5.0 release (as a .tar.gz), or place a copy or symlink of the OntoNotes 5.0 release in a folder named `ontonotes-release-5.0`. A download URL cannot be included in this repository because the data is not publicly available."
             echo "LDC page: https://catalog.ldc.upenn.edu/LDC2013T19"
             exit 0
         fi
@@ -105,8 +104,8 @@ then
     case ${answer:0:1} in
         y|Y )
             resources/conll-2012/v3/scripts/skeleton2conll.sh -D \
-                                                              resources/ontonotes-release-5.0/data/files/data/ \
-                                                              resources/conll-2012/
+                resources/ontonotes-release-5.0/data/files/data/ \
+                resources/conll-2012/
             ;;
         * )
             echo "Terminating. Do it yourself."
@@ -114,3 +113,5 @@ then
             ;;
     esac
 fi
+
+# TODO: download all of the other datasets too...

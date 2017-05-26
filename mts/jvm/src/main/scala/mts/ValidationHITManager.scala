@@ -18,6 +18,8 @@ import com.amazonaws.mturk.requester.HITStatus
 
 import upickle.default._
 
+import com.typesafe.scalalogging.StrictLogging
+
 object ValidationHITManager {
   def apply(
     helper: HITManager.Helper[ValidationPrompt, List[ValidationAnswer]],
@@ -117,7 +119,7 @@ class ValidationHITManager private (
       finalExperimentName,
       feedbackFilename,
       write[List[Assignment[List[ValidationAnswer]]]](feedbacks))
-    println("Validation data saved.")
+    logger.info("Validation data saved.")
   }
 
   var allWorkerInfo = {
@@ -166,7 +168,7 @@ class ValidationHITManager private (
             notificationEmailText(worker.agreement),
             Array(worker.workerId))
 
-          println(s"Validation worker ${worker.workerId} warned at ${worker.numAssignmentsCompleted} with accuracy ${worker.agreement}")
+          logger.info(s"Validation worker ${worker.workerId} warned at ${worker.numAssignmentsCompleted} with accuracy ${worker.agreement}")
           worker.warned
 
         } else worker
@@ -178,7 +180,7 @@ class ValidationHITManager private (
             math.ceil(100 * worker.agreement).toInt)
           if(math.ceil(worker.agreement).toInt < validationAgreementBlockingThreshold) {
 
-            println(s"Validation worker ${worker.workerId} DQ'd at ${worker.numAssignmentsCompleted} with accuracy ${worker.agreement}")
+            logger.info(s"Validation worker ${worker.workerId} DQ'd at ${worker.numAssignmentsCompleted} with accuracy ${worker.agreement}")
             worker.blocked
           } else worker
         } else {
@@ -197,7 +199,7 @@ class ValidationHITManager private (
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
       feedbacks = assignment :: feedbacks
-      println(s"Feedback: ${assignment.feedback}")
+      logger.info(s"Feedback: ${assignment.feedback}")
     }
 
     import assignment.workerId

@@ -18,6 +18,8 @@ import com.amazonaws.mturk.requester.HITStatus
 
 import upickle.default._
 
+import com.typesafe.scalalogging.StrictLogging
+
 case class FlagBadSentence(id: SentenceId)
 
 object GenerationHITManager {
@@ -53,7 +55,8 @@ class GenerationHITManager(
   initNumHITsToKeepActive: Int,
   _promptSource: Iterator[GenerationPrompt]
 ) extends NumAssignmentsHITManager[GenerationPrompt, List[WordedQAPair]](
-  helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource) {
+  helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource
+) with StrictLogging {
 
   import GenerationHITManager._
   import helper._
@@ -119,14 +122,14 @@ class GenerationHITManager(
       finalExperimentName,
       badSentenceIdsFilename,
       write[Set[SentenceId]](badSentences))
-    println("Generation data saved.")
+    logger.info("Generation data saved.")
   }
 
   override def reviewAssignment(hit: HIT[GenerationPrompt], assignment: Assignment[List[WordedQAPair]]): Unit = {
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
       feedbacks = assignment :: feedbacks
-      println(s"Feedback: ${assignment.feedback}")
+      logger.info(s"Feedback: ${assignment.feedback}")
     }
     val validationPrompt = ValidationPrompt(hit.prompt, hit.hitId, assignment.assignmentId, assignment.response)
     validationActor ! validationHelper.Message.AddPrompt(validationPrompt)
@@ -180,7 +183,7 @@ class GenerationHITManager(
                 notificationEmailText(stats.accuracy),
                 Array(assignment.workerId))
 
-              println(s"Generation worker ${assignment.workerId} warned at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
+              logger.info(s"Generation worker ${assignment.workerId} warned at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
               stats.warned
 
             } else stats
@@ -193,7 +196,7 @@ class GenerationHITManager(
                 math.ceil(100 * stats.accuracy).toInt)
 
               if(math.ceil(stats.accuracy).toInt < generationAccuracyBlockingThreshold) {
-                println(s"Generation worker ${assignment.workerId} DQ'd at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
+                logger.info(s"Generation worker ${assignment.workerId} DQ'd at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
                 stats.blocked
               } else stats
 

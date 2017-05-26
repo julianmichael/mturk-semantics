@@ -19,7 +19,6 @@ import japgolly.scalajs.react._
 import scalacss.DevDefaults._
 import scalacss.ScalaCssReact._
 
-import autowire._
 import upickle.default._
 
 import monocle._

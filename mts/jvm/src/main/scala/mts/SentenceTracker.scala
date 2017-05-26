@@ -9,6 +9,8 @@ import nlpdata.datasets.wiktionary.Inflections
 
 import upickle.default._
 
+import com.typesafe.scalalogging.StrictLogging
+
 sealed trait TrackingUpdate
 case class GenerationFinished(prompt: GenerationPrompt) extends TrackingUpdate
 case class ValidationBegun(prompt: ValidationPrompt) extends TrackingUpdate
@@ -21,7 +23,8 @@ class SentenceTracker(
   genHITTypeId: String,
   valHITTypeId: String)(
   implicit config: TaskConfig,
-  inflections: Inflections) extends Actor {
+  inflections: Inflections
+) extends Actor with StrictLogging {
 
   val finishedSentenceStatsFilename = "finishedSentenceStats"
   var finishedSentenceStats: List[SentenceStats] =
@@ -65,7 +68,7 @@ class SentenceTracker(
       finalExperimentName,
       aggregateSentenceStatsFilename,
       write[AggregateSentenceStats](aggregateSentenceStats))
-    println("Sentence tracker saved.")
+    logger.info("Sentence tracker saved.")
   }
 
   def processUpdate(id: SentenceId, update: TrackingUpdate) = {
