@@ -3,7 +3,6 @@ import akka.actor.Actor
 
 import turkey._
 import turkey.tasks._
-import turkey.util._
 
 import nlpdata.datasets.wiktionary.Inflections
 

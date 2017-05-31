@@ -4,7 +4,6 @@ import mts.util._
 
 import turkey._
 import turkey.tasks._
-import turkey.util._
 
 import nlpdata.structure._
 import nlpdata.datasets.ptb._

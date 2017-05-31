@@ -3,7 +3,6 @@ package mts
 import mts.util._
 
 import turkey._
-import turkey.util._
 import turkey.tasks._
 
 import nlpdata.datasets._

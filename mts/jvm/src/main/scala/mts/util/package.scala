@@ -1,8 +1,6 @@
 package mts
 package util
 
-import turkey.util._
-
 trait PackagePlatformExtensions {
   def sendToClipboard(s: String): Unit = {
     import java.awt._;
