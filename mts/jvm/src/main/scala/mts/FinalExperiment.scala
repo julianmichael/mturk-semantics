@@ -694,11 +694,6 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.toMap
   }
 
-  // lazy val trainingAlignedInfos = alignedInfos.filter {
-  //   case (id @ WikiSentenceId(_), _) => isTrain(id)
-  //   case _ => false
-  // }.toMap
-
   lazy val alignedQAs: Map[SentenceId, Map[WordedQAPair, List[ValidationAnswer]]] = {
     val genInfosByPrompt = allGenInfos.groupBy(_.hit.prompt)
     val valInfosByGenAssignment = allValInfos.groupBy(_.hit.prompt.sourceAssignmentId)
@@ -717,11 +712,6 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.toMap
   }
 
-  // lazy val trainAlignedQAs = alignedQAs.filter {
-  //   case (id @ WikiSentenceId(_), _) => isTrain(id)
-  //   case _ => false
-  // }.toMap
-
   lazy val validQAs: Map[SentenceId, Map[WordedQAPair, List[Set[Int]]]] = {
     alignedQAs.map { case (id, qasToAnswers) =>
       id -> qasToAnswers.flatMap { case (wqa, vAnswers) =>
@@ -733,21 +723,6 @@ class FinalExperiment(implicit config: TaskConfig) {
     }.toMap
   }
 
-  // lazy val trainValidQAs = validQAs.filter {
-  //   case (id @ WikiSentenceId(_), _) => isTrain(id)
-  //   case _ => false
-  // }.toMap
-
-  // lazy val devValidQAs = validQAs.filter {
-  //   case (id @ WikiSentenceId(_), _) => isDev(id)
-  //   case _ => false
-  // }.toMap
-
-  // lazy val testValidQAs = validQAs.filter {
-  //   case (id @ WikiSentenceId(_), _) => isTest(id)
-  //   case _ => false
-  // }.toMap
-
   def renderQAs(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
     val sentence = getTokensForId(id)
     Text.render(sentence) + "\n" +
@@ -756,56 +731,6 @@ class FinalExperiment(implicit config: TaskConfig) {
         s"\t$question --> \t$answerStrings"
       }.mkString("\n")
   }
-
-  // TODO think these are repetitive and can be removed
-  // def renderEntry(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
-  //   qas.map { case (wqa, as) => renderValidQA(getTokensForId(id), wqa, as) }.mkString("\n")
-  // }
-
-  // def renderValidQA(tokens: Vector[String], wqa: WordedQAPair, validations: List[Set[Int]]) = {
-  //   val sentenceString = Text.render(tokens)
-  //   val answerString = Text.renderSpan(tokens, wqa.answer)
-  //   val validationStrings = validations.map(Text.renderSpan(tokens, _)).mkString(" \t")
-  //   s"$sentenceString \n\t${wqa.question} --> $answerString \t|$validationStrings"
-  // }
-
-  // def sampleQAPairs(id: SentenceId, n: Int = 1) = {
-  //   val promptToAlignments = alignedInfos(id)
-  //   val sentence = getTokensForId(id)
-  //   val qas = promptToAlignments.values.flatMap { alignment =>
-  //     // sample n assignments
-  //     val sample = Random.shuffle(alignment.keys.toVector).take(n)
-  //     for {
-  //       genAssignment <- sample
-  //       valResponses = alignment(genAssignment).flatMap(_.assignments).map(_.response)
-  //       (wqa, index) <- genAssignment.response.zipWithIndex
-  //       qResponses = valResponses.map(_(index))
-  //       if qResponses.forall(!_.isInvalid)
-  //       answer <- wqa.answer :: qResponses.flatMap(_.getAnswer).map(_.indices)
-  //     } yield WordedQAPair(wqa.wordIndex, wqa.question, answer)
-  //   }
-  //   qas
-  // }
-
-  // def allQAPairSamplings(id: SentenceId, n: Int = 1) = {
-  //   val promptToAlignments = alignedInfos(id)
-  //   val sentence = getTokensForId(id)
-  //   val qas = promptToAlignments.values.flatMap { alignment =>
-  //     // sample n assignments
-  //     val samples = alignment.keys.toVector.combinations(n)
-  //     samples.map { sample =>
-  //       for {
-  //         genAssignment <- sample
-  //         valResponses = alignment(genAssignment).flatMap(_.assignments).map(_.response)
-  //                                                                           (wqa, index) <- genAssignment.response.zipWithIndex
-  //         qResponses = valResponses.map(_(index))
-  //         if qResponses.forall(!_.isInvalid)
-  //         answer <- wqa.answer :: qResponses.flatMap(_.getAnswer).map(_.indices)
-  //       } yield WordedQAPair(wqa.wordIndex, wqa.question, answer)
-  //     }
-  //   }
-  //   qas
-  // }
 
   def getExternalVocabulary(id: SentenceId, qas: List[SourcedQA]) = {
     val tokens = getTokensForId(id)
@@ -849,29 +774,6 @@ class FinalExperiment(implicit config: TaskConfig) {
     takeQAs(randomlyOrderedSentences, n)
   }
 
-  // for stable references to QA pairs in manual analysis records
-  case class QAPairId(
-    prompt: GenerationPrompt,
-    workerId: String,
-    assignmentId: String,
-    qaIndex: Int)
-
-  case class SourcedQA(
-    id: QAPairId,
-    wqa: WordedQAPair,
-    validatorAnswers: List[ValidationAnswer]
-  ) {
-    def goodValAnswers = validatorAnswers.flatMap(_.getAnswer.map(_.indices))
-    def isValid = validatorAnswers.forall(_.isAnswer)
-    def isGood = isValid && (questionWords -- Set("much", "many")).contains(questionTokens.head.toLowerCase)
-
-    def question = wqa.question
-    def answers = wqa.answer :: goodValAnswers
-
-    val questionTokens = tokenize(wqa.question)
-    val questionTaggedTokens = posTag(questionTokens)
-  }
-
   lazy val allQAs = {
     // not sure how exactly to import the `sequence` extension method...
     import scalaz._
@@ -888,37 +790,6 @@ class FinalExperiment(implicit config: TaskConfig) {
       wqa,
       valAnswers)
     iter.toList
-  }
-
-  class QAData(
-    val allUnfiltered: List[SourcedQA],
-    val idToQAUnfiltered: Map[QAPairId, SourcedQA],
-    val sentenceToQAsUnfiltered: Map[SentenceId, List[SourcedQA]]
-  ) {
-    lazy val all = allUnfiltered.filter(_.isGood)
-    lazy val idToQA = idToQAUnfiltered.filter(x => x._2.isGood)
-    lazy val sentenceToQAs = sentenceToQAsUnfiltered.flatMap { case (id, qas) =>
-      val newQAs = qas.filter(_.isGood)
-      Some(id -> newQAs).filter(const(newQAs.nonEmpty))
-    }
-
-    def this(_all: List[SourcedQA]) = this(
-      _all,
-      _all.map(sqa => sqa.id -> sqa).toMap,
-      _all.groupBy(_.id.prompt.id))
-
-    def filterBySentence(p: SentenceId => Boolean) = new QAData(
-      allUnfiltered.filter(sqa => p(sqa.id.prompt.id)),
-      idToQAUnfiltered.filter(x => p(x._1.prompt.id)),
-      sentenceToQAsUnfiltered.filter(x => p(x._1)))
-
-    def filterByQA(p: SourcedQA => Boolean) = new QAData(
-      allUnfiltered.filter(p),
-      idToQAUnfiltered.filter(x => p(x._2)),
-      sentenceToQAsUnfiltered.flatMap { case (id, qas) =>
-        val newQAs = qas.filter(p)
-        Some(id -> newQAs).filter(const(newQAs.nonEmpty))
-      })
   }
 
   class CoordinationAnalysis[SID <: SentenceId](data: QAData) {
@@ -2103,7 +1974,7 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
 
     def squadFormattedFileForWiki(excludedTitles: Set[String]): String = {
       // (validQAs: Map[SentenceId, Map[WordedQAPair, List[Set[Int]]]])
-      data.sentenceToQAs
+      // data.sentenceToQAs
       import argonaut._
       import Argonaut._
       val idsByFile = data.sentenceToQAs.keys.collect {
@@ -2174,9 +2045,9 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
     }
 
     def writeAllSquadFormatted(filename: String, excludedTitles: Set[String]) = {
-      val allIds = allGenInfos.map(_.hit.prompt.id).collect {
-        case id @ WikiSentenceId(_) => id
-      }.toSet.toList
+      // val allIds = allGenInfos.map(_.hit.prompt.id).collect {
+      //   case id @ WikiSentenceId(_) => id
+      // }.toSet.toList
       System.out.println(s"Writing squad file $filename")
       saveDataFile(experimentName, filename, squadFormattedFileForWiki(excludedTitles))
     }
@@ -2202,6 +2073,26 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
       }
 
       saveDataFile(experimentName, "q-prefixes.tsv", sb.toString)
+    }
+
+    def writeAllSRLFormatted(makeFilename: String => String) = {
+      val placeholder = makeFilename("{preds,args}")
+      System.out.println(s"Writing SRL files $placeholder")
+      val predSB = new StringBuilder
+      val argsSB = new StringBuilder
+      data.sentenceToQAs.foreach { case (id, sqas) =>
+        val tokens = getTokensForId(id)
+        val inducer = new StructureInduction.GraphInducer(tokens, sqas)
+        val graph = inducer.answerOnlySRLStyleQAMRGraph // NOTE change graph type here
+        predSB.append(StructureInduction.renderPredIDSeq(tokens, graph))
+        predSB.append("\n")
+        StructureInduction.renderArgTaggedSeqs(tokens, graph).foreach { line =>
+          argsSB.append(line)
+          argsSB.append("\n")
+        }
+      }
+      saveDataFile(experimentName, makeFilename("preds"), predSB.toString)
+      saveDataFile(experimentName, makeFilename("args"), argsSB.toString)
     }
   }
 
@@ -2309,6 +2200,11 @@ Number of keywords missing: ${pctString(keywordInfos.filter(_.numValidQAs == 0).
     testWikiAnalysis.writeAllSquadFormatted(
       "squad-test.json",
       Set("Architecture", "Middle Ages", "Avicenna", "Capacitor", "Martin Luther", "Steam engine"))
+  }
+
+  def printSRLFormattedData = {
+    trainWikiAnalysis.writeAllSRLFormatted(x => s"srl-train-$x.txt")
+    devWikiAnalysis.writeAllSRLFormatted(x => s"srl-dev-$x.txt")
   }
 
   // TODO get this information shit printed as fuck

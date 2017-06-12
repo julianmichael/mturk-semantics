@@ -1,0 +1,6 @@
+[submodule "lib/nlpdata"]
+	path = lib/nlpdata
+	url = https://github.com/julianmichael/nlpdata.git
+[submodule "lib/turkey"]
+	path = lib/turkey
+	url = https://github.com/julianmichael/turkey.git

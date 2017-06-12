@@ -16,6 +16,8 @@ lazy val mts = crossProject.settings(
   scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
   resolvers += Resolver.sonatypeRepo("snapshots"),
   libraryDependencies ++= Seq(
+    "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
+    "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
     "com.lihaoyi" %%% "upickle" % "0.4.1",
     "com.lihaoyi" %%% "scalatags" % "0.4.6",
     "com.lihaoyi" %%% "fastparse" % "0.3.7",
@@ -72,14 +74,8 @@ lazy val mts = crossProject.settings(
   )
 )
 
-lazy val nlpdataJS = ProjectRef(uri("git://github.com/julianmichael/nlpdata.git"), "nlpdataJS")
-lazy val nlpdataJVM = ProjectRef(uri("git://github.com/julianmichael/nlpdata.git"), "nlpdataJVM")
-
-lazy val turkeyJS = ProjectRef(uri("git://github.com/julianmichael/turkey.git"), "turkeyJS")
-lazy val turkeyJVM = ProjectRef(uri("git://github.com/julianmichael/turkey.git"), "turkeyJVM")
-
-lazy val mtsJS = mts.js.dependsOn(nlpdataJS, turkeyJS)
-lazy val mtsJVM = mts.jvm.dependsOn(nlpdataJVM, turkeyJVM).settings(
+lazy val mtsJS = mts.js
+lazy val mtsJVM = mts.jvm.settings(
   (resources in Compile) += (fastOptJS in (mtsJS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (mtsJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (mtsJS, Compile)).value

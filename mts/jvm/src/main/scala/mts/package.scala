@@ -19,16 +19,12 @@ trait PackagePlatformExtensions {
 
   val resourcePath = java.nio.file.Paths.get("resources")
 
-  val CoNLL = new conll.CoNLLFileSystemService(
-    resourcePath.resolve("conll-2012")
-  )
-
   val PTB = new ptb.PTBFileSystemService(
     resourcePath.resolve("ptb")
   )
 
   val PropBank = new propbank.PropBankFileSystemService(
-    resourcePath.resolve("propbank-release-master")
+    resourcePath.resolve("propbank")
   )
 
   val NomBank = new nombank.NomBankFileSystemService(
@@ -251,5 +247,61 @@ trait PackagePlatformExtensions {
       id, allKeywords,
       Set.empty[Int], Set.empty[ValidationPrompt],
       List.empty[Assignment[List[ValidationAnswer]]])
+  }
+
+  // Analysis-related data structures
+
+  // for stable references to QA pairs in manual analysis records
+  case class QAPairId(
+    prompt: GenerationPrompt,
+    workerId: String,
+    assignmentId: String,
+    qaIndex: Int)
+
+  case class SourcedQA(
+    id: QAPairId,
+    wqa: WordedQAPair,
+    validatorAnswers: List[ValidationAnswer]
+  ) {
+    def goodValAnswers = validatorAnswers.flatMap(_.getAnswer.map(_.indices))
+    def isValid = validatorAnswers.forall(_.isAnswer)
+    def isGood = isValid && (questionWords -- Set("much", "many")).contains(questionTokens.head.toLowerCase)
+
+    def question = wqa.question
+    def answers = wqa.answer :: goodValAnswers
+
+    val questionTokens = tokenize(wqa.question)
+    val questionTaggedTokens = posTag(questionTokens)
+  }
+
+  class QAData(
+    val allUnfiltered: List[SourcedQA],
+    val idToQAUnfiltered: Map[QAPairId, SourcedQA],
+    val sentenceToQAsUnfiltered: Map[SentenceId, List[SourcedQA]]
+  ) {
+    lazy val all = allUnfiltered.filter(_.isGood)
+    lazy val idToQA = idToQAUnfiltered.filter(x => x._2.isGood)
+    lazy val sentenceToQAs = sentenceToQAsUnfiltered.flatMap { case (id, qas) =>
+      val newQAs = qas.filter(_.isGood)
+      Some(id -> newQAs).filter(const(newQAs.nonEmpty))
+    }
+
+    def this(_all: List[SourcedQA]) = this(
+      _all,
+      _all.map(sqa => sqa.id -> sqa).toMap,
+      _all.groupBy(_.id.prompt.id))
+
+    def filterBySentence(p: SentenceId => Boolean) = new QAData(
+      allUnfiltered.filter(sqa => p(sqa.id.prompt.id)),
+      idToQAUnfiltered.filter(x => p(x._1.prompt.id)),
+      sentenceToQAsUnfiltered.filter(x => p(x._1)))
+
+    def filterByQA(p: SourcedQA => Boolean) = new QAData(
+      allUnfiltered.filter(p),
+      idToQAUnfiltered.filter(x => p(x._2)),
+      sentenceToQAsUnfiltered.flatMap { case (id, qas) =>
+        val newQAs = qas.filter(p)
+        Some(id -> newQAs).filter(const(newQAs.nonEmpty))
+      })
   }
 }
