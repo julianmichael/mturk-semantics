@@ -9,8 +9,6 @@
 # resources/<dirname> to it (for whatever dirname it expects in this script)
 # so it doesn't have to be downloaded again.
 
-RES=0
-
 BASE=`dirname $0`/..
 pushd $BASE
 
@@ -40,18 +38,16 @@ then
     echo "access_key=XXXXXXXXXXXXXXXXXXXX"
     echo "secret_key=YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
     echo "where the keys are obtained from your AWS account."
-    RES=1
 fi
 
-if [ ! -e "resources/ptb/"]
+if [ ! -e "resources/ptb/" ]
 then
     echo "-WARNING- Please download the Penn Treebank and place it at resources/ptb in order to run experiments related to the Penn Treebank data (including those with PropBank and NomBank)."
     echo "It requires an LDC license. Webpage: https://catalog.ldc.upenn.edu/ldc99t42"
     # TODO did I use the PTB 3?
-    RES=1
 fi
 
-if [ ! -e "resources/propbank/"]
+if [ ! -e "resources/propbank/" ]
 then
     read -p $'Download PropBank? [y/N]\n' answer
     case ${answer:0:1} in
@@ -70,7 +66,7 @@ then
     esac
 fi
 
-if [ ! -e "resources/nombank/"]
+if [ ! -e "resources/nombank.1.0/" ]
 then
     read -p $'Download NomBank? [y/N]\n' answer
     case ${answer:0:1} in
@@ -86,7 +82,7 @@ then
     esac
 fi
 
-if [ ! -e "resources/qasrl/"]
+if [ ! -e "resources/qasrl/" ]
 then
     read -p $'Download the QA-SRL data? [y/N]\n' answer
     case ${answer:0:1} in
@@ -102,7 +98,7 @@ then
     esac
 fi
 
-if [ ! -e "resources/wiki1k/"]
+if [ ! -e "resources/wiki1k/" ]
 then
     read -p $'Download Wiki1k data? [y/N]\n' answer
     case ${answer:0:1} in
@@ -137,5 +133,3 @@ then
 fi
 
 popd
-
-return $RES
