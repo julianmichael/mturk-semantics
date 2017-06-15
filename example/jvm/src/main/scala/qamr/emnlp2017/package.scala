@@ -23,10 +23,10 @@ import scala.util.Try
 
 package object emnlp2017 {
 
-  val staticDataPath = Paths.get("static-data")
+  val staticDataPath = Paths.get("static-data/emnlp2017")
 
   def saveDataFile(name: String, contents: String): Try[Unit] = Try {
-    val directory = staticDataPath
+    val directory = staticDataPath.resolve("out")
     if(!Files.exists(directory)) {
       Files.createDirectories(directory)
     }
@@ -35,7 +35,7 @@ package object emnlp2017 {
   }
 
   def loadDataFile(name: String): Try[List[String]] = Try {
-    val directory = staticDataPath
+    val directory = staticDataPath.resolve("in")
     if(!Files.exists(directory)) {
       Files.createDirectories(directory)
     }
