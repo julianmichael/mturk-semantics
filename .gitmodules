@@ -4,3 +4,6 @@
 [submodule "lib/turkey"]
 	path = lib/turkey
 	url = https://github.com/julianmichael/turkey.git
+[submodule "resources/propbank"]
+	path = resources/propbank
+	url = https://github.com/propbank/propbank-release.git

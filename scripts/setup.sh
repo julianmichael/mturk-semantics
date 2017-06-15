@@ -34,7 +34,7 @@ popd
 if [ ! -e "mturk.properties" ]
 then
     echo "Missing file: mturk.properties"
-    echo "Please add a file named `mturk.properties`, consisting of two lines, of the form"
+    echo "Please add a file named mturk.properties, consisting of two lines, of the form"
     echo "access_key=XXXXXXXXXXXXXXXXXXXX"
     echo "secret_key=YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
     echo "where the keys are obtained from your AWS account."
@@ -47,25 +47,6 @@ then
     # TODO did I use the PTB 3?
 fi
 
-if [ ! -e "resources/propbank/" ]
-then
-    read -p $'Download PropBank? [y/N]\n' answer
-    case ${answer:0:1} in
-        y|Y )
-            wget https://github.com/propbank/propbank-release/archive/708f3545d2f0cb14c7f15b8b2b3e01906defda21.zip \
-                 -O propbank.zip
-            if unzip propbank.zip resources/propbank; then
-                rm propbank.zip
-            else
-                echo "Unzip of propbank.zip failed; unzip it yourself to resources/propbank"
-            fi
-            ;;
-        * )
-            echo "Skipping PropBank. Run `setup.sh` again if you change your mind."
-            ;;
-    esac
-fi
-
 if [ ! -e "resources/nombank.1.0/" ]
 then
     read -p $'Download NomBank? [y/N]\n' answer
@@ -73,11 +54,12 @@ then
         y|Y )
             wget http://nlp.cs.nyu.edu/meyers/nombank/nombank.1.0.tgz \
                  -O nombank.1.0.tgz
-            tar -xzf nombank.1.0.tgz -C resources/nombank.1.0
+            tar zxvf nombank.1.0.tgz
             rm nombank.1.0.tgz
+            mv nombank.1.0 resources/nombank.1.0
             ;;
         * )
-            echo "Skipping NomBank. Run `setup.sh` again if you change your mind."
+            echo "Skipping NomBank. Run setup.sh again if you change your mind."
             ;;
     esac
 fi
@@ -89,11 +71,12 @@ then
         y|Y )
             wget https://www.dropbox.com/s/dvfk6rhiuzc5rmw/qasrl.tar.gz?dl=1 \
                  -O qasrl.tar.gz
-            tar -xzf qasrl.tar.gz resources/qasrl
+            tar zxvf qasrl.tar.gz
             rm qasrl.tar.gz
+            mv qasrl resources/qasrl
             ;;
         * )
-            echo "Skipping QA-SRL. Run `setup.sh` again if you change your mind."
+            echo "Skipping QA-SRL. Run setup.sh again if you change your mind."
             ;;
     esac
 fi
@@ -105,11 +88,12 @@ then
         y|Y )
             wget https://www.dropbox.com/s/j5rmbppa4mk6hit/wiki1k.tar.gz?dl=1 \
                  -O wiki1k.tar.gz
-            tar -xzf wiki1k.tar.gz resources/wiki1k
+            tar zxvf wiki1k.tar.gz
             rm wiki1k.tar.gz
+            mv wiki1k resources/wiki1k
             ;;
         * )
-            echo "Skipping Wiki1k. Run `setup.sh` again if you change your mind."
+            echo "Skipping Wiki1k. Run setup.sh again if you change your mind."
             ;;
     esac
 fi
@@ -127,7 +111,7 @@ then
             mv wiktionary resources/wiktionary
             ;;
         * )
-            echo "Skipping Wiktionary. Run `setup.sh` again if you change your mind."
+            echo "Skipping Wiktionary. Run setup.sh again if you change your mind."
             ;;
     esac
 fi
