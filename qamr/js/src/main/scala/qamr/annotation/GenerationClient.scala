@@ -192,7 +192,7 @@ class GenerationClient[SID : Reader : Writer](
                         <.p(
                           Styles.unselectable,
                           Text.render(
-                            sentence.indices,
+                            sentence.indices.toList,
                             (index: Int) => sentence(index),
                             (nextIndex: Int) => List(
                               <.span(

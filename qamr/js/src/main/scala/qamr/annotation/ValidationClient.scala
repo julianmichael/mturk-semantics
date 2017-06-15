@@ -199,7 +199,7 @@ class ValidationClient[SID : Writer : Reader](
                           <.p(
                             Styles.unselectable,
                             Text.render(
-                              sentence.indices,
+                              sentence.indices.toList,
                               getToken = (index: Int) => sentence(index),
                               spaceFromNextWord = (nextIndex: Int) => List(
                                 <.span(
