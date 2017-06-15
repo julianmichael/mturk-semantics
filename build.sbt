@@ -2,7 +2,7 @@ val monocleVersion = "1.4.0-M2"
 val scalaJSReactVersion = "0.11.1"
 
 lazy val root = project.in(file("."))
-  .aggregate(qamrJVM, qamrJS, instancesJVM, instancesJS)
+  .aggregate(qamrJVM, qamrJS, exampleJVM, exampleJS)
   .settings(
   publish := {},
   publishLocal := {})
@@ -27,7 +27,6 @@ lazy val qamr = crossProject.settings(
 ).jvmSettings(
   fork in console := true,
   libraryDependencies ++= Seq(
-    "org.scalaz" %% "scalaz-core" % "7.2.4", // TODO get rid of this
     "com.typesafe.akka" %% "akka-actor" % "2.4.8",
     "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
@@ -74,8 +73,8 @@ lazy val qamr = crossProject.settings(
 lazy val qamrJS = qamr.js
 lazy val qamrJVM = qamr.jvm
 
-lazy val instances = crossProject.settings(
-  name := "qamr-instances",
+lazy val example = crossProject.settings(
+  name := "qamr-example",
   organization := "com.github.julianmichael",
   version := "0.1-SNAPSHOT",
   scalaOrganization in ThisBuild := "org.typelevel", // for fixing stupid serialization woes
@@ -95,7 +94,6 @@ lazy val instances = crossProject.settings(
 ).jvmSettings(
   fork in console := true,
   libraryDependencies ++= Seq(
-    "org.scalaz" %% "scalaz-core" % "7.2.4", // TODO get rid of this
     "com.typesafe.akka" %% "akka-actor" % "2.4.8",
     "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
@@ -111,9 +109,9 @@ lazy val instances = crossProject.settings(
   persistLauncher in Test := false,
   skip in packageJSDependencies := false)
 
-lazy val instancesJS = instances.js.dependsOn(qamrJS)
-lazy val instancesJVM = instances.jvm.dependsOn(qamrJVM).settings(
-  (resources in Compile) += (fastOptJS in (instancesJS, Compile)).value.data,
-  (resources in Compile) += (packageScalaJSLauncher in (instancesJS, Compile)).value.data,
-  (resources in Compile) += (packageJSDependencies in (instancesJS, Compile)).value
+lazy val exampleJS = example.js.dependsOn(qamrJS)
+lazy val exampleJVM = example.jvm.dependsOn(qamrJVM).settings(
+  (resources in Compile) += (fastOptJS in (exampleJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (exampleJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (exampleJS, Compile)).value
 )

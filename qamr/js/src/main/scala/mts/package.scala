@@ -1,3 +1,0 @@
-package mts
-
-trait PackagePlatformExtensions

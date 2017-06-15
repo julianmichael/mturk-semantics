@@ -67,7 +67,7 @@ provides a few methods:
   * ```disable``` reviews any completed assignments and removes all HITs currently online on MTurk.
 
 It is generally easiest to just import these methods on the console with, e.g.,
-```import mts.experiments.expD.WordChoosingExperiment._```.
+```import qamr.experiments.expD.WordChoosingExperiment._```.
 You may interact with the results live on the console, retrieving them with, e.g.,
 ```mts.util.FileManager.loadAllData[Prompt, Response](hitType)```,
 where ```Prompt```, ```Response```, and ```hitType``` will be specific to the experiment.
