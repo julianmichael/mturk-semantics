@@ -1,32 +1,117 @@
-name := "mturk-semantics"
+val monocleVersion = "1.4.0-M2"
+val scalaJSReactVersion = "0.11.1"
 
-scalaVersion := "2.11.8"
+lazy val root = project.in(file("."))
+  .aggregate(qamrJVM, qamrJS, exampleJVM, exampleJS)
+  .settings(
+  publish := {},
+  publishLocal := {})
 
-scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked")
+lazy val qamr = crossProject.settings(
+  name := "qamr",
+  organization := "com.github.julianmichael",
+  version := "0.1-SNAPSHOT",
+  scalaOrganization in ThisBuild := "org.typelevel", // for fixing stupid serialization woes
+  scalaVersion in ThisBuild := "2.11.8",
+  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
+  resolvers += Resolver.sonatypeRepo("snapshots"),
+  libraryDependencies ++= Seq(
+    "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
+    "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
+    "com.lihaoyi" %%% "upickle" % "0.4.1",
+    "com.lihaoyi" %%% "scalatags" % "0.4.6",
+    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
+    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+  ),
+  addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full)
+).jvmSettings(
+  fork in console := true,
+  libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-actor" % "2.4.8",
+    "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
+    // java deps:
+    "org.slf4j" % "slf4j-api" % "1.7.21" // decided to match scala-logging transitive dep
+  )
+).jsSettings(
+  libraryDependencies ++= Seq(
+    "org.scala-js" %%% "scalajs-dom" % "0.9.0",
+    "be.doeraene" %%% "scalajs-jquery" % "0.9.0",
+    "com.github.japgolly.scalajs-react" %%% "core" % scalaJSReactVersion,
+    "com.github.japgolly.scalajs-react" %%% "ext-monocle" % scalaJSReactVersion,
+    "com.github.japgolly.scalacss" %%% "core" % "0.4.1",
+    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1"
+  ),
+  relativeSourceMaps := true,
+  scalaJSStage in Global := FastOptStage,
+  persistLauncher in Compile := true,
+  persistLauncher in Test := false,
+  skip in packageJSDependencies := false,
+  jsDependencies ++= Seq(
+    RuntimeDOM,
+    "org.webjars" % "jquery" % "2.1.4" / "2.1.4/jquery.js",
 
-addCompilerPlugin("org.scalamacros" % "paradise" % "2.1.0" cross CrossVersion.full)
+    "org.webjars.bower" % "react" % "15.0.2"
+      /        "react-with-addons.js"
+      minified "react-with-addons.min.js"
+      commonJSName "React",
 
-resolvers += Resolver.sonatypeRepo("snapshots")
+    "org.webjars.bower" % "react" % "15.0.2"
+      /         "react-dom.js"
+      minified  "react-dom.min.js"
+      dependsOn "react-with-addons.js"
+      commonJSName "ReactDOM",
 
-libraryDependencies ++= Seq(
-  "org.scalaz" %% "scalaz-core" % "7.2.4",
-  "com.lihaoyi" %% "fastparse" % "0.3.7",
-  "com.lihaoyi" %% "upickle" % "0.4.1",
-  "com.typesafe.akka" %% "akka-actor" % "2.4.8",
-  "com.lihaoyi" %% "scalatags" % "0.4.6",
-  "com.jsuereth" % "scala-arm_2.11" % "2.0-RC1",
-  "com.softwaremill.macmemo" %% "macros" % "0.4-SNAPSHOT",
-  // java deps:
-  "log4j" % "log4j" % "1.2.17",
-  // only need this to escape strings for JS. won't be necessary after the switch to scala.js
-  "org.apache.commons" % "commons-lang3" % "3.4",
-  "net.sf.trove4j" % "trove4j" % "3.0.1",
-  "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
-  "net.ettinsmoor" % "java-aws-mturk" % "1.6.2"
-    exclude("org.apache.commons","not-yet-commons-ssl")
-    exclude("apache-xerces","xercesImpl")
-    exclude("apache-xerces","resolver")
-    exclude("apache-xerces","xml-apis"),
-  "ca.juliusdavies" % "not-yet-commons-ssl" % "0.3.11",
-  "xerces" % "xercesImpl" % "2.9.1"
+    "org.webjars.bower" % "react" % "15.0.2"
+      /         "react-dom-server.js"
+      minified  "react-dom-server.min.js"
+      dependsOn "react-dom.js"
+      commonJSName "ReactDOMServer"
+  )
+)
+
+lazy val qamrJS = qamr.js
+lazy val qamrJVM = qamr.jvm
+
+lazy val example = crossProject.settings(
+  name := "qamr-example",
+  organization := "com.github.julianmichael",
+  version := "0.1-SNAPSHOT",
+  scalaOrganization in ThisBuild := "org.typelevel", // for fixing stupid serialization woes
+  scalaVersion in ThisBuild := "2.11.8",
+  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
+  resolvers += Resolver.sonatypeRepo("snapshots"),
+  libraryDependencies ++= Seq(
+    "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
+    "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
+    "com.lihaoyi" %%% "upickle" % "0.4.1",
+    "com.lihaoyi" %%% "scalatags" % "0.4.6",
+    "com.lihaoyi" %%% "fastparse" % "0.3.7",
+    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
+    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+  ),
+  addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full)
+).jvmSettings(
+  fork in console := true,
+  libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-actor" % "2.4.8",
+    "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
+    // java deps:
+    "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
+    "org.slf4j" % "slf4j-api" % "1.7.21", // decided to match scala-logging transitive dep
+    "ch.qos.logback" % "logback-classic" % "1.2.3"
+  )
+).jsSettings(
+  relativeSourceMaps := true,
+  scalaJSStage in Global := FastOptStage,
+  persistLauncher in Compile := true,
+  persistLauncher in Test := false,
+  skip in packageJSDependencies := false)
+
+lazy val exampleJS = example.js.dependsOn(qamrJS)
+lazy val exampleJVM = example.jvm.dependsOn(qamrJVM).settings(
+  (resources in Compile) += (fastOptJS in (exampleJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (exampleJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (exampleJS, Compile)).value
 )
