@@ -18,10 +18,7 @@ lazy val qamr = crossProject.settings(
   libraryDependencies ++= Seq(
     "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
     "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
-    "com.lihaoyi" %%% "upickle" % "0.4.1",
-    "com.lihaoyi" %%% "scalatags" % "0.4.6",
-    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
-    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+    "com.lihaoyi" %%% "upickle" % "0.4.1"
   ),
   addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full)
 ).jvmSettings(
@@ -40,7 +37,9 @@ lazy val qamr = crossProject.settings(
     "com.github.japgolly.scalajs-react" %%% "core" % scalaJSReactVersion,
     "com.github.japgolly.scalajs-react" %%% "ext-monocle" % scalaJSReactVersion,
     "com.github.japgolly.scalacss" %%% "core" % "0.4.1",
-    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1"
+    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1",
+    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
+    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
   ),
   relativeSourceMaps := true,
   scalaJSStage in Global := FastOptStage,
@@ -84,18 +83,12 @@ lazy val example = crossProject.settings(
   libraryDependencies ++= Seq(
     "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
     "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
-    "com.lihaoyi" %%% "upickle" % "0.4.1",
-    "com.lihaoyi" %%% "scalatags" % "0.4.6",
-    "com.lihaoyi" %%% "fastparse" % "0.3.7",
-    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
-    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+    "com.lihaoyi" %%% "upickle" % "0.4.1"
   ),
   addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full)
 ).jvmSettings(
   fork in console := true,
   libraryDependencies ++= Seq(
-    "com.typesafe.akka" %% "akka-actor" % "2.4.8",
-    "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
     // java deps:
     "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",

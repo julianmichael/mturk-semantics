@@ -17,9 +17,6 @@ import scala.language.postfixOps
 
 import scala.util.Random
 
-import monocle._
-import monocle.macros._
-
 import upickle.default._
 
 import com.amazonaws.mturk.requester.QualificationRequirement
@@ -32,10 +29,13 @@ import com.amazonaws.mturk.requester.Locale
 
 class AnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
-  numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int)(
-  implicit config: TaskConfig,
+  numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
-  isStopword: IsStopword) {
+  isStopword: IsStopword)(
+  implicit config: TaskConfig) {
+
+  implicit val ads = annotationDataService
+  implicit val is = isStopword
 
   import config.hitDataService
 

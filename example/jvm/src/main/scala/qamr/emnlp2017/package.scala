@@ -1,6 +1,6 @@
 package qamr
 
-import qamr._
+import qamr.annotation._
 
 import edu.stanford.nlp.ling.Word
 import edu.stanford.nlp.process.PTBTokenizer
@@ -22,6 +22,10 @@ import nlpdata.datasets.wiktionary.Inflections
 import scala.util.Try
 
 package object emnlp2017 {
+
+  import java.nio.file.{Paths, Path, Files}
+  private[this] val liveDataPath = Paths.get("live-data/emnlp2017")
+  val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
   val staticDataPath = Paths.get("static-data/emnlp2017")
 

@@ -24,38 +24,12 @@ import scala.language.postfixOps
 import scala.util.Random
 import scala.util.Try
 
-import monocle._
-import monocle.macros._
-
 import upickle.default._
 
 /** Replicates the annotation setup for our emnlp2017 submission. */
 class AnnotationSetup(implicit config: TaskConfig) {
 
   import config._
-
-  import java.nio.file.{Paths, Path, Files}
-  private[this] val dataPath = Paths.get("live-data")
-  implicit val annotationDataService = new AnnotationDataService {
-    override def saveLiveData(name: String, contents: String): Try[Unit] = Try {
-      val directory = dataPath
-      if(!Files.exists(directory)) {
-        Files.createDirectories(directory)
-      }
-      val path = directory.resolve(name)
-      Files.write(path, contents.getBytes())
-    }
-
-    override def loadLiveData(name: String): Try[List[String]] = Try {
-      val directory = dataPath
-      if(!Files.exists(directory)) {
-        Files.createDirectories(directory)
-      }
-      val path = directory.resolve(name)
-      import scala.collection.JavaConverters._
-      Files.lines(path).iterator.asScala.toList
-    }
-  }
 
   lazy val origQASRLPaths = read[Vector[PTBSentencePath]](
     loadDataFile("origQASRLPaths.txt").get.head
@@ -158,12 +132,12 @@ class AnnotationSetup(implicit config: TaskConfig) {
     Wiktionary.getInflectionsForTokens(tokens)
   }
 
-  implicit lazy val isStopword = IsStopword(isReallyUninteresting)
-
   def numGenerationAssignmentsForPrompt(p: GenerationPrompt[SentenceId]) = p.id match {
     case PTBSentenceId(_) => 5
     case id @ WikiSentenceId(_) => if(isTrain(id)) 1 else 3
   }
 
-  lazy val experiment = new AnnotationPipeline(allIds, numGenerationAssignmentsForPrompt)
+  lazy val experiment = new AnnotationPipeline(
+    allIds, numGenerationAssignmentsForPrompt,
+    liveAnnotationDataService, IsStopword(isReallyUninteresting))
 }

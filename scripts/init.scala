@@ -25,6 +25,6 @@ def exit = {
   LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext].stop
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
-// val pipeline = new emnlp2017.PaperAnnotationPipeline
-// val exp = pipeline.experiment
-// exp.server
+val setup = new emnlp2017.AnnotationSetup
+val exp = setup.experiment
+exp.server

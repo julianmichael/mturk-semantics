@@ -20,9 +20,6 @@ import qamr.util._
 
 // import scala.util.Random
 
-// import monocle._
-// import monocle.macros._
-
 // import upickle.default._
 
 object Analysis {
@@ -840,164 +837,7 @@ object Analysis {
 //     }
 //   }
 
-//   class CompleteAnalysis(data: QAData) {
-//     object QuestionModeling {
-//       // def validQAsForNumQuestionWords(p: Int => Boolean) = theseValidQAs.map { case (id, qas) =>
-//       //   val tokens = getTokensForId(id)
-//       //   id -> qas.filter { case (wqa, answers) => p(getWordsInQuestion(tokens, wqa.question).size) }
-//       // }.toMap
-
-//       lazy val externalWordCounts = data.sentenceToQAs.iterator.flatMap(
-//         Function.tupled(getExternalVocabulary)
-//       ) <| Scorer.apply[String, Int]
-
-//       // def externalWordReport(sum: Double)(word: String, count: Int) =
-//       //   f"$word%s\t$count%d\t${count.toDouble / sum}%.4f"
-
-//       // lazy val externalWordReports = externalWordCounts.iterator.toVector
-//       //   .sortBy(-_._2)
-//       //   .map(Function.tupled(externalWordReport(externalWordCounts.sum)))
-
-//       // lazy val externalNonStopwordCounts = theseValidQAs.iterator.flatMap(
-//       //   Function.tupled(getExternalVocabulary)
-//       // ).filterNot(isReallyUninteresting) <| Scorer.apply[String, Int]
-
-//       // lazy val externalNonStopwordReports = externalNonStopwordCounts.iterator.toVector
-//       //   .sortBy(-_._2)
-//       //   .map(Function.tupled(externalWordReport(externalNonStopwordCounts.sum)))
-
-//       // lazy val allValidQuestions = theseValidQAs.map {
-//       //   case (id, qaMap) => id -> qaMap.keys.map(wqa => posTag(tokenize(wqa.question)))
-//       // }.toMap
-
-//       // lazy val numValidQuestions = allValidQuestions.iterator.map(_._2.size).sum
-
-//       // class NGramReport(tokenizedStrings: Iterator[List[String]]) {
-//       //   lazy val prefixes = tokenizedStrings.flatMap(tokens =>
-//       //     (tokens ++ List("<End>")).inits.filter(_.nonEmpty)
-//       //   ) <| Scorer.apply[List[String], Int]
-
-//       //   lazy val orderedPrefixes = prefixes.iterator.toVector.sortBy(-_._2)
-
-//       //   def prefixReport(prefix: List[String], count: Int) =
-//       //     f"${prefix.mkString(" ")}%s\t$count%d\t${count.toDouble / numValidQuestions}%.4f"
-
-//       //   lazy val orderedPrefixReports = orderedPrefixes.map(Function.tupled(prefixReport))
-//       // }
-
-//       // lazy val questionNGrams = new NGramReport(allValidQuestions.iterator.flatMap(_._2).map(_.map(_.token.toLowerCase)))
-
-//       // lazy val collapsedQuestions = allValidQuestions.map {
-//       //   case (id, questions) => id -> questions.map { q =>
-//       //     val alignedTokens = getAlignedQuestionIndices(getTokensForId(id), q.map(_.token).toVector)
-//       //     val collapsedTokens = q.zipWithIndex.foldRight(List.empty[POSTaggedToken]) { case ((posToken, index), acc) =>
-//       //       if(alignedTokens.contains(index)) {
-//       //         if(acc.headOption.fold(true)(_.token != "<>")) POSTaggedToken("<>", "<>") :: acc
-//       //         else acc
-//       //       } else posToken.copy(token = posToken.token.toLowerCase) :: acc
-//       //     }
-//       //     collapsedTokens
-//       //   }
-//       // }
-
-//       // lazy val collapsedQuestionNGrams = new NGramReport(collapsedQuestions.iterator.flatMap(_._2).map(_.map(_.token)))
-
-//       // lazy val auxCollapsedQuestions = collapsedQuestions.map {
-//       //   case (id, cQuestions) => id -> cQuestions.map { tokens =>
-//       //     tokens.map { case t =>
-//       //       if(inflections.isCopulaVerb(t.token.lowerCase)) POSTaggedToken("<be>", "<be>")
-//       //       else if(Inflections.doVerbs.contains(t.token.lowerCase)) POSTaggedToken("<do>", "<do>")
-//       //       else t
-//       //     }
-//       //   }
-//       // }
-
-//       // lazy val auxCollapsedQuestionNGrams = new NGramReport(auxCollapsedQuestions.iterator.flatMap(_._2).map(_.map(_.token)))
-
-//       // lazy val delexicalizedQuestionNGrams = new NGramReport(auxCollapsedQuestions.iterator.flatMap(_._2).map(_.map(_.pos)))
-
-//       // val determiners = Set("the", "a", "this")
-//       // val pronouns = Set("i", "we", "you", "he", "she", "him", "her", "it", "something", "someone", "they", "them")
-//       // val kindCats = Set("kind", "type", "types")
-//       // val whCats = Set("year", "country", "part", "month", "day", "people", "nationality", "city", "place", "thing",
-//       //                  "group", "event", "time", "number", "man", "things", "language", "person", "album", "position",
-//       //                  "animal", "years", "state", "size", "color", "score", "percentage", "date", "gender", "countries",
-//       //                  "direction", "organization", "level", "religion", "profession", "company", "job")
-//       // val ofCats = Set("name", "title")
-//       // val howCats = Set("long", "old")
-
-//       // def writeTemplatedQuestions(filename: String) = {
-//       //   val sb = new StringBuilder
-//       //   for {
-//       //     (id, qaPairToAnswers) <- theseValidQAs
-//       //     sentenceTokens = posTag(getTokensForId(id).toList)
-//       //                            (wqa, answers) <- qaPairToAnswers
-//       //     (qTokens, qTags) = delexicalizeQuestion(id, wqa.question).unzip
-//       //     alignments = getQuestionSentenceAlignments(sentenceTokens.toVector.map(_.token), qTokens.toVector)
-//       //     sQuestionIndices = alignments.map(_._2)
-//       //     qSentenceIndices = alignments.map(_._1)
-//       //     answer <- wqa.answer :: answers
-//       //   } yield {
-//       //     val sTags = sentenceTokens.zipWithIndex.map { case(POSTaggedToken(_, pos), i) =>
-//       //       val placementTag = if(sQuestionIndices(i)) "Q" else if(answer(i)) "A" else "O"
-//       //       s"$placementTag-$pos"
-//       //     }.mkString(" ")
-//       //     val line = s"${sentenceTokens.map(_.token).mkString(" ")} ||| $sTags ||| ${qTokens.mkString(" ")} ||| ${qTags.mkString(" ")}\n"
-//       //     sb.append(line)
-//       //   }
-
-//       //   saveDataFile(experimentName, filename, sb.toString)
-//       // }
-//       lazy val questionDuplicationCounts = Scorer[Int, Int](data.all.groupBy(_.question).map(_._2.size))
-
-//       lazy val (anyWhQuestions, noWhQuestions) = data.all.partition(q => q.questionTokens.map(_.toLowerCase).exists(questionWords.contains))
-//       lazy val (beginWhQuestions, nonBeginWhQuestions) =
-//         anyWhQuestions.partition(q => questionWords.contains(q.questionTokens.head.toLowerCase))
-
-//       lazy val nonBeginWhWordBreakdown = Scorer[String, Int](
-//         anyWhQuestions.map(
-//           _.questionTokens.map(_.lowerCase).find(lowerQWords.contains).map(_.toString).getOrElse("<N/A> (shouldn't happen)")
-//         ).iterator
-//       )
-//       lazy val nonBeginWhWordBreakdownReport = nonBeginWhWordBreakdown.iterator.toVector.sortBy(-_._2).map {
-//         case (word, count) => s"$word: ${pctString(count, nonBeginWhQuestions.size)}"
-//       }.mkString("\n")
-
-//       lazy val beginWhWordBreakdown = Scorer[String, Int](
-//         beginWhQuestions.map(
-//           _.questionTokens.map(_.lowerCase).find(lowerQWords.contains).map(_.toString).getOrElse("<N/A> (shouldn't happen)")
-//         ).iterator
-//       )
-//       lazy val beginWhWordBreakdownReport = beginWhWordBreakdown.iterator.toVector.sortBy(-_._2).map {
-//         case (word, count) => s"$word: ${pctString(count, beginWhQuestions.size)}"
-//       }.mkString("\n")
-
-//       lazy val anyWhWordBreakdown = Scorer[String, Int](
-//         anyWhQuestions.map(
-//           _.questionTokens.map(_.lowerCase).find(lowerQWords.contains).map(_.toString).getOrElse("<N/A> (shouldn't happen)")
-//         ).iterator
-//       )
-//       lazy val anyWhWordBreakdownReport = anyWhWordBreakdown.iterator.toVector.sortBy(-_._2).map {
-//         case (word, count) => s"$word: ${pctString(count, anyWhQuestions.size)}"
-//       }.mkString("\n")
-
-//       lazy val report = s"""
-// Number of valid questions: ${data.all.size}
-// Question duplications:
-// ${histogramString(questionDuplicationCounts)}
-// Number of questions beginning with a question word: ${pctString(beginWhQuestions.size, data.all.size)}
-// Number of questions with question word not at beginning: ${pctString(nonBeginWhQuestions.size, data.all.size)}
-// Number of questions with no question word: ${pctString(noWhQuestions.size, data.all.size)}
-// First question word breakdown:
-// $anyWhWordBreakdownReport
-
-// Non-beginning word breakdown:
-// $nonBeginWhWordBreakdownReport
-
-// Beginning wh-words:
-// $beginWhWordBreakdownReport
-// """.trim
-//     }
+  // class CompleteAnalysis(data: QAData) {
 
 //     lazy val coordinationAnalysis = new CoordinationAnalysis(data)
 
@@ -1721,3 +1561,162 @@ object Analysis {
 //   //   sb.toString
 //   // }
 }
+
+
+// class QuestionModeling(data: QAData) {
+//   // def validQAsForNumQuestionWords(p: Int => Boolean) = theseValidQAs.map { case (id, qas) =>
+//   //   val tokens = getTokensForId(id)
+//   //   id -> qas.filter { case (wqa, answers) => p(getWordsInQuestion(tokens, wqa.question).size) }
+//   // }.toMap
+
+//   lazy val externalWordCounts = data.sentenceToQAs.iterator.flatMap(
+//     Function.tupled(getExternalVocabulary)
+//   ) <| Scorer.apply[String, Int]
+
+//   // def externalWordReport(sum: Double)(word: String, count: Int) =
+//   //   f"$word%s\t$count%d\t${count.toDouble / sum}%.4f"
+
+//   // lazy val externalWordReports = externalWordCounts.iterator.toVector
+//   //   .sortBy(-_._2)
+//   //   .map(Function.tupled(externalWordReport(externalWordCounts.sum)))
+
+//   // lazy val externalNonStopwordCounts = theseValidQAs.iterator.flatMap(
+//   //   Function.tupled(getExternalVocabulary)
+//   // ).filterNot(isReallyUninteresting) <| Scorer.apply[String, Int]
+
+//   // lazy val externalNonStopwordReports = externalNonStopwordCounts.iterator.toVector
+//   //   .sortBy(-_._2)
+//   //   .map(Function.tupled(externalWordReport(externalNonStopwordCounts.sum)))
+
+//   // lazy val allValidQuestions = theseValidQAs.map {
+//   //   case (id, qaMap) => id -> qaMap.keys.map(wqa => posTag(tokenize(wqa.question)))
+//   // }.toMap
+
+//   // lazy val numValidQuestions = allValidQuestions.iterator.map(_._2.size).sum
+
+//   // class NGramReport(tokenizedStrings: Iterator[List[String]]) {
+//   //   lazy val prefixes = tokenizedStrings.flatMap(tokens =>
+//   //     (tokens ++ List("<End>")).inits.filter(_.nonEmpty)
+//   //   ) <| Scorer.apply[List[String], Int]
+
+//   //   lazy val orderedPrefixes = prefixes.iterator.toVector.sortBy(-_._2)
+
+//   //   def prefixReport(prefix: List[String], count: Int) =
+//   //     f"${prefix.mkString(" ")}%s\t$count%d\t${count.toDouble / numValidQuestions}%.4f"
+
+//   //   lazy val orderedPrefixReports = orderedPrefixes.map(Function.tupled(prefixReport))
+//   // }
+
+//   // lazy val questionNGrams = new NGramReport(allValidQuestions.iterator.flatMap(_._2).map(_.map(_.token.toLowerCase)))
+
+//   // lazy val collapsedQuestions = allValidQuestions.map {
+//   //   case (id, questions) => id -> questions.map { q =>
+//   //     val alignedTokens = getAlignedQuestionIndices(getTokensForId(id), q.map(_.token).toVector)
+//   //     val collapsedTokens = q.zipWithIndex.foldRight(List.empty[POSTaggedToken]) { case ((posToken, index), acc) =>
+//   //       if(alignedTokens.contains(index)) {
+//   //         if(acc.headOption.fold(true)(_.token != "<>")) POSTaggedToken("<>", "<>") :: acc
+//   //         else acc
+//   //       } else posToken.copy(token = posToken.token.toLowerCase) :: acc
+//   //     }
+//   //     collapsedTokens
+//   //   }
+//   // }
+
+//   // lazy val collapsedQuestionNGrams = new NGramReport(collapsedQuestions.iterator.flatMap(_._2).map(_.map(_.token)))
+
+//   // lazy val auxCollapsedQuestions = collapsedQuestions.map {
+//   //   case (id, cQuestions) => id -> cQuestions.map { tokens =>
+//   //     tokens.map { case t =>
+//   //       if(inflections.isCopulaVerb(t.token.lowerCase)) POSTaggedToken("<be>", "<be>")
+//   //       else if(Inflections.doVerbs.contains(t.token.lowerCase)) POSTaggedToken("<do>", "<do>")
+//   //       else t
+//   //     }
+//   //   }
+//   // }
+
+//   // lazy val auxCollapsedQuestionNGrams = new NGramReport(auxCollapsedQuestions.iterator.flatMap(_._2).map(_.map(_.token)))
+
+//   // lazy val delexicalizedQuestionNGrams = new NGramReport(auxCollapsedQuestions.iterator.flatMap(_._2).map(_.map(_.pos)))
+
+//   // val determiners = Set("the", "a", "this")
+//   // val pronouns = Set("i", "we", "you", "he", "she", "him", "her", "it", "something", "someone", "they", "them")
+//   // val kindCats = Set("kind", "type", "types")
+//   // val whCats = Set("year", "country", "part", "month", "day", "people", "nationality", "city", "place", "thing",
+//   //                  "group", "event", "time", "number", "man", "things", "language", "person", "album", "position",
+//   //                  "animal", "years", "state", "size", "color", "score", "percentage", "date", "gender", "countries",
+//   //                  "direction", "organization", "level", "religion", "profession", "company", "job")
+//   // val ofCats = Set("name", "title")
+//   // val howCats = Set("long", "old")
+
+//   // def writeTemplatedQuestions(filename: String) = {
+//   //   val sb = new StringBuilder
+//   //   for {
+//   //     (id, qaPairToAnswers) <- theseValidQAs
+//   //     sentenceTokens = posTag(getTokensForId(id).toList)
+//   //                            (wqa, answers) <- qaPairToAnswers
+//   //     (qTokens, qTags) = delexicalizeQuestion(id, wqa.question).unzip
+//   //     alignments = getQuestionSentenceAlignments(sentenceTokens.toVector.map(_.token), qTokens.toVector)
+//   //     sQuestionIndices = alignments.map(_._2)
+//   //     qSentenceIndices = alignments.map(_._1)
+//   //     answer <- wqa.answer :: answers
+//   //   } yield {
+//   //     val sTags = sentenceTokens.zipWithIndex.map { case(POSTaggedToken(_, pos), i) =>
+//   //       val placementTag = if(sQuestionIndices(i)) "Q" else if(answer(i)) "A" else "O"
+//   //       s"$placementTag-$pos"
+//   //     }.mkString(" ")
+//   //     val line = s"${sentenceTokens.map(_.token).mkString(" ")} ||| $sTags ||| ${qTokens.mkString(" ")} ||| ${qTags.mkString(" ")}\n"
+//   //     sb.append(line)
+//   //   }
+
+//   //   saveDataFile(experimentName, filename, sb.toString)
+//   // }
+//   lazy val questionDuplicationCounts = Scorer[Int, Int](data.all.groupBy(_.question).map(_._2.size))
+
+//   lazy val (anyWhQuestions, noWhQuestions) = data.all.partition(q => q.questionTokens.map(_.toLowerCase).exists(questionWords.contains))
+//   lazy val (beginWhQuestions, nonBeginWhQuestions) =
+//     anyWhQuestions.partition(q => questionWords.contains(q.questionTokens.head.toLowerCase))
+
+//   lazy val nonBeginWhWordBreakdown = Scorer[String, Int](
+//     anyWhQuestions.map(
+//       _.questionTokens.map(_.lowerCase).find(lowerQWords.contains).map(_.toString).getOrElse("<N/A> (shouldn't happen)")
+//     ).iterator
+//   )
+//   lazy val nonBeginWhWordBreakdownReport = nonBeginWhWordBreakdown.iterator.toVector.sortBy(-_._2).map {
+//     case (word, count) => s"$word: ${pctString(count, nonBeginWhQuestions.size)}"
+//   }.mkString("\n")
+
+//   lazy val beginWhWordBreakdown = Scorer[String, Int](
+//     beginWhQuestions.map(
+//       _.questionTokens.map(_.lowerCase).find(lowerQWords.contains).map(_.toString).getOrElse("<N/A> (shouldn't happen)")
+//     ).iterator
+//   )
+//   lazy val beginWhWordBreakdownReport = beginWhWordBreakdown.iterator.toVector.sortBy(-_._2).map {
+//     case (word, count) => s"$word: ${pctString(count, beginWhQuestions.size)}"
+//   }.mkString("\n")
+
+//   lazy val anyWhWordBreakdown = Scorer[String, Int](
+//     anyWhQuestions.map(
+//       _.questionTokens.map(_.lowerCase).find(lowerQWords.contains).map(_.toString).getOrElse("<N/A> (shouldn't happen)")
+//     ).iterator
+//   )
+//   lazy val anyWhWordBreakdownReport = anyWhWordBreakdown.iterator.toVector.sortBy(-_._2).map {
+//     case (word, count) => s"$word: ${pctString(count, anyWhQuestions.size)}"
+//   }.mkString("\n")
+
+//   lazy val report = s"""
+// Number of valid questions: ${data.all.size}
+// Question duplications:
+// ${histogramString(questionDuplicationCounts)}
+// Number of questions beginning with a question word: ${pctString(beginWhQuestions.size, data.all.size)}
+// Number of questions with question word not at beginning: ${pctString(nonBeginWhQuestions.size, data.all.size)}
+// Number of questions with no question word: ${pctString(noWhQuestions.size, data.all.size)}
+// First question word breakdown:
+// $anyWhWordBreakdownReport
+
+// Non-beginning word breakdown:
+// $nonBeginWhWordBreakdownReport
+
+// Beginning wh-words:
+// $beginWhWordBreakdownReport
+// """.trim
+// }
