@@ -68,7 +68,7 @@ class AristoAnnotationSetup(implicit config: TaskConfig) {
       id <- allIds.iterator
       word <- id.tokens.iterator
     } yield word
-    qamr.emnlp2017.Wiktionary.getInflectionsForTokens(tokens)
+    Wiktionary.getInflectionsForTokens(tokens)
   }
 
   // seems reasonable
@@ -77,5 +77,5 @@ class AristoAnnotationSetup(implicit config: TaskConfig) {
   lazy val experiment = new AnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
-    IsStopword(qamr.emnlp2017.isReallyUninteresting))
+    IsStopword(isReallyUninteresting))
 }

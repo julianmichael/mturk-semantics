@@ -3,14 +3,18 @@ package qamr
 import qamr.annotation._
 
 import nlpdata.datasets.wiktionary
+import nlpdata.util.LowerCaseStrings._
+// import nlpdata.util.Text
 
 import scala.util.Try
-import java.nio.file.Paths
-import java.nio.file.Files
+import java.io.StringReader
+import java.nio.file.{Paths, Path, Files}
+
+import edu.stanford.nlp.ling.Word
+import edu.stanford.nlp.process.PTBTokenizer
+import edu.stanford.nlp.process.WordTokenFactory
 
 package object aristo {
-
-  def tokenize(s: String): Vector[String] = qamr.emnlp2017.tokenize(s)
 
   def sentenceSegmentAndTokenize(s: String): Vector[Vector[String]] = {
     import edu.stanford.nlp.process.DocumentPreprocessor;
@@ -118,4 +122,84 @@ package object aristo {
       if(sentenceSet.contains(newSentence)) (idSet, sentenceSet)
       else (newId :: idSet, sentenceSet + newSentence)
   }._1.reverse.toVector
+
+  val resourcePath = Paths.get("resources")
+
+  val Wiktionary = new wiktionary.WiktionaryFileSystemService(
+    resourcePath.resolve("wiktionary")
+  )
+
+  private[this] val conservativeStopwordFilePath = resourcePath.resolve("english-stop-conservative.txt")
+
+  /** Stopword set from a local file.
+    *
+    * Not sure where the file came from, but I found it in my old repo
+    * from Dan Garrette's undergrad NLP class.
+    * I deleted some stopwords that we actually want.
+    */
+  lazy val conservativeStopwords: Set[LowerCaseString] = {
+    import scala.collection.JavaConverters._
+    val wordLines = Files.lines(conservativeStopwordFilePath).iterator.asScala.toSet
+    (wordLines ++ Set("hm", "uh", "um")).map(_.lowerCase)
+  }
+
+  /** (non-normalized as well as normalized PTB tokens.) */
+  val punctuation = Set[String](
+    ".", ",", "!", "?", ";", ":", "...",
+    "''", "\"", "'", "`", "``",
+    "#", "--", "-", "–", "—", "%", // PTB dashes, hyphens, en and em dashes
+    "−", // minus sign (unicode hex 2122)
+    "+", "±", "<", "≤", "≥", ">", "=",
+    "^", "@", "|", "&",
+    "/.", "/?", "/", "\\",
+    ")", "]", "}",
+    "(", "[", "{",
+    "-RRB-", "-RCB-", "-RSB-",
+    "-LRB-", "-LCB-", "-LSB-")
+
+  val contractions = Set("n't", "'s", "'re", "'ve", "'ll", "na", "'m", "'d")
+
+  val questionWords = Set("who", "what", "when", "where", "why", "how",
+                          "whose", "which", "much", "many")
+
+  // NOTE: can get java code with pronouns from HITL stuff
+  // for now, settle with this
+
+  val pronouns = Set(
+    "I", "me", "my", "mine",
+    "we", "us", "our", "ours",
+    "you", "your", "yours",
+    "he", "him", "his",
+    "she", "her", "hers",
+    "it", "its",
+    "they", "them", "their",
+    "someone", "something",
+    "this", "that"
+  ).map(_.lowerCase)
+
+  lazy val reallyUninterestingTokens = conservativeStopwords ++ punctuation ++ contractions ++ questionWords
+
+  def isReallyUninteresting(t: String) = reallyUninterestingTokens.contains(t) ||
+    reallyUninterestingTokens.contains(t.toLowerCase)
+
+  /** Tokenizes an English string. */
+  def tokenize(s: String): Vector[String] = {
+    import scala.collection.JavaConverters._
+    new PTBTokenizer(new StringReader(s), new WordTokenFactory(), "")
+      .tokenize.asScala.toVector.map(_.word)
+  }
+
+  // pos-tagging
+
+  import edu.stanford.nlp.tagger.maxent.MaxentTagger
+  lazy val tagger: MaxentTagger  = new MaxentTagger("resources/corenlp/stanford-postagger-2016-10-31/models/english-left3words-distsim.tagger");
+
+  case class POSTaggedToken(token: String, pos: String)
+
+  /** POS-tags a sequence of tokens. */
+  def posTag(s: List[String]): List[POSTaggedToken] = {
+    tagger.tagTokenizedString(s.mkString(" ")).split(" ").toList
+      .map(_.split("_"))
+      .map(s => POSTaggedToken(s(0), s(1)))
+  }
 }
