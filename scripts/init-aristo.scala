@@ -10,10 +10,10 @@ implicit val config: TaskConfig = {
   val isProduction = false // sandbox. change to true for production
   if(isProduction) {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("production"))
-    ProductionTaskConfig("qamr-example", "localhost", hitDataService)
+    ProductionTaskConfig("qamr-aristo", "localhost", hitDataService)
   } else {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("sandbox"))
-    SandboxTaskConfig("qamr-example", "localhost", hitDataService)
+    SandboxTaskConfig("qamr-aristo", "localhost", hitDataService)
   }
 }
 def exit = {
@@ -25,6 +25,7 @@ def exit = {
   LoggerFactory.getILoggerFactory.asInstanceOf[LoggerContext].stop
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
-val setup = new emnlp2017.AnnotationSetup
+
+val setup = new aristo.AristoAnnotationSetup
 val exp = setup.experiment
 exp.server
