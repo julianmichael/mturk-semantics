@@ -126,8 +126,8 @@ lazy val aristo = crossProject.in(file("example/aristo"))
   .jvmSettings(exampleProjectJVMSettings)
   .jsSettings(commonJSSettings)
 
-lazy val aristoJS = aristo.js.dependsOn(qamrJS, emnlp2017JS)
-lazy val aristoJVM = aristo.jvm.dependsOn(qamrJVM, emnlp2017JVM).settings(
+lazy val aristoJS = aristo.js.dependsOn(qamrJS)
+lazy val aristoJVM = aristo.jvm.dependsOn(qamrJVM).settings(
   (resources in Compile) += (fastOptJS in (aristoJS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (aristoJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (aristoJS, Compile)).value
