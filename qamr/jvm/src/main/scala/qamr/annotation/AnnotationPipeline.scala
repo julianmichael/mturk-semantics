@@ -31,7 +31,11 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
-  isStopword: IsStopword)(
+  isStopword: IsStopword,
+  generationAccuracyQualTypeLabel: Option[String] = None,
+  validationAgreementQualTypeLabel: Option[String] = None,
+  validationTestQualTypeLabel: Option[String] = None,
+  qualTest: QualTest = DefaultQualTest)(
   implicit config: TaskConfig) {
 
   implicit val ads = annotationDataService
@@ -49,7 +53,8 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
     Comparator.EqualTo, null,
     new Locale("US"), true)
 
-  val genAccQualTypeName = "Question-answer writing accuracy % (auto-granted)"
+  val genAccQualTypeLabelString = generationAccuracyQualTypeLabel.fold("")(x => s"[$x] ")
+  val genAccQualTypeName = s"${genAccQualTypeLabelString}Question-answer writing accuracy % (auto-granted)"
   val genAccQualType = config.service.searchQualificationTypes(
     genAccQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
   ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == genAccQualTypeName)).getOrElse {
@@ -73,7 +78,8 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
     Comparator.GreaterThanOrEqualTo, (math.round(generationAccuracyBlockingThreshold * 100.0).toInt),
     null, false)
 
-  val valAgrQualTypeName = "Question answering agreement % (auto-granted)"
+  val valAgrQualTypeLabelString = validationAgreementQualTypeLabel.fold("")(x => s"[$x] ")
+  val valAgrQualTypeName = s"${valAgrQualTypeLabelString}Question answering agreement % (auto-granted)"
   val valAgrQualType = config.service.searchQualificationTypes(
     valAgrQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
   ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == valAgrQualTypeName)).getOrElse {
@@ -96,7 +102,8 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
     Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
     null, false)
 
-  val valTestQualTypeName = if(config.isProduction) "Question answering test score (%)"
+  val valTestQualTypeLabelString = validationTestQualTypeLabel.fold("")(x => s"[$x] ")
+  val valTestQualTypeName = if(config.isProduction) s"${valTestQualTypeLabelString}Question answering test score (%)"
                             else "Sandbox test score qual"
   val valTestQualType = config.service.searchQualificationTypes(
     valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
@@ -109,8 +116,8 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
          as a test of your understanding of the instructions.""".replaceAll("\\s+", " "),
       QualificationTypeStatus.Active,
       300L, // retry delay (seconds) --- 5 minutes
-      QualTest.valQualTestString, // test: QuestionForm
-      QualTest.valQualAnswerKeyString, // AnswerKey
+      qualTest.testString, // test: QuestionForm
+      qualTest.answerKeyString, // AnswerKey
       1200L, // test time limit (seconds) --- 30 minutes
       false, // auto granted
       null // auto granted value

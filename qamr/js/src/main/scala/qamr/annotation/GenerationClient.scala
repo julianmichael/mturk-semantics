@@ -27,7 +27,8 @@ import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
 class GenerationClient[SID : Reader : Writer](
-  instructions: ReactTag = defaultGenerationInstructions)(
+  instructions: ReactTag = defaultGenerationInstructions,
+  requireWhAtQuestionBeginning: Boolean = false)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[WordedQAPair]] // same as above
 ) extends TaskClient[GenerationPrompt[SID], List[WordedQAPair]] {
@@ -52,7 +53,8 @@ class GenerationClient[SID : Reader : Writer](
 
   def emptyQA(keyword: Int) = WordedQAPair(keyword, "", Set.empty[Int])
 
-  def isComplete(wqa: WordedQAPair) = !wqa.question.isEmpty && !wqa.answer.isEmpty
+  def isComplete(wqa: WordedQAPair) = !wqa.question.isEmpty && !wqa.answer.isEmpty &&
+    (!requireWhAtQuestionBeginning || beginsWithWh(wqa.question))
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
 
@@ -105,6 +107,7 @@ class GenerationClient[SID : Reader : Writer](
           ),
           <.input(
             isNotAssigned ?= (^.disabled := true),
+            (!question.isEmpty && !isFocused && requireWhAtQuestionBeginning && !beginsWithWh(question)) ?= (^.backgroundColor := "#FF8888"),
             ^.float := "left",
             ^.`type` := "text",
             ^.placeholder := (

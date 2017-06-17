@@ -1,7 +1,12 @@
 package qamr.annotation
 
-object QualTest {
-  val valQualTestString = s"""<?xml version="1.0" encoding="UTF-8"?>
+trait QualTest {
+  def testString: String
+  def answerKeyString: String
+}
+
+object DefaultQualTest extends QualTest {
+  override val testString = s"""<?xml version="1.0" encoding="UTF-8"?>
 <QuestionForm xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionForm.xsd">
 <Overview>
 <Title>Answering simple questions about a sentence</Title>
@@ -407,7 +412,7 @@ $opts
 """.trim
 
   }
-  val valQualAnswerKeyString = s"""<?xml version="1.0" encoding="UTF-8"?>
+  override val answerKeyString = s"""<?xml version="1.0" encoding="UTF-8"?>
 <AnswerKey xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/AnswerKey.xsd">
 ${answerXML("q1", "q1-invalid")}
 ${answerXML("q2", "q2-a1")}

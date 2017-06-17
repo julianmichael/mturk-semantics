@@ -10,10 +10,10 @@ implicit val config: TaskConfig = {
   val isProduction = false // sandbox. change to true for production
   if(isProduction) {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("production"))
-    ProductionTaskConfig("qamr-example", "localhost", hitDataService)
+    ProductionTaskConfig("qamr-emnlp2017", "localhost", hitDataService)
   } else {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("sandbox"))
-    SandboxTaskConfig("qamr-example", "localhost", hitDataService)
+    SandboxTaskConfig("qamr-emnlp2017", "localhost", hitDataService)
   }
 }
 def exit = {

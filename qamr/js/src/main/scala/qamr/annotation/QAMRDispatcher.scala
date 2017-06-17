@@ -11,7 +11,7 @@ import upickle.default._
 
 class QAMRDispatcher[SID : Reader : Writer] extends TaskDispatcher {
 
-  lazy val genClient = new GenerationClient[SID]
+  lazy val genClient = new GenerationClient[SID](requireWhAtQuestionBeginning = true)
   lazy val valClient = new ValidationClient[SID]
   lazy val dashClient = new DashboardClient[SID]
 
