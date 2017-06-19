@@ -170,8 +170,8 @@ object AristoDispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
           On average, it should take less than 30 seconds per question-answer pair.
           """),
     <.p("""Your work will be evaluated by other workers according to the above criteria. """,
-          <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
-          s""" as judged by other workers.
+        <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
+        s""" as judged by other workers.
           This means the "total potential bonus" indicator is just an upper bound on what you may receive,
           which will depend on the quality of your responses.
           Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
@@ -186,7 +186,9 @@ object AristoDispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
           The first time your score gets near or below the threshold, you will be sent a notification,
           but you can check it at any time in your qualifications.
           (Note, however, that the validators will sometimes make mistakes,
-          so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)"""),
+          so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)""",
+        <.b(" Note: if you worked on a previous iteration of this task, your accuracy and agreement ratings will not be retained. "),
+        " This is to aid in the replicability of our annotation process. "),
     <.h2("""Tips"""),
     <.p(s"""To make the task go quickly, make your questions as short and simple as possible.
             (There is a ${questionCharLimit}-character limit, which will be indicated in red when you approach it.)
@@ -388,7 +390,9 @@ object AristoDispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
         but you can check it at any time in your qualifications.
         (Note, however, that other validators will sometimes make mistakes,
         so there is an element of randomness to it: don't read too deeply into small changes in your agreement rate.)
-        As long as you are qualified, your work will be approved and the bonus will be paid within an hour."""),
+        As long as you are qualified, your work will be approved and the bonus will be paid within an hour.""",
+        <.b(" Note: if you worked on a previous iteration of this task, your accuracy and agreement ratings will not be retained. "),
+        " This is to aid in the replicability of our annotation process. "),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
   )
