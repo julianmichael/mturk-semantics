@@ -78,5 +78,6 @@ class AristoAnnotationSetup(implicit config: TaskConfig) {
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
     IsStopword(isReallyUninteresting),
-    AristoQualTest)
+    AristoQualTest,
+    validationTestQualTypeLabel = Some("round 2"))
 }
