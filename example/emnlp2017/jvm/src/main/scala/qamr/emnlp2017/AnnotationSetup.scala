@@ -139,5 +139,6 @@ class AnnotationSetup(implicit config: TaskConfig) {
 
   lazy val experiment = new AnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
-    liveAnnotationDataService, IsStopword(isReallyUninteresting))
+    liveAnnotationDataService, IsStopword(isReallyUninteresting),
+    EMNLPQualTest)
 }

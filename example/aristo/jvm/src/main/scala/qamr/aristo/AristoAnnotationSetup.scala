@@ -77,5 +77,6 @@ class AristoAnnotationSetup(implicit config: TaskConfig) {
   lazy val experiment = new AnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
-    IsStopword(isReallyUninteresting))
+    IsStopword(isReallyUninteresting),
+    AristoQualTest)
 }
