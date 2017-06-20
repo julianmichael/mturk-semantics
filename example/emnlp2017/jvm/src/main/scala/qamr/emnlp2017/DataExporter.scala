@@ -73,10 +73,10 @@ class DataExporter(implicit config: TaskConfig) {
     val trainIds = allIds.filter(isTrain)
     val devIds = allIds.filter(isDev)
     val testIds = allIds.filter(isTest)
-    saveDataFile("sentences.tsv", makeSentenceIndex(allIds: List[SentenceId], SentenceId.toString))
-    saveDataFile("train.tsv", makeTSV(trainIds))
-    saveDataFile("dev.tsv", makeTSV(devIds))
-    saveDataFile("test.tsv", makeTSV(testIds))
+    saveOutputFile("sentences.tsv", makeSentenceIndex(allIds: List[SentenceId], SentenceId.toString))
+    saveOutputFile("train.tsv", makeTSV(trainIds))
+    saveOutputFile("dev.tsv", makeTSV(devIds))
+    saveOutputFile("test.tsv", makeTSV(testIds))
   }
 
   def writePTBTSVs = {
@@ -85,11 +85,11 @@ class DataExporter(implicit config: TaskConfig) {
     val testIds = ptbTest.map(PTBSentenceId.apply).toList
     val amrIds = ptb100ForAMR.toList
     val allPTBIds = trainIds ++ devIds ++ testIds ++ amrIds
-    saveDataFile("ptb-sentences.tsv", makeSentenceIndex(allPTBIds, SentenceId.toString))
-    saveDataFile("ptb-train.tsv", makeTSV(trainIds))
-    saveDataFile("ptb-dev.tsv", makeTSV(devIds))
-    saveDataFile("ptb-test.tsv", makeTSV(testIds))
-    saveDataFile("ptb-amr.tsv", makeTSV(amrIds))
+    saveOutputFile("ptb-sentences.tsv", makeSentenceIndex(allPTBIds, SentenceId.toString))
+    saveOutputFile("ptb-train.tsv", makeTSV(trainIds))
+    saveOutputFile("ptb-dev.tsv", makeTSV(devIds))
+    saveOutputFile("ptb-test.tsv", makeTSV(testIds))
+    saveOutputFile("ptb-amr.tsv", makeTSV(amrIds))
   }
 
 }

@@ -1,6 +1,6 @@
 package qamr.emnlp2017
 
-object EMNLPQualTest extends qmar.annotation.QualTest {
+object EMNLPQualTest extends qamr.annotation.QualTest {
   override val testString = s"""<?xml version="1.0" encoding="UTF-8"?>
 <QuestionForm xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionForm.xsd">
 <Overview>
