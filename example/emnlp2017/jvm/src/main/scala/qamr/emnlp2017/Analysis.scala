@@ -20,17 +20,80 @@ import qamr.util._
 
 // import scala.util.Random
 
-// import upickle.default._
-
 object Analysis {
 
   def readDataTSV(lines: Iterator[String]): QAData[SentenceId] = readTSV(lines, SentenceId.fromString)
 
-  // TODO read in the various data files and adapt the appropriate parts of the analysis
-  // val allQAData = readDAtaTSV[SentenceId](
+  lazy val trainUnfiltered = readDataTSV(loadOutputFile("train.tsv").get.iterator)
+  lazy val devUnfiltered = readDataTSV(loadOutputFile("dev.tsv").get.iterator)
+  lazy val testUnfiltered = readDataTSV(loadOutputFile("test.tsv").get.iterator)
+  lazy val ptbTrainUnfiltered = readDataTSV(loadOutputFile("ptb-train.tsv").get.iterator)
+  lazy val ptbDevUnfiltered = readDataTSV(loadOutputFile("ptb-dev.tsv").get.iterator)
+  lazy val ptbTestUnfiltered = readDataTSV(loadOutputFile("ptb-test.tsv").get.iterator)
+  lazy val ptbAMRUnfiltered = readDataTSV(loadOutputFile("ptb-amr.tsv").get.iterator)
 
-  // )
+  def isQAGood(sqa: SourcedQA[SentenceId]): Boolean = sqa.isValid && beginsWithWh(sqa.question)
 
+  lazy val train = trainUnfiltered.filterByQA(isQAGood)
+  lazy val dev = devUnfiltered.filterByQA(isQAGood)
+  lazy val test = testUnfiltered.filterByQA(isQAGood)
+  lazy val ptbTrain = ptbTrainUnfiltered.filterByQA(isQAGood)
+  lazy val ptbDev = ptbDevUnfiltered.filterByQA(isQAGood)
+  lazy val ptbTest = ptbTestUnfiltered.filterByQA(isQAGood)
+  lazy val ptbAMR = ptbAMRUnfiltered.filterByQA(isQAGood)
+
+  class TemplateAnalysis(data: QAData[SentenceId]) {
+
+    // def alignQuestionToSentence(id: SentenceId, question: String): Set[Int] = {
+    //   val qTokens = tokenize(question)
+    //   val sentenceTokens = getTokensForId(id)
+    //   getWordsInQuestion(sentenceTokens, qTokens)
+    // }
+
+    // QuestionTemplate is global across all sentences.
+    // it may be aligned to an AbstractedQuestion.
+
+    case class ContiguousSpan(begin: Int, end: Int) {
+      def contains(i: Int): Boolean = begin <= i || end >= i
+    }
+
+    sealed trait TemplateToken
+    case class TemplateString(value: String) extends TemplateToken // TODO perhaps allow inflection
+    case object TemplateSlot extends TemplateToken
+
+    type QuestionTemplate = List[TemplateToken]
+
+    // AbstractedQuestion is a sentence-specific abstraction of a question.
+    // It may be instantiated using an assignment of indices to spans in the sentence.
+
+    sealed trait AbstractToken
+    case class AbstractString(value: String) extends AbstractToken
+    case class AbstractSlot(index: Int) extends AbstractToken // TODO inflection
+
+    type AbstractedQuestion = List[AbstractToken]
+    type AbstractedAnswer = List[AbstractSlot]
+
+    case class AbstractedQA(
+      question: AbstractedQuestion,
+      answer: AbstractedAnswer)
+
+    case class AbstractedSentenceQAs(
+      sentenceId: SentenceId,
+      spanIndex: Map[Int, Set[Int]],
+      abstractedQAs: List[AbstractedQA])
+
+    def abstractQuestions(id: SentenceId, sqas: List[SourcedQA[SentenceId]]): (Map[Int, Set[Int]], List[AbstractedQuestion]) = {
+      val sentenceTokens = getTokensForId(id)
+      val spans = StructureInduction.getMinimalContiguousSpans(sentenceTokens, sqas)
+      val spanIndex = spans
+        .map(is => ContiguousSpan(is.min, is.max))
+        .toVector.zipWithIndex
+        .map { case (span, index) => index -> span}
+        .toMap
+      ???
+    }
+
+  }
 
   // TODO get rid of this if we can manage to put the extra stuff we computed into analysis only
   // and have analysis re-print as necessary
