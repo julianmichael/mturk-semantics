@@ -97,7 +97,10 @@ lazy val exampleProjectJVMSettings = Seq(
     // java deps:
     "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
     "org.slf4j" % "slf4j-api" % "1.7.21", // decided to match scala-logging transitive dep
-    "ch.qos.logback" % "logback-classic" % "1.2.3"
+    "ch.qos.logback" % "logback-classic" % "1.2.3",
+    "log4j" % "log4j" % "1.2.17", // runtime error if not included?
+    "ca.juliusdavies" % "not-yet-commons-ssl" % "0.3.11",  // runtime error if not included?
+    "xerces" % "xercesImpl" % "2.9.1" // runtime error if not included?
   )
 )
 
