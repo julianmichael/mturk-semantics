@@ -169,6 +169,49 @@ trait PackagePlatformExtensions {
 
   // to find target of redundancy, choose the one in the same chunk that has the indicated question index.
 
+  def makeReadableQAPairTSV[SID : HasTokens](
+    ids: List[SID],
+    writeId: SID => String, // serialize sentence ID for distribution in data file
+    anonymizeWorker: String => String, // anonymize worker IDs so they can't be tied back to workers on Turk
+    genInfos: List[HITInfo[GenerationPrompt[SID], List[WordedQAPair]]],
+    valInfos: List[HITInfo[ValidationPrompt[SID], List[ValidationAnswer]]]
+  ): String = {
+    val genInfosBySentenceId = genInfos.groupBy(_.hit.prompt.id)
+    val valInfosByGenAssignmentId = valInfos.groupBy(_.hit.prompt.sourceAssignmentId)
+    val sb = new StringBuilder
+    for(id <- ids) {
+      val idString = writeId(id)
+      val sentenceTokens = id.tokens
+      sb.append(s"\t${idString}\t${nlpdata.util.Text.render(sentenceTokens)}\n")
+      // sort by keyword group first...
+      for(HITInfo(genHIT, genAssignments) <- genInfosBySentenceId(id).sortBy(_.hit.prompt.keywords.min)) {
+        // then worker ID second, so the data will be chunked correctly according to HIT;
+        for(genAssignment <- genAssignments.sortBy(_.workerId)) {
+          // and these should already be ordered in terms of the target word used for a QA pair.
+          for((wqa, qaIndex) <- genAssignment.response.zipWithIndex) {
+            // pairs of (validation worker ID, validation answer)
+            val valResponses = valInfosByGenAssignmentId.get(genAssignment.assignmentId).getOrElse(Nil)
+              .flatMap(_.assignments.map(a => (a.workerId, a.response(qaIndex))))
+            if(valResponses.size != 2) {
+              System.err.println("Warning: don't have 2 validation answers for question. Actual number: " + valResponses.size)
+            }
+
+            sb.append(genHIT.prompt.keywords.mkString(",") + "\t") // 1: space-separated set of keywords presented to turker
+            sb.append(anonymizeWorker(genAssignment.workerId) + "\t") // 2: anonymized worker ID
+            sb.append(wqa.question + "\t") // 5: question string written by worker
+            sb.append(
+              ((Answer(wqa.answer)) :: valResponses.map(_._2)).map { valAnswer =>
+                renderValidationAnswer(sentenceTokens, valAnswer, genAssignment.response)
+              }.mkString("\t")
+            )
+            sb.append("\n")
+          }
+        }
+      }
+    }
+    sb.toString
+  }
+
   def makeQAPairTSV[SID](
     ids: List[SID],
     writeId: SID => String, // serialize sentence ID for distribution in data file
@@ -194,7 +237,7 @@ trait PackagePlatformExtensions {
             sb.append(idString + "\t") // 0: string representation of sentence ID
             sb.append(genHIT.prompt.keywords.mkString(" ") + "\t") // 1: space-separated set of keywords presented to turker
             sb.append(anonymizeWorker(genAssignment.workerId) + "\t") // 2: anonymized worker ID
-            sb.append(qaIndex + "\t") // 3: index of keyword in sentence
+            sb.append(qaIndex + "\t") // 3: index of the QA in the generation HIT
             sb.append(wqa.wordIndex + "\t") // 4: index of keyword in sentence
             sb.append(wqa.question + "\t") // 5: question string written by worker
             sb.append(wqa.answer.toVector.sorted.mkString(" ") + "\t") // 6: answer indices given by original worker

@@ -32,7 +32,7 @@ package object aristo {
 
   val staticDataPath = Paths.get("static-data/aristo")
 
-  def saveDataFile(name: String, contents: String): Try[Unit] = Try {
+  def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
     val directory = staticDataPath.resolve("out")
     if(!Files.exists(directory)) {
       Files.createDirectories(directory)
@@ -41,7 +41,17 @@ package object aristo {
     Files.write(path, contents.getBytes())
   }
 
-  def loadDataFile(name: String): Try[List[String]] = Try {
+  def loadOutputFile(name: String): Try[List[String]] = Try {
+    val directory = staticDataPath.resolve("out")
+    if(!Files.exists(directory)) {
+      Files.createDirectories(directory)
+    }
+    val path = directory.resolve(name)
+    import scala.collection.JavaConverters._
+    Files.lines(path).iterator.asScala.toList
+  }
+
+  def loadInputFile(name: String): Try[List[String]] = Try {
     val directory = staticDataPath.resolve("in")
     if(!Files.exists(directory)) {
       Files.createDirectories(directory)
@@ -56,7 +66,7 @@ package object aristo {
   val kbDataSourcePath = "kb-questions.tsv"
 
   lazy val allKBSentencePairs = {
-    val lines = loadDataFile(kbDataSourcePath).get
+    val lines = loadInputFile(kbDataSourcePath).get
     lines.iterator.map { line =>
       val sentencesInLine = line.split("\t")
       KBSentencePair(sentencesInLine(0), sentencesInLine(1))
@@ -75,7 +85,7 @@ package object aristo {
     import argonaut._
     import Argonaut._
 
-    val fileString = loadDataFile(mathProblemSourcePath).get.mkString
+    val fileString = loadInputFile(mathProblemSourcePath).get.mkString
     Parse.parse(fileString).right.get.array.get
   }
 
