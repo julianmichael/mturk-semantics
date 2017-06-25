@@ -11,7 +11,7 @@ lazy val commonSettings = Seq(
   organization := "com.github.julianmichael",
   scalaOrganization in ThisBuild := "org.typelevel", // for fixing stupid serialization woes
   scalaVersion in ThisBuild := "2.11.8",
-  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
+  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds"),
   addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full)
 )
 
@@ -87,6 +87,7 @@ lazy val exampleProjectSettings = Seq(
   libraryDependencies ++= Seq(
     "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
     "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
+    "org.typelevel" %% "cats" % "0.9.0",
     "com.lihaoyi" %%% "upickle" % "0.4.1"
   )
 )

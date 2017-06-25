@@ -3,9 +3,9 @@ package qamr
 import qamr.util._
 
 class QAData[SID](
-  val allUnfiltered: List[SourcedQA[SID]],
-  val idToQAUnfiltered: Map[QAPairId[SID], SourcedQA[SID]],
-  val sentenceToQAsUnfiltered: Map[SID, List[SourcedQA[SID]]]
+  val all: List[SourcedQA[SID]],
+  val idToQA: Map[QAPairId[SID], SourcedQA[SID]],
+  val sentenceToQAs: Map[SID, List[SourcedQA[SID]]]
 ) {
   // lazy val all = allUnfiltered.filter(_.isGood)
   // lazy val idToQA = idToQAUnfiltered.filter(x => x._2.isGood)
@@ -20,14 +20,14 @@ class QAData[SID](
     _all.groupBy(_.id.sentenceId))
 
   def filterBySentence(p: SID => Boolean) = new QAData(
-    allUnfiltered.filter(sqa => p(sqa.id.sentenceId)),
-    idToQAUnfiltered.filter(x => p(x._1.sentenceId)),
-    sentenceToQAsUnfiltered.filter(x => p(x._1)))
+    all.filter(sqa => p(sqa.id.sentenceId)),
+    idToQA.filter(x => p(x._1.sentenceId)),
+    sentenceToQAs.filter(x => p(x._1)))
 
   def filterByQA(p: SourcedQA[SID] => Boolean) = new QAData(
-    allUnfiltered.filter(p),
-    idToQAUnfiltered.filter(x => p(x._2)),
-    sentenceToQAsUnfiltered.flatMap { case (id, qas) =>
+    all.filter(p),
+    idToQA.filter(x => p(x._2)),
+    sentenceToQAs.flatMap { case (id, qas) =>
       val newQAs = qas.filter(p)
       Some(id -> newQAs).filter(const(newQAs.nonEmpty))
     })

@@ -113,6 +113,44 @@ package object emnlp2017 {
     allIndices.toSet
   }
 
+  case class InflectedAlignment(
+    index: Int,
+    reinflectionOpt: Option[Int])
+
+  def getReinflectedQuestionSentenceAlignments(
+    sentence: Vector[String],
+    questionTokens: Vector[String])(
+    implicit inflections: Inflections,
+    isStopword: IsStopword
+  ): Map[Int, List[InflectedAlignment]] = {
+    val lowerSentence = sentence.map(_.lowerCase)
+    val lowerQuestion = questionTokens.map(_.lowerCase)
+    val allIndices = for {
+      (sToken, sIndex) <- lowerSentence.zipWithIndex
+      if !isStopword(sToken)
+      lowerSToken = Text.normalizeToken(sToken).lowerCase
+      inflectedFormsOpt = inflections.getInflectedForms(lowerSToken)
+      allForms = inflections.getAllForms(sToken)
+      (lowerQToken, qIndex) <- lowerQuestion.zipWithIndex
+      if !isStopword(lowerQToken)
+      res <- {
+        if(lowerSToken == lowerQToken) {
+          List(qIndex -> InflectedAlignment(sIndex, None)) // no reinflection necessary
+        } else if(!allForms.contains(lowerQToken)) {
+          Nil // no alignment
+        } else {
+          List(qIndex -> InflectedAlignment(sIndex, inflectedFormsOpt.flatMap(_.indexOpt(lowerQToken))))
+        }
+      }
+    } yield res
+    allIndices.groupBy(_._1).map {
+      case (qi, pairs) => qi -> pairs.map(_._2).toList
+    }
+  }
+
+  val ptbVerbPosTags = Set("VB", "VBD", "VBG", "VBN", "VBP", "VBZ")
+  val ptbNounPosTags = Set("NN", "NNS", "NNP", "NNPS")
+
   def getPTBSentenceTokens(sentence: ptb.PTBSentence): Vector[String] = {
     sentence.words.filter(_.pos != "-NONE-").map(_.token)
   }
@@ -230,11 +268,16 @@ package object emnlp2017 {
 
   case class POSTaggedToken(token: String, pos: String)
 
+  import cats.Foldable
+  import cats.implicits._
   /** POS-tags a sequence of tokens. */
-  def posTag(s: List[String]): List[POSTaggedToken] = {
-    tagger.tagTokenizedString(s.mkString(" ")).split(" ").toList
+  def posTag[F[_]: Foldable](s: F[String]): Vector[POSTaggedToken] = {
+    val origTokens = s.toList.toArray // to prevent americanization.
+    // probably we can do that with a tagger parameter...but...how about later..
+    tagger.tagTokenizedString(origTokens.mkString(" ")).split(" ").toVector
       .map(_.split("_"))
-      .map(s => POSTaggedToken(s(0), s(1)))
+      .zipWithIndex
+      .map { case (s, index) => POSTaggedToken(origTokens(index), s(1)) }
   }
 
   // data for experiment
@@ -341,4 +384,17 @@ package object emnlp2017 {
   }
 
   implicit val isStopword = IsStopword(isReallyUninteresting)
+
+  implicit class RichIterable[A](val a: Iterable[A]) extends AnyVal {
+    def minOption(implicit o: Ordering[A]): Option[A] = if(a.isEmpty) None else Some(a.min)
+    def maxOption(implicit o: Ordering[A]): Option[A] = if(a.isEmpty) None else Some(a.max)
+  }
+
+  implicit class RichSeq[A](val as: Seq[A]) extends AnyVal {
+    def indexOpt(a: A): Option[Int] = Some(as.indexOf(a)).filter(_ >= 0)
+    def indexFind(p: A => Boolean) = as.zipWithIndex.find(pair => p(pair._1)).map(_._2)
+    // TODO doesn't short circuit when it finds the guy
+    def indicesYielding[B](f: A => Option[B]): Seq[(Int, B)] =
+      as.zipWithIndex.flatMap(pair => f(pair._1).map(b => (pair._2, b)))
+  }
 }
