@@ -3,6 +3,9 @@ package qamr.annotation
 import qamr._
 import turkey._
 
+/** Stores all data relevant to an assignment completed by a turker on the generation task
+  * that has been fully validated by validators.
+  * This is used in the dashboard. */
 case class ValidatedAssignment[SID](
   genHIT: HIT[GenerationPrompt[SID]],
   genAssignment: Assignment[List[WordedQAPair]],
@@ -14,6 +17,9 @@ case class ValidatedAssignment[SID](
   def valCost: Double = valAssignments.size * (validationReward + validationBonus(genAssignment.response.size))
 }
 
+/** Stores all data relevant to a sentence
+  * for display in the summary in the dashboard.
+  */
 case class SentenceHITInfo[SID](
   tokens: Vector[String],
   genHITInfos: List[HITInfo[GenerationPrompt[SID], List[WordedQAPair]]],
@@ -27,6 +33,7 @@ case class SentenceHITInfo[SID](
   } yield ValidatedAssignment(genHIT, genAssignment, valAssignments)
 }
 
+/** Used to summarize current task state and recent annotation results in the dashboard. */
 case class SummaryInfo[SID](
   // generation
   val numGenActive: Int,

@@ -3,6 +3,7 @@ package qamr.annotation
 import qamr._
 import qamr.util._
 
+/** Data structure to keep track of a single worker's stats on the validation task. */
 case class WorkerInfo(
   workerId: String,
   numAssignmentsCompleted: Int,

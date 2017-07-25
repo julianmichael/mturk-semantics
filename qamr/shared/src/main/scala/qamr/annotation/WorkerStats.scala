@@ -3,7 +3,7 @@ package qamr.annotation
 import qamr._
 import qamr.util._
 
-// for generation task
+/** Data structure to keep track of a single worker's stats on the generation task. */
 case class WorkerStats(
   workerId: String,
   numAssignmentsCompleted: Int,

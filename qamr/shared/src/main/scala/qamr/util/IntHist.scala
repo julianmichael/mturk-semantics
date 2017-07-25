@@ -1,5 +1,8 @@
 package qamr.util
 
+/** Represents a histogram of integers.
+  * I have a feeling we can get rid of this in favor of Scorer anyway...
+  */
 case class IntHist private (map: Map[Int, Int]) {
   def add(instance: Int) = new IntHist(IntHist.addInstance(map, instance))
   def addAll(instances: TraversableOnce[Int]) = new IntHist(instances.foldLeft(map)(IntHist.addInstance))

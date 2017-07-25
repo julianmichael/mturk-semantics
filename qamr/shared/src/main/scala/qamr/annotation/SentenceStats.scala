@@ -5,6 +5,7 @@ import qamr.util._
 
 import turkey._
 
+/** Data structure to keep track of how much of a sentence has been annotated / is finished */
 case class SentenceStatus[SID](
   id: SID,
   allKeywords: Set[Int],
@@ -30,6 +31,7 @@ case class SentenceStatus[SID](
   )
 }
 
+/** Stores the relevant stats for a single sentence. */
 case class SentenceStats[SID](
   id: SID,
   earliestTime: Long,
@@ -47,6 +49,9 @@ case class SentenceStats[SID](
   genHITIds: Set[String],
   valHITIds: Set[String])
 
+/** Data structure to store aggregate stats about the entire dataset.
+  * Actually the stats calculated here seem generally inaccurate for some reason...
+  */
 case class AggregateSentenceStats(
   earliestTime: Long,
   latestTime: Long,

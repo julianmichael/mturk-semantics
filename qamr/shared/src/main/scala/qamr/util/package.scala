@@ -6,13 +6,7 @@ import scala.collection.TraversableOnce
 
 import scala.language.implicitConversions
 
-/** Provides miscellaneous utility classes and methods.
-  *
-  * This includes mutable data structures (LazyStackQueue, QueueMap, Counter),
-  * file management (FileManager), text rendering (TextRendering),
-  * type-level lowercase strings, extension methods for Scala stdlib types,
-  * and some random stuff (the latter three on this object).
-  */
+/** Provides miscellaneous utility classes and methods, primarily for data analysis. */
 package object util extends PackagePlatformExtensions {
 
   def majorities[A](sets: Iterable[Set[A]]): Set[A] = {

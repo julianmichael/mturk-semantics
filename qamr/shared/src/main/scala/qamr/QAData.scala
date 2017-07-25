@@ -2,17 +2,14 @@ package qamr
 
 import qamr.util._
 
+/** Holds a subset of the data gathered in the turk task,
+  * for the purposes of analysis. Has convenience functions for filtering as well.
+  */
 class QAData[SID](
   val all: List[SourcedQA[SID]],
   val idToQA: Map[QAPairId[SID], SourcedQA[SID]],
   val sentenceToQAs: Map[SID, List[SourcedQA[SID]]]
 ) {
-  // lazy val all = allUnfiltered.filter(_.isGood)
-  // lazy val idToQA = idToQAUnfiltered.filter(x => x._2.isGood)
-  // lazy val sentenceToQAs = sentenceToQAsUnfiltered.flatMap { case (id, qas) =>
-  //   val newQAs = qas.filter(_.isGood)
-  //   Some(id -> newQAs).filter(const(newQAs.nonEmpty))
-  // }
 
   def this(_all: List[SourcedQA[SID]]) = this(
     _all,

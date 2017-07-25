@@ -6,11 +6,15 @@ import qamr._
 import qamr.util._
 import turkey._
 
+/** Contains classes, fields, and methods related to the annotation pipeline */
 package object annotation extends PackagePlatformExtensions {
+  // used as URL parameters that indicate to the client which interface to use
   val expHGenerationTaskKey = "expHGeneration"
   val expHValidationTaskKey = "expHValidation"
   val expHDashboardTaskKey = "expHDashboard"
 
+  // render a validation answer for the purpose of writing to a file
+  // (just writes the highlighted indices of the answer; not readable)
   def renderValidationAnswerIndices(
     va: ValidationAnswer
   ): String = va match {
@@ -21,6 +25,7 @@ package object annotation extends PackagePlatformExtensions {
 
   val RedundantMatch = "Redundant: ([0-9]*)".r
 
+  // inverse of renderValidationAnswerIndices
   def readValidationAnswerIndices(
     s: String
   ): ValidationAnswer = s match {
@@ -29,6 +34,7 @@ package object annotation extends PackagePlatformExtensions {
     case other => Answer(other.split(" ").map(_.toInt).toSet) // assume otherwise it's an answer
   }
 
+  // render a validation response in a readable way for browsing
   def renderValidationAnswer(
     sentence: Vector[String],
     va: ValidationAnswer,
@@ -38,6 +44,9 @@ package object annotation extends PackagePlatformExtensions {
     case Redundant(i) => s"<Redundant with ${referenceQAs(i).question}>"
     case Answer(span) => Text.renderSpan(sentence, span)
   }
+
+  // annotation pipeline hyperparameters
+  // TODO put these onto an object to make namespacing clearer
 
   val generationReward = 0.20
   val bonusIncrement = 0.03
@@ -65,6 +74,8 @@ package object annotation extends PackagePlatformExtensions {
   val validationAgreementBlockingThreshold = 0.70
   val validationBufferBeforeWarning = 10
   val validationBufferBeforeBlocking = 10
+
+  // prompt/response datatypes for turk tasks and websocket APIs
 
   case class GenerationPrompt[SID](
     id: SID,

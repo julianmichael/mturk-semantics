@@ -285,15 +285,3 @@ class GenerationClient[SID : Reader : Writer](
     .build
 
 }
-
-// <.ul(
-//   <.li("Who ", <.i("verb"), "ed something?"),
-//   <.li("What was ", <.i("verb"), "ed?"),
-//   <.li("What is ", <.i("adjective"), "?"),
-//   <.li("What kind of ", <.i("noun"), "?"),
-//   <.li("Whose ", <.i("noun"), "?"),
-//   // <.li("When/where was <noun>?"),
-//   // <.li("How many/much ", <.i("noun"), "?"),
-//   <.li("How ", <.i("adjective"), " is ", <.i("noun"), "?"),
-//   <.li("Who/What/Where/When/Why/How did someone ", <.i("verb"), "?")
-// ),

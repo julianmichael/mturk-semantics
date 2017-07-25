@@ -1,5 +1,8 @@
 package qamr
 
+/** Represents a validator response about a question:
+  * either it has an answer, is invalid, or is redundant with another question.
+  */
 sealed trait ValidationAnswer {
   def isInvalid = this match {
     case InvalidQuestion => true
