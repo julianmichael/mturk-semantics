@@ -22,6 +22,9 @@ class Scorer[A, N] private (private[this] val map: mutable.Map[A, N])(implicit N
   def iterator: Iterator[(A, N)] = map.iterator
   def keyIterator: Iterator[A] = map.keys.iterator
 
+  def isEmpty: Boolean = map.isEmpty
+  def nonEmpty: Boolean = map.nonEmpty
+
   def size: Int = map.size
   def max: N = if(map.isEmpty) N.zero else map.values.max
   def min: N = if(map.isEmpty) N.zero else map.values.min

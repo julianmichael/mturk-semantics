@@ -268,16 +268,24 @@ package object emnlp2017 {
 
   case class POSTaggedToken(token: String, pos: String)
 
+  val posTagCache = collection.mutable.Map.empty[Vector[String], Vector[POSTaggedToken]]
+
   import cats.Foldable
   import cats.implicits._
   /** POS-tags a sequence of tokens. */
   def posTag[F[_]: Foldable](s: F[String]): Vector[POSTaggedToken] = {
-    val origTokens = s.toList.toArray // to prevent americanization.
+    val origTokens = s.toList.toVector // to prevent americanization.
     // probably we can do that with a tagger parameter...but...how about later..
-    tagger.tagTokenizedString(origTokens.mkString(" ")).split(" ").toVector
-      .map(_.split("_"))
-      .zipWithIndex
-      .map { case (s, index) => POSTaggedToken(origTokens(index), s(1)) }
+    posTagCache.get(origTokens) match {
+      case None =>
+        val result = tagger.tagTokenizedString(origTokens.mkString(" ")).split(" ").toVector
+          .map(_.split("_"))
+          .zipWithIndex
+          .map { case (s, index) => POSTaggedToken(origTokens(index), s(1)) }
+        posTagCache.put(origTokens, result)
+        result
+      case Some(result) => result
+    }
   }
 
   // data for experiment

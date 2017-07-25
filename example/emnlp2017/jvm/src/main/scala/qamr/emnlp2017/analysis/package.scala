@@ -1,9 +1,12 @@
 package qamr.emnlp2017
 
 import qamr._
+import qamr.emnlp2017._
 import qamr.annotation._
 import qamr.util._
 
+import cats._
+import cats.data._
 import cats.implicits._
 
 import nlpdata.util.LowerCaseStrings._
@@ -22,122 +25,487 @@ import nlpdata.util.Text
 
 // import scala.util.Random
 
-object Analysis {
+package object analysis {
 
-  def readDataTSV(lines: Iterator[String]): QAData[SentenceId] = readTSV(lines, SentenceId.fromString)
+  object AbstractSlot {
+    implicit val abstractSlotShow: Show[AbstractSlot] = Show.show(_ => "_")
+  }
+  type AbstractSlot = AbstractSlot.type
 
-  lazy val trainUnfiltered = readDataTSV(loadOutputFile("train.tsv").get.iterator)
-  lazy val devUnfiltered = readDataTSV(loadOutputFile("dev.tsv").get.iterator)
-  lazy val testUnfiltered = readDataTSV(loadOutputFile("test.tsv").get.iterator)
-  lazy val ptbTrainUnfiltered = readDataTSV(loadOutputFile("ptb-train.tsv").get.iterator)
-  lazy val ptbDevUnfiltered = readDataTSV(loadOutputFile("ptb-dev.tsv").get.iterator)
-  lazy val ptbTestUnfiltered = readDataTSV(loadOutputFile("ptb-test.tsv").get.iterator)
-  lazy val ptbAMRUnfiltered = readDataTSV(loadOutputFile("ptb-amr.tsv").get.iterator)
+  object Datasets {
+    def readDataTSV(lines: Iterator[String]): QAData[SentenceId] = readTSV(lines, SentenceId.fromString)
 
-  def isQAGood(sqa: SourcedQA[SentenceId]): Boolean = sqa.isValid && beginsWithWh(sqa.question)
+    lazy val trainUnfiltered = readDataTSV(loadOutputFile("train.tsv").get.iterator)
+    lazy val devUnfiltered = readDataTSV(loadOutputFile("dev.tsv").get.iterator)
+    lazy val testUnfiltered = readDataTSV(loadOutputFile("test.tsv").get.iterator)
+    lazy val ptbTrainUnfiltered = readDataTSV(loadOutputFile("ptb-train.tsv").get.iterator)
+    lazy val ptbDevUnfiltered = readDataTSV(loadOutputFile("ptb-dev.tsv").get.iterator)
+    lazy val ptbTestUnfiltered = readDataTSV(loadOutputFile("ptb-test.tsv").get.iterator)
+    lazy val ptbAMRUnfiltered = readDataTSV(loadOutputFile("ptb-amr.tsv").get.iterator)
 
-  lazy val train = trainUnfiltered.filterByQA(isQAGood)
-  lazy val dev = devUnfiltered.filterByQA(isQAGood)
-  lazy val test = testUnfiltered.filterByQA(isQAGood)
-  lazy val ptbTrain = ptbTrainUnfiltered.filterByQA(isQAGood)
-  lazy val ptbDev = ptbDevUnfiltered.filterByQA(isQAGood)
-  lazy val ptbTest = ptbTestUnfiltered.filterByQA(isQAGood)
-  lazy val ptbAMR = ptbAMRUnfiltered.filterByQA(isQAGood)
+    def isQAGood(sqa: SourcedQA[SentenceId]): Boolean = sqa.isValid && beginsWithWh(sqa.question)
+
+    lazy val train = trainUnfiltered.filterByQA(isQAGood)
+    lazy val dev = devUnfiltered.filterByQA(isQAGood)
+    lazy val test = testUnfiltered.filterByQA(isQAGood)
+    lazy val ptbTrain = ptbTrainUnfiltered.filterByQA(isQAGood)
+    lazy val ptbDev = ptbDevUnfiltered.filterByQA(isQAGood)
+    lazy val ptbTest = ptbTestUnfiltered.filterByQA(isQAGood)
+    lazy val ptbAMR = ptbAMRUnfiltered.filterByQA(isQAGood)
+  }
+
+  import Datasets._
+  import Reinflection._
+  import TemplateToken._
+
+  // QuestionTemplate is global across all sentences.
+
+  case class ContiguousSpan(begin: Int, end: Int) {
+    def contains(i: Int): Boolean = begin <= i || end >= i
+    def getTokens(id: SentenceId): Vector[String] =
+      id.tokens.slice(begin, end)
+  }
+
+  case class AlignmentState(
+    mapping: Map[ContiguousSpan, ContiguousSpan],
+    usedAlignments: Set[
+      (QuestionTemplateAlignment[AbstractSlot],
+       (QuestionTemplate[ContiguousSpan], ContiguousSpan))]
+  ) {
+
+    def referencesUsed = usedAlignments.map(_._1)
+    def prevsUsed = usedAlignments.map(_._2)
+
+    def get(cs: ContiguousSpan): Option[ContiguousSpan] =
+      mapping.get(cs)
+
+    def add(ref: ContiguousSpan, target: ContiguousSpan) =
+      this.copy(mapping = this.mapping.updated(ref, target))
+
+    def addAlignment(
+      ref: QuestionTemplateAlignment[AbstractSlot],
+      target: (QuestionTemplate[ContiguousSpan], ContiguousSpan)
+    ) = this.copy(usedAlignments = this.usedAlignments + (ref -> target))
+  }
+
+  type AlignmentProcessor[A] = StateT[List, AlignmentState, A]
+  def liftAlign[A](as: List[A]) = StateT.lift[List, AlignmentState, A](as)
+
+  object AlignmentState {
+
+    def empty: AlignmentState = AlignmentState(
+      Map.empty[ContiguousSpan, ContiguousSpan],
+      Set.empty[(QuestionTemplateAlignment[AbstractSlot],
+                 (QuestionTemplate[ContiguousSpan], ContiguousSpan)
+                )])
+
+    // assumes templates match
+    import StateT._
+    def resolve(
+      span: ContiguousSpan,
+      reference: QuestionTemplateAlignment[AbstractSlot],
+      target: (QuestionTemplate[ContiguousSpan], ContiguousSpan)
+    ): StateT[List, AlignmentState, ContiguousSpan] = for {
+      _ <- target._1.zipSlots(reference.alignments).traverse[AlignmentProcessor, ContiguousSpan] {
+        case (targetSpan, refSpans) => resolveSpan(refSpans, targetSpan)
+      }
+      _ <- resolveSpan(reference.answers, target._2)
+      curAlignment <- get[List, AlignmentState]
+      result <- liftAlign(curAlignment.get(span).toList)
+      _ <- modify[List, AlignmentState](_.addAlignment(reference, target))
+    } yield result
+
+    def resolveSpan(
+      referenceSpans: List[ContiguousSpan],
+      targetSpan: ContiguousSpan
+    ): StateT[List, AlignmentState, ContiguousSpan] = for {
+      curAlignment <- get[List, AlignmentState]
+      refSpan <- liftAlign(referenceSpans)
+      if curAlignment.get(refSpan).fold(false)(_ == targetSpan)
+      _ <- set[List, AlignmentState](curAlignment.add(refSpan, targetSpan))
+    } yield refSpan
+  }
+
+  def consistentSpanInstantiationsSimple(
+    seedAlignment: QuestionTemplateAlignment[AbstractSlot],
+    previousQAs: List[(QuestionTemplate[ContiguousSpan], ContiguousSpan)],
+    referenceQTAs: List[QuestionTemplateAlignment[AbstractSlot]]
+  ): List[(AlignmentState, QuestionTemplate[ContiguousSpan])] = {
+    val filteredReferenceQTAs = referenceQTAs.filter(_ != seedAlignment)
+    val alignmentProcessor = seedAlignment.template
+      .replaceSlots(seedAlignment.alignments)
+      .traverse[AlignmentProcessor, ContiguousSpan] { spans =>
+      import StateT._
+      for {
+        span <- lift[List, AlignmentState, ContiguousSpan](spans)
+        curAlignment <- get[List, AlignmentState]
+        alignedSpan <- curAlignment.get(span) match {
+          // if we already know the span from our mapping, use that
+          case Some(result) => pure[List, AlignmentState, ContiguousSpan](result)
+          case None => for {
+            // otherwise, identify an as-of-yet unused reference that uses this span,
+            ref <- liftAlign(filteredReferenceQTAs)
+            if !curAlignment.referencesUsed.contains(ref) && ref.alignments.exists(_.contains(span))
+            // an as-of-yet unused target previous QA that can be aligned with that reference,
+            target <- liftAlign(previousQAs)
+            if !curAlignment.prevsUsed.contains(target) && target.as(AbstractSlot) == ref.template
+            // and a valid alignment between the reference and target that resolves the desired span.
+            result <- AlignmentState.resolve(span, ref, target)
+          } yield result
+        }
+      } yield alignedSpan
+    }
+    alignmentProcessor.run(AlignmentState.empty)
+  }
+
+  def readFirstSpanDirectly[Slot](id: SentenceId)(slot: Slot, spans: List[ContiguousSpan]) =
+    spans.head.getTokens(id).map(_.lowerCase)
+
+  def inflectFirstSpan(id: SentenceId)(slot: Reinflection, spans: List[ContiguousSpan]) = {
+    val posTaggedSentence = posTag(id.tokens)
+    val posTaggedSpan = posTaggedSentence
+      .slice(spans.head.begin, spans.head.end)
+      .toList
+    val lowerCaseSpan = posTaggedSpan.map(_.token.lowerCase)
+
+    def getGoodInflectedIndices(admissiblePosTags: Set[String]) = posTaggedSpan.indicesYielding {
+      case POSTaggedToken(t, pos) =>
+        val isGood = admissiblePosTags.contains(pos)
+        inflections.getInflectedForms(t.lowerCase).filter(const(isGood))
+    }.toList
+
+    def inflectFirstOccurrence(form: Int, pairs: List[(Int, List[LowerCaseString])]) = {
+      pairs.filter {
+        case (index, inflections) => inflections(form) != lowerCaseSpan(index)
+      }.headOption.fold(lowerCaseSpan) {
+        case (index, inflections) => lowerCaseSpan.updated(index, inflections(form))
+      }.toVector
+    }
+
+    slot match {
+      case NoReinflection => lowerCaseSpan
+      case VerbReinflection(form) => inflectFirstOccurrence(form, getGoodInflectedIndices(ptbVerbPosTags))
+      case NounReinflection(form) => inflectFirstOccurrence(form, getGoodInflectedIndices(ptbNounPosTags))
+    }
+  }
+
+  def checkTemplateIntegrity[Slot : Show](
+    templateAlignments: Iterator[QuestionTemplateAlignment[Slot]],
+    instantiateSlot: (SentenceId => (Slot, List[ContiguousSpan]) => Vector[LowerCaseString]) =
+      (id: SentenceId) => (slot: Slot, spans: List[ContiguousSpan]) => readFirstSpanDirectly[Slot](id)(slot, spans),
+    verbose: Boolean = false) = {
+    var incorrectInstantiations = 0
+    var totalInstantiations = 0
+    templateAlignments.foreach { case QuestionTemplateAlignment(sqa, template, alignments) =>
+      val instance = template.zipSlots(alignments)
+        .map(Function.tupled(instantiateSlot(sqa.id.sentenceId)))
+        .getTokens
+      if(instance != tokenize(sqa.question).map(_.lowerCase)) {
+        incorrectInstantiations = incorrectInstantiations + 1
+        if(verbose) {
+          System.err.println("Template instance does not match question tokens:")
+          System.err.println(s"\tSentence:  ${Text.render(sqa.id.sentenceId.tokens)}")
+          System.err.println(s"\tReference: ${Text.render(tokenize(sqa.question).map(_.toLowerCase))}")  // wouldn't need map if had liskov
+          System.err.println(s"\tTemplate:  ${template.show}")
+          System.err.println(s"\tInstance:  ${Text.render(instance.map(_.toString))}") // wouldn't need map if had liskov
+        }
+      }
+      totalInstantiations = totalInstantiations + 1
+    }
+
+    println(s"Total templates: $totalInstantiations")
+    println(s"Incorrectly instantiated: $incorrectInstantiations (${incorrectInstantiations * 100.0 / totalInstantiations}%)")
+  }
+
+  def histogramString(hist: Scorer[Int, Int]): String = {
+    val vec = (0 to hist.keyIterator.max).map(hist.get).toVector
+    val max = vec.max
+    val scaleMax = 50.0
+    val scaleFactor = scaleMax / max
+    def scale(n: Int): Int = math.ceil(n.toDouble * scaleFactor).toInt
+    def pounds(n: Int) = "#" * n
+    vec.zipWithIndex
+      .map { case (n, i) => f"$i%3d|${pounds(scale(n))}%s $n%d"}
+      .mkString("\n")
+  }
+
+  def analyzeTemplates(templateAnalysis: TemplateAnalysis) = {
+    val templates: Map[QuestionTemplate[AbstractSlot], List[QuestionTemplateAlignment[AbstractSlot]]] = templateAnalysis.alignmentsByTemplate
+
+    val totalQAs = templates.iterator.map(_._2.size).sum
+    println(s"Total QAs: $totalQAs")
+
+    val totalTemplates = templates.size
+    println(s"Total templates: $totalTemplates")
+
+    val templateSizes = Scorer[Int, Int](
+      templates.iterator.map(_._1.size.toInt)
+    )
+    println(s"Template sizes:\n${histogramString(templateSizes)}")
+
+    val templateInstanceSizes = Scorer[Int, Int](
+      templates.iterator.flatMap {
+        case (template, sqas) => sqas.iterator.map(_ => template.size.toInt)
+      }
+    )
+    println(s"Template instance sizes:\n${histogramString(templateInstanceSizes)}")
+
+    val templatesByFrequencyDecreasing = templates.toVector.sortBy(-_._2.size)
+    println("Most common templates:")
+    templatesByFrequencyDecreasing.take(100).foreach { case (template, alignments) =>
+      println(s"${template.show} \t ${alignments.size} \t ${alignments.head.question} \t ${Text.render(alignments.head.sourcedQA.id.sentenceId.tokens)}")
+    }
+
+    println
+    println("Least common templates:")
+    templatesByFrequencyDecreasing.takeRight(25).foreach { case (template, alignments) =>
+      println(s"${template.show} \t ${alignments.size} \t ${alignments.head.question} \t ${Text.render(alignments.head.sourcedQA.id.sentenceId.tokens)}")
+    }
+
+    val cumulativeCoverage = templatesByFrequencyDecreasing.scanLeft(0)(_ + _._2.size)
+
+    def coverageOf(percent: Double) = cumulativeCoverage.takeWhile(_ < (totalQAs * percent)).size
+    println(s"10% coverage with ${coverageOf(0.10)} templates")
+    println(s"20% coverage with ${coverageOf(0.20)} templates")
+    println(s"25% coverage with ${coverageOf(0.25)} templates")
+    println(s"30% coverage with ${coverageOf(0.3)} templates")
+    println(s"40% coverage with ${coverageOf(0.4)} templates")
+    println(s"50% coverage with ${coverageOf(0.5)} templates")
+    println(s"60% coverage with ${coverageOf(0.6)} templates")
+    println(s"70% coverage with ${coverageOf(0.7)} templates")
+    println(s"80% coverage with ${coverageOf(0.8)} templates")
+    println(s"90% coverage with ${coverageOf(0.9)} templates")
+    println(s"95% coverage with ${coverageOf(0.95)} templates")
+    println(s"100% coverage with ${coverageOf(1.0)} templates")
+
+    def occurringNTimes(n: Int) = templatesByFrequencyDecreasing.iterator.filter(_._2.size == n)
+    println(s"Number of templates occuring once: ${occurringNTimes(1).size}");
+    (2 to 10).foreach { i =>
+      println(s"Number of templates occuring $i times: ${occurringNTimes(i).size}")
+    }
+
+    println("Example templates occurring twice:")
+    occurringNTimes(2).take(25).foreach { case (template, alignments) =>
+      println(s"${template.show} \t ${alignments.size} \t ${alignments.head.question} \t ${Text.render(alignments.head.sourcedQA.id.sentenceId.tokens)}")
+    }
+
+    // analyzing template vocabulary
+
+    def getWordsInTemplate[S](t: QuestionTemplate[S]) = t.templateTokens.collect {
+      case TemplateString(s) => s
+    }
+
+    val templateVocabCounts = Scorer[LowerCaseString, Int](templatesByFrequencyDecreasing.iterator.flatMap(p => getWordsInTemplate(p._1).iterator))
+    val templateVocabCountsDecreasing = templateVocabCounts.iterator.toVector.sortBy(-_._2)
+    println(s"Template vocabulary includes ${templateVocabCounts.sum} occurrences of ${templateVocabCounts.size} words")
+    // println("Most common template vocabulary: ")
+    // templateVocabCountsDecreasing.iterator.take(100).foreach { case (word, count) =>
+    //   println(s"$word \t $count")
+    // }
+
+    val templateWeightedVocabCounts = Scorer[LowerCaseString, Int]
+    templatesByFrequencyDecreasing.foreach { case (t, occurrences) =>  getWordsInTemplate(t).foreach(w => templateWeightedVocabCounts.add(w, occurrences.size)) }
+    val templateWeightedVocabCountsDecreasing = templateWeightedVocabCounts.iterator.toVector.sortBy(-_._2)
+    // println("Most common template vocabulary (occurrences): ")
+    // templateWeightedVocabCountsDecreasing.iterator.take(100).foreach { case (word, count) =>
+    //   println(s"$word \t $count")
+    // }
+
+    val nonStopwordTemplateVocabCountsDecreasing = templateWeightedVocabCountsDecreasing.filter(p => !isStopword(p._1))
+    // println("Most common non-stopword template vocabulary (occurrences): ")
+    // nonStopwordTemplateVocabCountsDecreasing.iterator.take(100).foreach { case (word, count) =>
+    //   println(s"$word \t $count")
+    // }
+
+    // subanalysis of common templates
+
+    val commonTemplates = templateAnalysis.mostCommonTemplates.toVector
+    val commonTemplateVocabCounts = Scorer[LowerCaseString, Int](commonTemplates.iterator.flatMap(getWordsInTemplate))
+    val commonTemplateVocabCountsDecreasing = commonTemplateVocabCounts.iterator.toVector.sortBy(-_._2)
+    println(s"Common template vocabulary includes ${commonTemplateVocabCounts.sum} occurrences of ${commonTemplateVocabCounts.size} words")
+    // println("[Most common] [common template] vocabulary: ")
+    // templateVocabCountsDecreasing.iterator.take(100).foreach { case (word, count) =>
+    //   println(s"$word \t $count")
+    // }
+
+    val mostCommonTemplates = commonTemplates.toSet
+    val proportionTemplatesCoveredByCommon = mostCommonTemplates.size.toDouble / totalTemplates
+    val proportionInstancesCoveredByCommon = templates.collect {
+      case (template, qtas) if mostCommonTemplates.contains(template) => qtas.size
+    }.sum
+    println(f"Proportion of templates covered: ${proportionTemplatesCoveredByCommon * 100}%.2f")
+    println(f"Proportion of template instances covered: ${proportionInstancesCoveredByCommon * 100}%.2f")
+
+  }
+
+  def sentenceSpecificSearchAnalysis[Slot : Show](
+    sentenceId: SentenceId,
+    templatesForSentence: List[QuestionTemplateAlignment[Slot]],
+    verbose: Boolean = true
+  ) = {
+    val sentenceTokens = sentenceId.tokens
+    val posTaggedSentenceTokens = posTag(sentenceTokens)
+
+    var qasSoFar = List.empty[QuestionTemplateAlignment[Slot]]
+    var spansCovered = Set.empty[ContiguousSpan]
+    var frontier = templatesForSentence.filter(qta => qta.template.size == 1)
+    var remaining = templatesForSentence.toSet
+    var done = false
+
+    if(verbose) {
+      System.out.println(Text.render(sentenceTokens))
+      System.out.println(s"Total number of questions: ${templatesForSentence.size}")
+    }
+
+    while(frontier.nonEmpty) {
+      if(verbose) {
+        System.out.println(s"So far: ${qasSoFar.size}")
+        System.out.println(s"Frontier: ${frontier.size}:")
+        frontier.foreach(qta =>
+          System.out.println(s"\t${qta.template.show}\t${qta.question}")
+        )
+      }
+
+      qasSoFar ++= frontier
+      spansCovered ++= frontier.flatMap(qta =>
+        qta.alignments.flatten ++ qta.answers
+      )
+      remaining --= frontier
+      frontier = remaining.filter(qta =>
+        qta.alignments.forall(_.exists(spansCovered.contains))
+      ).toList
+
+      // if(verbose) {
+      //   System.out.println
+      //   System.out.println("Covered spans:")
+      //   spansCovered.foreach { case ContiguousSpan(begin, end) =>
+      //     println(s"$begin:$end\t" + Text.renderSpan(sentenceId.tokens, (begin to end).toSet))
+      //   }
+      // }
+    }
+
+    System.out.println(s"Remaining: ${remaining.size}")
+    remaining.foreach(qta =>
+      System.out.println(s"\t${qta.template.show}\t${qta.question}")
+    )
+  }
+
+  // simple af search process; only do exact span matching
+  // also only deal with simplest templates for now
+  def searchSentenceWithReferenceSimple(
+    allowedTemplates: Set[QuestionTemplate[AbstractSlot]],
+    reference: Map[SentenceId, List[QuestionTemplateAlignment[AbstractSlot]]],
+    sentenceId: SentenceId,
+    templatesForSentence: List[QuestionTemplateAlignment[AbstractSlot]],
+    verbose: Boolean = true) = {
+
+    val (commonTemplatesForSentence, givenUpTemplatesForSentence) = templatesForSentence
+      .partition(qta => allowedTemplates.contains(qta.template))
+
+    var qasSoFar = List.empty[QuestionTemplateAlignment[AbstractSlot]]
+    var frontier = Scorer[QuestionTemplate[ContiguousSpan], Int](
+      commonTemplatesForSentence
+        .filter(_.template.size <= 1)
+        .map(qta => qta.template.replaceSlots(qta.alignments).map(_.head))
+        .iterator)
+
+    var remaining = commonTemplatesForSentence.toSet
+    var thrownAway = Set.empty[QuestionTemplate[ContiguousSpan]]
+
+    if(verbose) {
+      val sentenceTokens = sentenceId.tokens
+      System.out.println(Text.render(sentenceTokens))
+      System.out.println(s"Total number of questions: ${templatesForSentence.size} (${commonTemplatesForSentence.size} common)")
+      System.out.println(s"Given up on ${givenUpTemplatesForSentence.size} questions:")
+      givenUpTemplatesForSentence.foreach { qta =>
+        val question = qta.template
+          .replaceSlots(qta.alignments)
+          .map(_.head)
+          .fillSpansId(sentenceId)
+          .mkString(" ")
+        val answer = qta.answers.head.getTokens(sentenceId).mkString(" ")
+        System.out.println(s"\t${qta.template.show}\t${question}")
+      }
+    }
+
+    while(frontier.nonEmpty) {
+
+      val sortedScoredFrontier = frontier.iterator.toVector.sortBy(-_._2)
+
+      if(verbose) {
+        System.out.println(s"So far: ${qasSoFar.size}")
+      }
+
+      val goodQuestions = {
+        for {
+          qta <- remaining
+          (iq, count) <- sortedScoredFrontier.find(pair => qta.matches(pair._1)).toList
+        } yield (qta, iq, count)
+      }.toList
+
+      if(verbose) {
+        System.out.println(s"${goodQuestions.map(_._2).size} good ones:")
+        goodQuestions.foreach { case (qta, template, count) =>
+          val question = template.fillSpansId(sentenceId).mkString(" ")
+          val answer = qta.answers.head.getTokens(sentenceId).mkString(" ")
+          System.out.println(s"${count}\t${template.as(AbstractSlot).show}\t${question}\t${answer}")
+        }
+      }
+
+      qasSoFar ++= goodQuestions.map(_._1)
+      remaining --= goodQuestions.map(_._1)
+
+      val missedQuestions = sortedScoredFrontier.filter {
+        case (t1, count) => !goodQuestions.exists {
+          case (_, t2, _) => t1 == t2
+        }
+      }
+      thrownAway ++= missedQuestions.map(_._1)
+      if(verbose) {
+        System.out.println(s"Unused questions on frontier:")
+        missedQuestions.foreach { case (spanTemplate, count) =>
+          System.out.println(
+            count +
+              "\t" + spanTemplate.as(AbstractSlot).show +
+              "\t" + spanTemplate.fillSpansId(sentenceId).mkString(" ")
+          )
+        }
+      }
+
+      val coveredTemplates = qasSoFar.map(_.template).toSet
+      frontier = Scorer[QuestionTemplate[ContiguousSpan], Int](
+        reference.iterator.flatMap { case (id, qtas) =>
+          val alignableQTAs = qtas.filter(qta => coveredTemplates.contains(qta.template))
+          val coveredReferenceSpans = alignableQTAs.flatMap(qta => qta.alignments.flatten ++ qta.answers).toSet
+          val potentialQTAs = qtas.filter(qta =>
+            qta.template.size > 1 &&
+              qta.alignments.forall(choices => choices.exists(coveredReferenceSpans.contains))
+          )
+          val alignmentResults = potentialQTAs.flatMap { qta =>
+            consistentSpanInstantiationsSimple(
+              qta,
+              goodQuestions.map { case (qta, iq, count) => (iq, qta.answers.head) }.toSet.toList,
+              alignableQTAs)
+          }
+          if(verbose) {
+            // print stuff about alignment results
+          }
+          alignmentResults.map(_._2).toSet.iterator // count templates by num sentences inducing them
+        }.filterNot(thrownAway.contains)
+      )
+    }
+
+    System.out.println(s"Remaining: ${remaining.size}")
+    remaining.foreach(qta =>
+      System.out.println(s"\t${qta.template.show}\t${qta.question}")
+    )
+  }
 
   class TemplateAnalysis(data: QAData[SentenceId]) {
 
-    // QuestionTemplate is global across all sentences.
-    // it may be aligned to an AbstractedQuestion.
-
-    case class ContiguousSpan(begin: Int, end: Int) {
-      def contains(i: Int): Boolean = begin <= i || end >= i
-    }
-
-    // TODO improve reinflections
-    sealed trait Reinflection
-    case class VerbReinflection(form: Int) extends Reinflection
-    case class NounReinflection(form: Int) extends Reinflection
-
-    sealed trait TemplateToken
-    case class TemplateString(value: LowerCaseString) extends TemplateToken // TODO perhaps allow inflection
-    case object TemplateExt extends TemplateToken
-    case object TemplatePro extends TemplateToken
-    case class TemplateSlot(reinflectionOpt: Option[Reinflection]) extends TemplateToken
-
-    type QuestionTemplate = List[TemplateToken]
-
-    def templateToString(t: QuestionTemplate) = t.iterator.map {
-      case TemplateSlot(None) => "_"
-      case TemplateSlot(Some(VerbReinflection(form))) => form match {
-        case 0 => s"_-vstem" // base/inf
-        case 1 => s"_-s(v)" // present
-        case 2 => s"_-ing(v)" // present participle
-        case 3 => s"_-ed(v)" // past
-        case 4 => s"_-en(v)" // past participle
-      }
-      case TemplateSlot(Some(NounReinflection(form))) => form match {
-        case 0 => s"_-nstem"
-        case 1 => s"_-s(n)"
-        case 2 => s"_-ing(n)"
-        case 3 => s"_-ed(n)"
-        case 4 => s"_-en(n)"
-      }
-      case TemplateExt => "<ext>"
-      case TemplatePro => "<pro>"
-      case TemplateString(s) => s
-    }.mkString(" ")
-
-    def forgetReinflections(qt: QuestionTemplate) = qt.map {
-      case TemplateSlot(_) => TemplateSlot(None)
-      case x => x
-    }
-
-    // AbstractedQuestion is a sentence-specific abstraction of a question.
-    // It may be instantiated using an assignment of indices to spans in the sentence.
-
-    sealed trait AbstractToken
-    case class AbstractString(value: String) extends AbstractToken
-    case class AbstractSlot(index: Int) extends AbstractToken // TODO inflection
-
-    type AbstractedQuestion = List[AbstractToken]
-    type AbstractedAnswer = List[AbstractSlot]
-
-    case class AbstractedQA(
-      question: AbstractedQuestion,
-      answer: AbstractedAnswer)
-
-    case class AbstractedSentenceQAs(
-      sentenceId: SentenceId,
-      spanIndex: Map[Int, ContiguousSpan],
-      abstractedQAs: List[AbstractedQA])
-
-    // munching and abstracting question strings
-
-    case class MunchingState(
-      resolvedTokens: List[AbstractToken],
-      curUnresolved: List[String],
-      potentialPrefixes: List[Int])
-
-    def munchToken(sentence: Vector[String])(state: MunchingState, token: String): MunchingState = {
-      ???
-    }
-
-    def abstractQuestions(id: SentenceId, sqas: List[SourcedQA[SentenceId]]): AbstractedSentenceQAs = {
-      val sentenceTokens = getTokensForId(id)
-      val spans = StructureInduction.getMinimalContiguousSpans(sentenceTokens, sqas)
-      val spanIndex = spans
-        .map(is => ContiguousSpan(is.min, is.max))
-        .toVector.zipWithIndex
-        .map { case (span, index) => index -> span}
-        .toMap
-      // val abstractedQAs =
-
-      AbstractedSentenceQAs(id, spanIndex, ??? /* abstractedQAs */)
-    }
-
     // simple templatization
 
-    def naiveTemplatizeQuestion(id: SentenceId, question: String): QuestionTemplate = {
+    def naiveTemplatizeQuestion(id: SentenceId, question: String): QuestionTemplate[AbstractSlot] = {
       val sentenceTokens = getTokensForId(id)
       val qTokens = {
         val toks = tokenize(question)
@@ -145,12 +513,14 @@ object Analysis {
         else toks ++ List("?")
       }
       val alignedQTokens = getAlignedQuestionIndices(sentenceTokens, qTokens)
-      qTokens.zipWithIndex.foldRight(List.empty[TemplateToken]) { case ((token, index), templateTail) =>
-        if(alignedQTokens.contains(index)) templateTail match {
-          case TemplateSlot(None) :: _ => templateTail // collapses into template slot
-          case _ => TemplateSlot(None) :: templateTail
-        } else TemplateString(token.lowerCase) :: templateTail
+      val templateTokens = qTokens.zipWithIndex.foldRight(List.empty[TemplateToken[AbstractSlot]]) {
+        case ((token, index), templateTail) =>
+          if(alignedQTokens.contains(index)) templateTail match {
+            case TemplateSlot(AbstractSlot) :: _ => templateTail // collapses into template slot
+            case _ => TemplateSlot(AbstractSlot) :: templateTail
+          } else TemplateString(token.lowerCase) :: templateTail
       }
+      QuestionTemplate(templateTokens)
     }
 
     lazy val naiveTemplateMap = data.all.groupBy(sqa =>
@@ -159,8 +529,10 @@ object Analysis {
 
     // templatization with smarter treatment of stopwords
 
-    def templatizeQuestionContiguousSlots(id: SentenceId, question: String): QuestionTemplate = {
-      val sentenceTokens = getTokensForId(id)
+    def templatizeQuestionContiguousSlots(
+      id: SentenceId, question: String
+    ): QuestionTemplate[AbstractSlot] = {
+      val sentenceTokens = id.tokens
       val qTokens = {
         val toks = tokenize(question)
         if(toks.last == "?") toks
@@ -171,7 +543,7 @@ object Analysis {
       }.withDefaultValue(Nil)
 
       case class TemplatingState(
-        resolvedTail: QuestionTemplate,
+        resolvedTail: List[TemplateToken[AbstractSlot]],
         unresolvedTokens: List[String],
         unresolvedAlignedIndices: Set[Int])
       object TemplatingState {
@@ -199,7 +571,7 @@ object Analysis {
           val resolvedTail = if(state.unresolvedTokens.forall(isStopword)) {
             state.unresolvedTokens.map(t => TemplateString(t.lowerCase)) ++ state.resolvedTail
           } else {
-            TemplateSlot(None) :: state.resolvedTail
+            TemplateSlot(AbstractSlot) :: state.resolvedTail
           }
           if(sIndices.isEmpty) {
             TemplatingState(TemplateString(token.lowerCase) :: resolvedTail, Nil, Set.empty[Int])
@@ -208,71 +580,25 @@ object Analysis {
           }
         }
       }
-      if(templateState.unresolvedTokens.nonEmpty) {
+      val templateTokens = if(templateState.unresolvedTokens.nonEmpty) {
         if(templateState.unresolvedTokens.forall(isStopword)) templateState.unresolvedTokens.map(t => TemplateString(t.lowerCase)) ++ templateState.resolvedTail
-        else TemplateSlot(None) :: templateState.resolvedTail
+        else TemplateSlot(AbstractSlot) :: templateState.resolvedTail
       } else templateState.resolvedTail
+      QuestionTemplate(templateTokens)
     }
 
     lazy val contigTemplateMap = data.all.groupBy(sqa =>
       templatizeQuestionContiguousSlots(sqa.id.sentenceId, sqa.question)
     )
 
-    case class QuestionTemplateAlignment(
-      sourcedQA: SourcedQA[SentenceId],
-      template: QuestionTemplate,
-      alignments: List[List[ContiguousSpan]]) {
-      val answers = sourcedQA.answers.map(indices => ContiguousSpan(indices.min, indices.max))
-      def sentenceId = sourcedQA.id.sentenceId
-      def question = sourcedQA.question
-    }
+    def templatizeQuestionContiguousSlotsWithReinflectionAndAlignment(
+      sqa: SourcedQA[SentenceId]
+    ): QuestionTemplateAlignment[Reinflection] = {
 
-    def instantiateTemplate(
-      posTaggedSentence: Vector[POSTaggedToken], template: QuestionTemplate, alignments: List[ContiguousSpan]
-    ): Vector[LowerCaseString] = template.foldRight((List.empty[LowerCaseString], alignments.reverse)) {
-      case (TemplateSlot(reinflectionOpt), (tokensSoFar, nextAlignment :: remainingAlignments)) =>
-        val span = posTaggedSentence
-          .map(_.token.lowerCase)
-          .zipWithIndex
-          .slice(nextAlignment.begin, nextAlignment.end)
-          .toList
-        val inflectedSpan = reinflectionOpt match {
-          case None => span.map(_._1)
-          case Some(VerbReinflection(form)) => span.indicesYielding { case (w, index) =>
-            val isVerb = ptbVerbPosTags.contains(posTaggedSentence(index).pos)
-            inflections.getInflectedForms(w).filter(const(isVerb))
-          }.filter { case (index, inflections) => inflections(form) != span(index)._1 } // and require that we change the form
-              .headOption
-              .fold(span.map(_._1)) { case (index, inflections) => span.map(_._1).updated(index, inflections(form)) }
-          case Some(NounReinflection(form)) => span.indicesYielding { case (w, index) =>
-            val isNoun = ptbNounPosTags.contains(posTaggedSentence(index).pos)
-            inflections.getInflectedForms(w).filter(const(isNoun))
-          }.filter { case (index, inflections) => inflections(form) != span(index)._1 } // and require that we change the form
-              .headOption
-              .fold(span.map(_._1)) { case (index, inflections) => span.map(_._1).updated(index, inflections(form)) }
-        }
-        (inflectedSpan ++ tokensSoFar, remainingAlignments)
-      case (TemplateString(s), (tokensSoFar, remainingAlignments)) =>
-        (s :: tokensSoFar, remainingAlignments)
-      case (TemplatePro, (tokensSoFar, remainingAlignments)) =>
-        System.err.println("Error: pronoun alignment not supported in templates")
-        ("<pro>".lowerCase :: tokensSoFar, remainingAlignments)
-      case (TemplateExt, (tokensSoFar, remainingAlignments)) =>
-        System.err.println("Error: external word alignment not supported in templates")
-        ("<ext>".lowerCase :: tokensSoFar, remainingAlignments)
-      case (_, (tokensSoFar, Nil)) =>
-        System.err.println("Error: not enough alignments for number of slots in template")
-        ("<?>".lowerCase :: tokensSoFar, Nil)
-    }._1.toVector
+      case class AlignedReinflection(
+        index: Int,
+        reinflection: Reinflection)
 
-    case class AlignedReinflection(
-      index: Int,
-      reinflectionOpt: Option[Reinflection])
-
-    var totalInstantiations = 0
-    var incorrectInstantiations = 0
-
-    def templatizeQuestionContiguousSlotsWithReinflectionAndAlignment(sqa: SourcedQA[SentenceId]): QuestionTemplateAlignment = {
       val sentenceTokens = getTokensForId(sqa.id.sentenceId)
       val posTaggedSentenceTokens = posTag(sentenceTokens)
       val qTokens = {
@@ -285,17 +611,17 @@ object Analysis {
           case (qi, inflectedAlignments) => qi -> inflectedAlignments.map {
             case InflectedAlignment(si, reinflectionOpt) =>
               if(ptbNounPosTags.contains(posTaggedSentenceTokens(si).pos)) {
-                AlignedReinflection(si, reinflectionOpt.map(NounReinflection(_)))
+                AlignedReinflection(si, reinflectionOpt.fold(noReinflection)(nounReinflection(_)))
               } else if(ptbVerbPosTags.contains(posTaggedSentenceTokens(si).pos)) {
-                AlignedReinflection(si, reinflectionOpt.map(VerbReinflection(_)))
+                AlignedReinflection(si, reinflectionOpt.fold(noReinflection)(verbReinflection(_)))
               } else {
-                AlignedReinflection(si, None) // don't bother trying to reinflect non-verb/nouns
+                AlignedReinflection(si, noReinflection) // don't bother trying to reinflect non-verb/nouns
               }
           }
         }.withDefaultValue(Nil)
 
       case class TemplatingState(
-        resolvedTail: QuestionTemplate,
+        resolvedTail: List[TemplateToken[Reinflection]],
         resolvedAlignments: List[List[ContiguousSpan]],
         unresolvedTokens: List[String],
         unresolvedAlignedIndices: Set[AlignedReinflection])
@@ -306,20 +632,21 @@ object Analysis {
       val templateState = qTokens.zipWithIndex.foldRight(TemplatingState.empty) { case ((token, index), state) =>
         val sIndices = if(isStopword(token)) {
           sentenceTokens.zipWithIndex.collect {
-            case (sToken, sIndex) if token.equalsIgnoreCase(sToken) => AlignedReinflection(sIndex, None)
+            case (sToken, sIndex) if token.equalsIgnoreCase(sToken) =>
+              AlignedReinflection(sIndex, noReinflection)
           }.toSet
         } else qAlignments(index).toSet
 
         val newAlignments: Set[AlignedReinflection] = state.unresolvedAlignedIndices.flatMap {
-          case AlignedReinflection(curAlignedIndex, reinflectionOpt) =>
+          case AlignedReinflection(curAlignedIndex, reinflection) =>
             val newAlignedIndex = curAlignedIndex - 1
-            sIndices.find(_.index == newAlignedIndex).map(_.reinflectionOpt).map {
-              case None => AlignedReinflection(newAlignedIndex, reinflectionOpt)
-              case Some(reinflection) =>
-                if(reinflectionOpt.nonEmpty) {
-                  System.err.println("Two reinflections in single span! defaulting to first")
-                }
-                AlignedReinflection(newAlignedIndex, Some(reinflection))
+            sIndices.find(_.index == newAlignedIndex).map(_.reinflection).map {
+              case NoReinflection => AlignedReinflection(newAlignedIndex, reinflection)
+              case newReinflection =>
+                // if(reinflectionOpt.nonEmpty) {
+                //   System.err.println("Two reinflections in single span! defaulting to first")
+                // }
+                AlignedReinflection(newAlignedIndex, newReinflection)
             }
         }
 
@@ -336,19 +663,19 @@ object Analysis {
             (state.unresolvedTokens.map(t => TemplateString(t.lowerCase)) ++ state.resolvedTail,
              state.resolvedAlignments)
           } else {
-            val reinflectionOpt = if(state.unresolvedAlignedIndices.isEmpty) {
+            val reinflection = if(state.unresolvedAlignedIndices.isEmpty) {
               System.err.println("Warning: unresolved aligned indices should not be empty")
-              None
-            } else if(state.unresolvedAlignedIndices.exists(_.reinflectionOpt.isEmpty)) {
-              None
+              noReinflection
+            } else if(state.unresolvedAlignedIndices.exists(_.reinflection == noReinflection)) {
+              noReinflection
             } else {
-              state.unresolvedAlignedIndices.flatMap(_.reinflectionOpt).headOption
+              state.unresolvedAlignedIndices.map(_.reinflection).headOption.getOrElse(noReinflection)
             }
             val alignedSpans = state.unresolvedAlignedIndices
-              .filter(_.reinflectionOpt == reinflectionOpt).toList
+              .filter(_.reinflection == reinflection).toList
               .map(_.index)
               .map(i => ContiguousSpan(i, i + state.unresolvedTokens.size))
-            (TemplateSlot(reinflectionOpt) :: state.resolvedTail,
+            (TemplateSlot(reinflection) :: state.resolvedTail,
              alignedSpans :: state.resolvedAlignments)
           }
           if(sIndices.isEmpty) {
@@ -359,59 +686,69 @@ object Analysis {
         }
       }
 
-      val (template, alignments) = if(templateState.unresolvedTokens.nonEmpty) {
-        val reinflectionOpt = if(templateState.unresolvedAlignedIndices.isEmpty) {
+      val (templateTokens, alignments) = if(templateState.unresolvedTokens.nonEmpty) {
+        val reinflection = if(templateState.unresolvedAlignedIndices.isEmpty) {
           System.err.println("Warning: unresolved aligned indices should not be empty")
-          None
-        } else if(templateState.unresolvedAlignedIndices.exists(_.reinflectionOpt.isEmpty)) {
-          None
+          noReinflection
+        } else if(templateState.unresolvedAlignedIndices.exists(_.reinflection == noReinflection)) {
+          noReinflection
         } else {
-          templateState.unresolvedAlignedIndices.flatMap(_.reinflectionOpt).headOption
+          templateState.unresolvedAlignedIndices.map(_.reinflection).headOption.getOrElse(noReinflection)
         }
         if(templateState.unresolvedTokens.forall(isStopword)) {
           (templateState.unresolvedTokens.map(t => TemplateString(t.lowerCase)) ++ templateState.resolvedTail,
            templateState.resolvedAlignments)
         } else {
           val alignedSpans = templateState.unresolvedAlignedIndices
-            .filter(_.reinflectionOpt == reinflectionOpt).toList
+            .filter(_.reinflection == reinflection).toList
             .map(_.index)
             .map(i => ContiguousSpan(i, i + templateState.unresolvedTokens.size))
-          (TemplateSlot(reinflectionOpt) :: templateState.resolvedTail,
+          (TemplateSlot(reinflection) :: templateState.resolvedTail,
            alignedSpans :: templateState.resolvedAlignments)
         }
       } else (templateState.resolvedTail, templateState.resolvedAlignments)
 
-      val lowerQTokens = qTokens.map(_.lowerCase)
-      val instance = instantiateTemplate(posTaggedSentenceTokens, template, alignments.map(_.head))
-
-      QuestionTemplateAlignment(sqa, template, alignments)
-    }
-
-    def checkTemplateIntegrity(templateAlignments: List[QuestionTemplateAlignment], verbose: Boolean = false) = {
-      var incorrectInstantiations = 0
-      var totalInstantiations = 0
-      templateAlignments.foreach { case QuestionTemplateAlignment(sqa, template, alignments) =>
-        val instance = instantiateTemplate(posTag(sqa.id.sentenceId.tokens), template, alignments.map(_.head))
-        if(instance != tokenize(sqa.question).map(_.lowerCase)) {
-          incorrectInstantiations = incorrectInstantiations + 1
-          if(verbose) {
-            System.err.println("Template instance does not match question tokens:")
-            System.err.println(s"\tSentence:  ${Text.render(sentenceTokens)}")
-            System.err.println(s"\tReference: ${Text.render(lowerQTokens.map(_.toString))}")  // wouldn't need map if had liskov
-            System.err.println(s"\tTemplate:  ${templateToString(template)}")
-            System.err.println(s"\tInstance:  ${Text.render(instance.map(_.toString))}") // wouldn't need map if had liskov
-          }
-        }
-        totalInstantiations = totalInstantiations + 1
-      }
-
-      println(s"Total templates: $totalInstatiations")
-      println(s"Incorrectly instantiated: $incorrectInstantiations (${incorrectInstantiations * 100.0 / totalInstantiations}%)")
+      QuestionTemplateAlignment(sqa, QuestionTemplate(templateTokens), alignments)
     }
 
     lazy val contigReinflectedTemplateMapWithAlignment = data.all.groupBy(sqa =>
       templatizeQuestionContiguousSlotsWithReinflectionAndAlignment(sqa).template
     )
+
+    def templatizeQuestionContiguousSlotsWithAlignment(
+      sqa: SourcedQA[SentenceId]
+    ): QuestionTemplateAlignment[AbstractSlot] = {
+      val alignment = templatizeQuestionContiguousSlotsWithReinflectionAndAlignment(sqa)
+      alignment.copy(template = alignment.template.as(AbstractSlot))
+    }
+
+    lazy val contigTemplateMapWithAlignment = data.all.groupBy(sqa =>
+      templatizeQuestionContiguousSlotsWithAlignment(sqa).template
+    )
+
+    // Current choice: contiguous slots, no reinflection
+    lazy val allTemplateAlignments = data.all.map(templatizeQuestionContiguousSlotsWithAlignment)
+    lazy val alignmentsBySentence = allTemplateAlignments.groupBy(_.sentenceId)
+    lazy val alignmentsByTemplate = allTemplateAlignments.groupBy(_.template)
+    lazy val mostCommonTemplates = alignmentsByTemplate.collect {
+      case (template, alignments) if alignments.size > 5 => template
+    }.toSet
+
+    def searchSentenceSimple(
+      sentenceId: SentenceId,
+      templatesForSentence: List[QuestionTemplateAlignment[AbstractSlot]],
+      verbose: Boolean = true) =
+      searchSentenceWithReferenceSimple(
+        mostCommonTemplates,
+        alignmentsBySentence,
+        sentenceId,
+        templatesForSentence,
+        verbose)
+
+    // def analyzeAlignedTemplates(alignedTemplatesBySentence: Map[SentenceId, List[QuestionTemplateAlignment]]) = {
+    //   val results = alignedTemplatesBySentence
+
+    // }
 
     // Further abstractions: not necessary for now
 
@@ -440,103 +777,62 @@ object Analysis {
     // lazy val contigProTemplateMap = data.all.groupBy(sqa =>
     //   abstractPronouns(templatizeQuestionContiguousSlots)(sqa.id.sentenceId, sqa.question)
     // )
-
-    def sentenceSpecificSearchAnalysis(sentenceId: SentenceId, templates: List[QuestionTemplateAlignment]) = {
-
-    }
-
-    // def analyzeAlignedTemplates(alignedTemplatesBySentence: Map[SentenceId, List[QuestionTemplateAlignment]]) = {
-    //   val results = alignedTemplatesBySentence
-
-    // }
-
-    def analyzeTemplates(templates: Map[QuestionTemplate, List[SourcedQA[SentenceId]]]) = {
-
-      val totalQAs = templates.iterator.map(_._2.size).sum
-      println(s"Total QAs: $totalQAs")
-
-      val totalTemplates = templates.size
-      println(s"Total templates: $totalTemplates")
-
-      val templatesByFrequencyDecreasing = templates.toVector.sortBy(-_._2.size)
-      println("Most common templates:")
-      templatesByFrequencyDecreasing.take(250).foreach { case (template, qas) =>
-        println(s"${templateToString(template)} \t ${qas.size} \t ${qas.head.question} \t ${Text.render(qas.head.id.sentenceId.tokens)}")
-      }
-
-      println
-      println("Least common templates:")
-      templatesByFrequencyDecreasing.takeRight(25).foreach { case (template, qas) =>
-        println(s"${templateToString(template)} \t ${qas.size} \t ${qas.head.question} \t ${Text.render(qas.head.id.sentenceId.tokens)}")
-      }
-
-      val cumulativeCoverage = templatesByFrequencyDecreasing.scanLeft(0)(_ + _._2.size)
-
-      def coverageOf(percent: Double) = cumulativeCoverage.takeWhile(_ < (totalQAs * percent)).size
-      println(s"10% coverage with ${coverageOf(0.10)} templates")
-      println(s"20% coverage with ${coverageOf(0.20)} templates")
-      println(s"25% coverage with ${coverageOf(0.25)} templates")
-      println(s"30% coverage with ${coverageOf(0.3)} templates")
-      println(s"40% coverage with ${coverageOf(0.4)} templates")
-      println(s"50% coverage with ${coverageOf(0.5)} templates")
-      println(s"60% coverage with ${coverageOf(0.6)} templates")
-      println(s"70% coverage with ${coverageOf(0.7)} templates")
-      println(s"80% coverage with ${coverageOf(0.8)} templates")
-      println(s"90% coverage with ${coverageOf(0.9)} templates")
-      println(s"95% coverage with ${coverageOf(0.95)} templates")
-      println(s"100% coverage with ${coverageOf(1.0)} templates")
-
-      def occurringNTimes(n: Int) = templatesByFrequencyDecreasing.iterator.filter(_._2.size == n)
-      println(s"Number of templates occuring once: ${occurringNTimes(1).size}");
-      (2 to 10).foreach { i =>
-        println(s"Number of templates occuring $i times: ${occurringNTimes(i).size}")
-      }
-
-      println("Example templates occurring twice:")
-      occurringNTimes(2).take(25).foreach { case (template, qas) =>
-        println(s"${templateToString(template)} \t ${qas.size} \t ${qas.head.question} \t ${Text.render(qas.head.id.sentenceId.tokens)}")
-      }
-
-      // analyzing template vocabulary
-
-      def getWordsInTemplate(t: QuestionTemplate) = t.collect {
-        case TemplateString(s) => s
-      }
-
-      val templateVocabCounts = Scorer[LowerCaseString, Int](templatesByFrequencyDecreasing.iterator.flatMap(p => getWordsInTemplate(p._1).iterator))
-      val templateVocabCountsDecreasing = templateVocabCounts.iterator.toVector.sortBy(-_._2)
-      println(s"Template vocabulary includes ${templateVocabCounts.sum} occurrences of ${templateVocabCounts.size} words")
-      // println("Most common template vocabulary: ")
-      // templateVocabCountsDecreasing.iterator.take(100).foreach { case (word, count) =>
-      //   println(s"$word \t $count")
-      // }
-
-      val templateWeightedVocabCounts = Scorer[LowerCaseString, Int]
-      templatesByFrequencyDecreasing.foreach { case (t, occurrences) =>  getWordsInTemplate(t).foreach(w => templateWeightedVocabCounts.add(w, occurrences.size)) }
-      val templateWeightedVocabCountsDecreasing = templateWeightedVocabCounts.iterator.toVector.sortBy(-_._2)
-      // println("Most common template vocabulary (occurrences): ")
-      // templateWeightedVocabCountsDecreasing.iterator.take(100).foreach { case (word, count) =>
-      //   println(s"$word \t $count")
-      // }
-
-      val nonStopwordTemplateVocabCountsDecreasing = templateWeightedVocabCountsDecreasing.filter(p => !isStopword(p._1))
-      // println("Most common non-stopword template vocabulary (occurrences): ")
-      // nonStopwordTemplateVocabCountsDecreasing.iterator.take(100).foreach { case (word, count) =>
-      //   println(s"$word \t $count")
-      // }
-
-      // subanalysis of common templates
-
-      val commonTemplates = templatesByFrequencyDecreasing.takeWhile(_._2.size > 5)
-      val commonTemplateVocabCounts = Scorer[LowerCaseString, Int](commonTemplates.iterator.flatMap(p => getWordsInTemplate(p._1).iterator))
-      val commonTemplateVocabCountsDecreasing = commonTemplateVocabCounts.iterator.toVector.sortBy(-_._2)
-      println(s"Common template vocabulary includes ${commonTemplateVocabCounts.sum} occurrences of ${commonTemplateVocabCounts.size} words")
-      // println("[Most common] [common template] vocabulary: ")
-      // templateVocabCountsDecreasing.iterator.take(100).foreach { case (word, count) =>
-      //   println(s"$word \t $count")
-      // }
-    }
   }
+
+  // expect that Show is injective
+  def makeTemplateTSV[Slot : Show](
+    alignmentsBySentence: Map[SentenceId, List[QuestionTemplateAlignment[Slot]]],
+    allowedTemplates: Set[QuestionTemplate[Slot]]
+  ): String = {
+    val sb = new java.lang.StringBuilder
+    alignmentsBySentence.foreach { case (id, alignments) =>
+      alignments.foreach { qta =>
+        if(allowedTemplates.contains(qta.template)) {
+          sb.append(SentenceId.toString(id) + "\t" + qta.template.show + "\n")
+        }
+      }
+    }
+    sb.toString
+  }
+
+  // def instantiateTemplate(
+  //   posTaggedSentence: Vector[POSTaggedToken], template: QuestionTemplate, alignments: List[ContiguousSpan]
+  // ): Vector[LowerCaseString] = template.foldRight((List.empty[LowerCaseString], alignments.reverse)) {
+  //   case (TemplateSlot(reinflectionOpt), (tokensSoFar, nextAlignment :: remainingAlignments)) =>
+  //     val span = posTaggedSentence
+  //       .map(_.token.lowerCase)
+  //       .zipWithIndex
+  //       .slice(nextAlignment.begin, nextAlignment.end)
+  //       .toList
+  //     val inflectedSpan = reinflectionOpt match {
+  //       case None => span.map(_._1)
+  //       case Some(VerbReinflection(form)) => span.indicesYielding { case (w, index) =>
+  //         val isVerb = ptbVerbPosTags.contains(posTaggedSentence(index).pos)
+  //         inflections.getInflectedForms(w).filter(const(isVerb))
+  //       }.filter { case (index, inflections) => inflections(form) != span(index)._1 } // and require that we change the form
+  //           .headOption
+  //           .fold(span.map(_._1)) { case (index, inflections) => span.map(_._1).updated(index, inflections(form)) }
+  //       case Some(NounReinflection(form)) => span.indicesYielding { case (w, index) =>
+  //         val isNoun = ptbNounPosTags.contains(posTaggedSentence(index).pos)
+  //         inflections.getInflectedForms(w).filter(const(isNoun))
+  //       }.filter { case (index, inflections) => inflections(form) != span(index)._1 } // and require that we change the form
+  //           .headOption
+  //           .fold(span.map(_._1)) { case (index, inflections) => span.map(_._1).updated(index, inflections(form)) }
+  //     }
+  //     (inflectedSpan ++ tokensSoFar, remainingAlignments)
+  //   case (TemplateString(s), (tokensSoFar, remainingAlignments)) =>
+  //     (s :: tokensSoFar, remainingAlignments)
+  //   case (TemplatePro, (tokensSoFar, remainingAlignments)) =>
+  //     System.err.println("Error: pronoun alignment not supported in templates")
+  //     ("<pro>".lowerCase :: tokensSoFar, remainingAlignments)
+  //   case (TemplateExt, (tokensSoFar, remainingAlignments)) =>
+  //     System.err.println("Error: external word alignment not supported in templates")
+  //     ("<ext>".lowerCase :: tokensSoFar, remainingAlignments)
+  //   case (_, (tokensSoFar, Nil)) =>
+  //     System.err.println("Error: not enough alignments for number of slots in template")
+  //     ("<?>".lowerCase :: tokensSoFar, Nil)
+  // }._1.toVector
+
 
   // TODO get rid of this if we can manage to put the extra stuff we computed into analysis only
   // and have analysis re-print as necessary
@@ -1822,86 +2118,6 @@ object Analysis {
 //         }
 //       }
 //       sb.toString
-//     }
-
-//     def squadFormattedFileForWiki(excludedTitles: Set[String]): String = {
-//       // (validQAs: Map[SentenceId, Map[WordedQAPair, List[Set[Int]]]])
-//       // data.sentenceToQAs
-//       import argonaut._
-//       import Argonaut._
-//       val idsByFile = data.sentenceToQAs.keys.collect {
-//         case id @ WikiSentenceId(wikiPath) => id
-//       }.groupBy(_.path.filePath).filter { case (filePath, _) =>
-//           val title = Wiki1k.getFile(filePath).get.title
-//           if(!excludedTitles.contains(title)) {
-//             true
-//           } else {
-//             System.out.println(s"Excluding file with title: $title")
-//             false
-//           }
-//       }
-
-//       def getAnswerSpanJson(tokens: Vector[String], answer: Set[Int]) = {
-//         val filledOutAnswer = (answer.min to answer.max).toSet
-//         val renderedSentence = Text.render(tokens)
-//         val (answerStart, answerText) = getOffsetAndSpan(tokens, filledOutAnswer)
-//         // stuff looked good (better, in fact, bc of treatment of quotes). if there are more problems, uncomment this and investigate.
-//         // val otherText = Text.renderSpan(tokens, filledOutAnswer).trim
-//         // if(!answerText.equals(otherText)) {
-//         //   System.err.println(
-//         //     s"Problem for sentence\n${Text.render(tokens)}\nExpected answer:\n$otherText \nPrinted answer:\n$answerText")
-//         // }
-//         Json.obj(
-//           "answer_start" -> jNumber(answerStart),
-//           "text" -> jString(answerText)
-//         )
-//       }
-
-//       def getQAJson(sentenceId: WikiSentenceId, sentenceTokens: Vector[String], qIndex: Int, question: String, answers: List[Set[Int]]) = {
-//         Json.obj(
-//           "answers" -> Json.array(answers.map(a => getAnswerSpanJson(sentenceTokens, a)): _*),
-//           "question" -> jString(question),
-//           "id" -> jString(s"${sentenceId.readableFileString}::${sentenceId.readableSentenceIndex}::$qIndex")
-//         )
-//       }
-
-//       def getSentenceJson(sentenceId: WikiSentenceId) = {
-//         val sentenceTokens = getTokensForId(sentenceId)
-//         val qas = data.sentenceToQAs(sentenceId).zipWithIndex.map {
-//           case (sqa, qIndex) => getQAJson(sentenceId, sentenceTokens, qIndex, sqa.question, sqa.answers)
-//         }.toSeq
-
-//         Json.obj(
-//           "context" -> jString(Text.render(getTokensForId(sentenceId))),
-//           "qas" -> Json.array(qas: _*)
-//         )
-//       }
-
-//       val files: Seq[Json] = idsByFile.keys.toSeq.map { filePath =>
-//         val wikiFile = Wiki1k.getFile(filePath).get
-//         val title = wikiFile.title
-//         val sentenceIds = idsByFile(filePath)
-//         val sentenceJsons = sentenceIds.map(getSentenceJson)
-//         Json.obj(
-//           "title" -> jString(title),
-//           "paragraphs" -> Json.array(sentenceJsons.toSeq: _*)
-//         )
-//       }
-
-//       val result = Json.obj(
-//         "data" -> Json.array(files: _*),
-//         "version" -> jString("1.1")
-//       )
-
-//       result.nospaces
-//     }
-
-//     def writeAllSquadFormatted(filename: String, excludedTitles: Set[String]) = {
-//       // val allIds = allGenInfos.map(_.hit.prompt.id).collect {
-//       //   case id @ WikiSentenceId(_) => id
-//       // }.toSet.toList
-//       System.out.println(s"Writing squad file $filename")
-//       saveDataFile(experimentName, filename, squadFormattedFileForWiki(excludedTitles))
 //     }
 
 //     lazy val sortedCountedQuestionPrefixes = {

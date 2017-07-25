@@ -64,8 +64,6 @@ class DataExporter(implicit config: TaskConfig) {
   def makeTSV(ids: List[SentenceId]): String =
     makeQAPairTSV(ids, SentenceId.toString, workerAnonymizationMap, allGenInfos, allValInfos)
 
-  // TODO execute this and actually make sure it's all written correctly
-
   def writeTSVs = {
     val allIds = allGenInfos.map(_.hit.prompt.id).collect {
       case id @ WikiSentenceId(_) => id
@@ -90,6 +88,88 @@ class DataExporter(implicit config: TaskConfig) {
     saveOutputFile("ptb-dev.tsv", makeTSV(devIds))
     saveOutputFile("ptb-test.tsv", makeTSV(testIds))
     saveOutputFile("ptb-amr.tsv", makeTSV(amrIds))
+  }
+
+  // TODO maybe move to annotation package in orig qamr project
+
+  def squadFormattedFileForWiki(excludedTitles: Set[String]): String = {
+    // (validQAs: Map[SentenceId, Map[WordedQAPair, List[Set[Int]]]])
+    // data.sentenceToQAs
+    import argonaut._
+    import Argonaut._
+    val idsByFile = data.sentenceToQAs.keys.collect {
+      case id @ WikiSentenceId(wikiPath) => id
+    }.groupBy(_.path.filePath).filter { case (filePath, _) =>
+        val title = Wiki1k.getFile(filePath).get.title
+        if(!excludedTitles.contains(title)) {
+          true
+        } else {
+          System.out.println(s"Excluding file with title: $title")
+          false
+        }
+    }
+
+    def getAnswerSpanJson(tokens: Vector[String], answer: Set[Int]) = {
+      val filledOutAnswer = (answer.min to answer.max).toSet
+      val renderedSentence = Text.render(tokens)
+      val (answerStart, answerText) = getOffsetAndSpan(tokens, filledOutAnswer)
+      // stuff looked good (better, in fact, bc of treatment of quotes). if there are more problems, uncomment this and investigate.
+      // val otherText = Text.renderSpan(tokens, filledOutAnswer).trim
+      // if(!answerText.equals(otherText)) {
+      //   System.err.println(
+      //     s"Problem for sentence\n${Text.render(tokens)}\nExpected answer:\n$otherText \nPrinted answer:\n$answerText")
+      // }
+      Json.obj(
+        "answer_start" -> jNumber(answerStart),
+        "text" -> jString(answerText)
+      )
+    }
+
+    def getQAJson(sentenceId: WikiSentenceId, sentenceTokens: Vector[String], qIndex: Int, question: String, answers: List[Set[Int]]) = {
+      Json.obj(
+        "answers" -> Json.array(answers.map(a => getAnswerSpanJson(sentenceTokens, a)): _*),
+        "question" -> jString(question),
+        "id" -> jString(s"${sentenceId.readableFileString}::${sentenceId.readableSentenceIndex}::$qIndex")
+      )
+    }
+
+    def getSentenceJson(sentenceId: WikiSentenceId) = {
+      val sentenceTokens = getTokensForId(sentenceId)
+      val qas = data.sentenceToQAs(sentenceId).zipWithIndex.map {
+        case (sqa, qIndex) => getQAJson(sentenceId, sentenceTokens, qIndex, sqa.question, sqa.answers)
+      }.toSeq
+
+      Json.obj(
+        "context" -> jString(Text.render(getTokensForId(sentenceId))),
+        "qas" -> Json.array(qas: _*)
+      )
+    }
+
+    val files: Seq[Json] = idsByFile.keys.toSeq.map { filePath =>
+      val wikiFile = Wiki1k.getFile(filePath).get
+      val title = wikiFile.title
+      val sentenceIds = idsByFile(filePath)
+      val sentenceJsons = sentenceIds.map(getSentenceJson)
+      Json.obj(
+        "title" -> jString(title),
+        "paragraphs" -> Json.array(sentenceJsons.toSeq: _*)
+      )
+    }
+
+    val result = Json.obj(
+      "data" -> Json.array(files: _*),
+      "version" -> jString("1.1")
+    )
+
+    result.nospaces
+  }
+
+  def writeAllSquadFormatted(filename: String, excludedTitles: Set[String]) = {
+    // val allIds = allGenInfos.map(_.hit.prompt.id).collect {
+    //   case id @ WikiSentenceId(_) => id
+    // }.toSet.toList
+    System.out.println(s"Writing squad file $filename")
+    saveDataFile(experimentName, filename, squadFormattedFileForWiki(excludedTitles))
   }
 
 }

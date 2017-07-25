@@ -89,7 +89,8 @@ lazy val exampleProjectSettings = Seq(
     "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
     "org.typelevel" %% "cats" % "0.9.0",
     "com.lihaoyi" %%% "upickle" % "0.4.1"
-  )
+  ),
+  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
 )
 
 lazy val exampleProjectJVMSettings = Seq(
@@ -109,6 +110,9 @@ lazy val emnlp2017 = crossProject.in(file("example/emnlp2017"))
             version := "0.1-SNAPSHOT")
   .jvmSettings(commonJVMSettings)
   .jvmSettings(exampleProjectJVMSettings)
+  .jvmSettings(
+  libraryDependencies += "io.argonaut" %% "argonaut" % "6.1"
+)
   .jsSettings(commonJSSettings)
 
 lazy val emnlp2017JS = emnlp2017.js.dependsOn(qamrJS)
