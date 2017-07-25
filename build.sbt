@@ -2,7 +2,7 @@ val monocleVersion = "1.4.0-M2"
 val scalaJSReactVersion = "0.11.1"
 
 lazy val root = project.in(file("."))
-  .aggregate(qamrJVM, qamrJS, emnlp2017JVM, emnlp2017JS)
+  .aggregate(qamrJVM, qamrJS, emnlp2017JVM, emnlp2017JS, aristoJVM, aristoJS)
   .settings(
   publish := {},
   publishLocal := {})
@@ -99,7 +99,10 @@ lazy val exampleProjectJVMSettings = Seq(
     // java deps:
     "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
     "org.slf4j" % "slf4j-api" % "1.7.21", // decided to match scala-logging transitive dep
-    "ch.qos.logback" % "logback-classic" % "1.2.3"
+    "ch.qos.logback" % "logback-classic" % "1.2.3",
+    "log4j" % "log4j" % "1.2.17", // runtime error if not included?
+    "ca.juliusdavies" % "not-yet-commons-ssl" % "0.3.11",  // runtime error if not included?
+    "xerces" % "xercesImpl" % "2.9.1" // runtime error if not included?
   )
 )
 
@@ -120,4 +123,20 @@ lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(qamrJVM).settings(
   (resources in Compile) += (fastOptJS in (emnlp2017JS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (emnlp2017JS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (emnlp2017JS, Compile)).value
+)
+
+lazy val aristo = crossProject.in(file("example/aristo"))
+  .settings(commonSettings)
+  .settings(exampleProjectSettings)
+  .settings(name := "qamr-aristo",
+            version := "0.1-SNAPSHOT")
+  .jvmSettings(commonJVMSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(commonJSSettings)
+
+lazy val aristoJS = aristo.js.dependsOn(qamrJS)
+lazy val aristoJVM = aristo.jvm.dependsOn(qamrJVM).settings(
+  (resources in Compile) += (fastOptJS in (aristoJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (aristoJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (aristoJS, Compile)).value
 )

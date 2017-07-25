@@ -28,7 +28,7 @@ import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
 class ValidationClient[SID : Writer : Reader](
-  instructions: ReactTag = defaultValidationInstructions)(
+  instructions: ReactTag)(
   implicit promptReader: Reader[ValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[ValidationAnswer]] // same as above
 ) extends TaskClient[ValidationPrompt[SID], List[ValidationAnswer]] {

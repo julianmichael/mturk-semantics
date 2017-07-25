@@ -32,10 +32,10 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
   isStopword: IsStopword,
+  qualTest: QualTest,
   generationAccuracyQualTypeLabel: Option[String] = None,
   validationAgreementQualTypeLabel: Option[String] = None,
-  validationTestQualTypeLabel: Option[String] = None,
-  qualTest: QualTest = DefaultQualTest)(
+  validationTestQualTypeLabel: Option[String] = None)(
   implicit config: TaskConfig) {
 
   implicit val ads = annotationDataService

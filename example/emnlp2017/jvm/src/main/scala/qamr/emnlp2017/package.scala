@@ -193,21 +193,14 @@ package object emnlp2017 {
     resourcePath.resolve("wiktionary")
   )
 
-  private[this] val stopwordFilePath = resourcePath.resolve("english.stop.txt")
   private[this] val conservativeStopwordFilePath = resourcePath.resolve("english-stop-conservative.txt")
 
   /** Stopword set from a local file.
     *
     * Not sure where the file came from, but I found it in my old repo
     * from Dan Garrette's undergrad NLP class.
+    * I deleted some stopwords that we actually want.
     */
-  lazy val stopwords: Set[LowerCaseString] = {
-    import scala.collection.JavaConverters._
-    val wordLines = Files.lines(stopwordFilePath).iterator.asScala.toSet
-    (wordLines ++ Set("hm", "uh", "um")).map(_.lowerCase)
-  }
-
-  // I deleted some stopwords that we actually want
   lazy val conservativeStopwords: Set[LowerCaseString] = {
     import scala.collection.JavaConverters._
     val wordLines = Files.lines(conservativeStopwordFilePath).iterator.asScala.toSet
@@ -248,7 +241,6 @@ package object emnlp2017 {
     "this", "that"
   ).map(_.lowerCase)
 
-  lazy val uninterestingTokens = stopwords ++ punctuation ++ contractions
   lazy val reallyUninterestingTokens = conservativeStopwords ++ punctuation ++ contractions ++ questionWords
 
   def isReallyUninteresting(t: String) = reallyUninterestingTokens.contains(t) ||

@@ -20,15 +20,12 @@ project/plugins/project/
 
 /annotations
 
-/ontonotes-url.txt
 /mturk.properties
 
-/resources/ontonotes-release-5.0
-/resources/conll-2012
 /resources/amr
 /resources/corenlp
 /resources/nombank.1.0
-/resources/propbank-release-master
+/resources/propbank
 /resources/ptb
 /resources/qasrl
 /resources/wiki1k
@@ -37,6 +34,6 @@ project/plugins/project/
 /experiments/*/data/*
 /experiments/*/out/*
 
-/mts/jvm/src/main/resources/*.jks
-/mts/jvm/src/main/resources/*.p12
-/mts/jvm/src/main/resources/*-password
+*.jks
+*.p12
+*-password

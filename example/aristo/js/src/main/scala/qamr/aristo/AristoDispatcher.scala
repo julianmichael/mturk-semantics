@@ -1,4 +1,4 @@
-package qamr.emnlp2017
+package qamr.aristo
 
 import qamr.annotation._
 import qamr.util.dollarsToCents
@@ -11,14 +11,19 @@ import scalacss.ScalaCssReact._
 
 import scalajs.js.JSApp
 
-object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
+object AristoDispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
 
-  override lazy val genClient = new GenerationClient[SentenceId](
-    instructions = generationInstructions,
-    requireWhAtQuestionBeginning = false)
+  override lazy val genClient = new GenerationClient[Ai2SentenceId](
+    instructions = ai2GenerationInstructions,
+    requireWhAtQuestionBeginning = true)
+  override lazy val valClient = new ValidationClient[Ai2SentenceId](
+    instructions = ai2ValidationInstructions)
 
-  override lazy val valClient = new ValidationClient[SentenceId](
-    instructions = validationInstructions)
+  import japgolly.scalajs.react.vdom.prefix_<^._
+  import japgolly.scalajs.react._
+
+  import scalacss.DevDefaults._
+  import scalacss.ScalaCssReact._
 
   def generationExample(question: String, answer: String, isGood: Boolean, tooltip: String) =
     <.li(
@@ -33,7 +38,7 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
       )
     )
 
-  val generationInstructions = <.div(
+  val ai2GenerationInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into lists of questions and answers.
@@ -49,17 +54,13 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
     <.ul(
       <.li("How did the ", <.b("protesters "), "feel? --> jubilant"),
       <.li("Who celebrated? --> the ", <.b("protesters"))),
-    <.p(<.b("""Warning: """), """The text shown to you is drawn randomly
-           from Wikipedia and news articles from the past few years.
-           We have no control over the contents of the text, which may discuss sensitive subjects,
-           including crime and death, or occasionally contain offensive ideas. Please use appropriate discretion.
-           (If you receive a selection of text that is not in English, please skip or return the HIT and let us know.)"""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         Your response must be grammatical, fluent English that satisfies the following criteria:"""),
     <.ol(
       <.li("""Either the question or the answer contains the special word."""),
       <.li("""The question contains at least one word from the sentence."""),
+      <.li("""The question begins with """, <.b("""who, what, when, where, why, how, whose, """), " or ", <.b("which.")),
       <.li("The question is about the meaning of the sentence (and not, for example, the order of the words)."),
       <.li("""The question is answered obviously and explicitly in the sentence."""),
       <.li("""The question is open-ended: yes/no and either/or questions are not allowed."""),
@@ -80,9 +81,6 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
       generationExample(question = "What was enacted?", answer = "the regulations", isGood = true,
               tooltip = """This is a standard, straightforward question that is answered literally by the sentence.
                            Most questions should look something like this."""),
-      generationExample(question = "In the what since?", answer = "year", isGood = false,
-              tooltip = """This simply replaces a word with "what"
-                           instead of using it to form a proper English question."""),
       generationExample(question = "How long was it since the regulations were enacted?", answer = "the year", isGood = true,
               tooltip = """While "a year" is a more natural answer, "the year" is the closest you can get
                            and the question is answered in the sentence so it is still acceptable."""),
@@ -101,7 +99,7 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
       generationExample(question = "What is the is the Agency responsible for?", answer = "Environmental Protection", isGood = true,
               tooltip = """While "responsibility" is not explicitly mentioned in the sentence,
                            this fact is part of the meaning of the name "Environmental Protection Agency"."""),
-      generationExample(question = "Was McCarthy aggressive or lax?", answer = "aggressive", isGood = false,
+      generationExample(question = "What was McCarthy, aggressive or lax?", answer = "aggressive", isGood = false,
               tooltip = """This is an either/or question, which is disallowed."""),
       generationExample(question = "What was enforced?", answer = "them", isGood = true,
               tooltip = """The answer "the regulations" is also acceptable here. It is okay for the answer
@@ -133,7 +131,7 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
                  <.span("Did Alex or Chandler ", <.b("push"), " someone? --> Alex"),
                  <.span(^.className := "tooltiptext",
-                        """Either/or and yes/no questions are not allowed."""))),
+                        """This question fails to start with a wh-word."""))),
       <.li(<.div(Styles.badRed, ^.className := "tooltip",
                  <.span("Where did Alex ", <.b("push"), " Chandler? --> at school today"),
                  <.span(^.className := "tooltiptext",
@@ -147,7 +145,7 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
     <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
     <.ul(
       <.li(<.div("When was something leaked?")),
-      <.li(<.div("On what day was something leaked?"))
+      <.li(<.div("What day was something leaked?"))
     ),
     <.p("""They have the same answer (""", <.i("today"), """) and the second question is just a minor rephrasing of the first, so """,
         <.b(Styles.badRed, "these are redundant. "), """
@@ -172,8 +170,8 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
           On average, it should take less than 30 seconds per question-answer pair.
           """),
     <.p("""Your work will be evaluated by other workers according to the above criteria. """,
-          <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
-          s""" as judged by other workers.
+        <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
+        s""" as judged by other workers.
           This means the "total potential bonus" indicator is just an upper bound on what you may receive,
           which will depend on the quality of your responses.
           Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
@@ -188,16 +186,18 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
           The first time your score gets near or below the threshold, you will be sent a notification,
           but you can check it at any time in your qualifications.
           (Note, however, that the validators will sometimes make mistakes,
-          so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)"""),
+          so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)""",
+        <.b(" Note: if you worked on a previous iteration of this task, your accuracy and agreement ratings will not be retained. "),
+        " This is to aid in the replicability of our annotation process. "),
     <.h2("""Tips"""),
     <.p(s"""To make the task go quickly, make your questions as short and simple as possible.
             (There is a ${questionCharLimit}-character limit, which will be indicated in red when you approach it.)
-            Feel free to use generic words like "someone" and "something" to do so."""),
-    <.p(""" You will find that the vast majority of your questions begin with """,
-        <.b("Who, what, when, where, why, whose, which, "),
-        " or ",
-        <.b("how"),
-        """. There is also variety of possible """,
+            Feel free to use generic words like "someone" and "something" to do so.
+            Remember that your questions have to begin with """, <.b(" who, what, when, where, why, how, which, "),
+         """ or """, <.b(" whose. "), """ If a question does not begin with one of these words, it will be highlighted
+            in red and it will not count towards the requirements or bonus.
+        """),
+    <.p("""There is also variety of possible """,
         <.i(" what"), ", ", <.i(" which"), ", and ", <.i(" how "), """ questions you may ask,
         which start with phrases like """,
         <.b(" What color, what day, which country, which person, how much, how long, how often, how large, "),
@@ -231,7 +231,7 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
     )
 
 
-  val validationInstructions = <.div(
+  val ai2ValidationInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.
@@ -248,10 +248,6 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
     <.p(s"""You will be paid in accordance with the number of questions shown to you, with a bonus of
             ${dollarsToCents(validationBonusPerQuestion)}c per question after the first four
             that will be paid when the assignment is approved."""),
-    <.p(<.b("""Warning: """), """The text shown to you is drawn randomly
-           from Wikipedia and news articles from the past few years.
-           We have no control over the contents of the text, which may discuss sensitive subjects,
-           including crime and death, or occasionally contain offensive ideas. Please use appropriate discretion."""),
     <.h2("""Requirements"""),
     <.p("""This task is best fit for native speakers of English.
         For each question, you will either """,
@@ -275,7 +271,8 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
       <.li("It is not fluent English or has grammatical or spelling errors."),
       <.li("It is not obviously answered by what is expressed in the sentence."),
       <.li("""It does not contain any words from the sentence (for example, "What happened?" is usually invalid). Changing the forms of words (like changing "decision" to "decide") and expanding symbols (like writing $ as dollars or ° as degrees) is fine."""),
-      <.li("It is a yes/no or either/or question, or other non-open-ended question.")
+      <.li("It is a yes/no or either/or question, other non-open-ended question, or doesn't begin with ",
+           <.b(" who, what, when, where, why, how, whose, "), " or ", <.b(" which. "))
     ),
     <.p("""It is okay for a question not to be a full sentence, as long as it makes sense and it is grammatical English.
            For example, the question """, <.span(Styles.goodGreen, "Whose decision?"), """ would be fine if the phrase
@@ -283,12 +280,6 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
         """Note that such short questions might lack the context we normally provide in conversational speech,
            but this does not make them invalid.
            Be sure to read the entire sentence to figure out what the question writer is asking about."""),
-    <.p("""Questions might include the question word like "what" in the middle somewhere,
-           as in """, <.span(Styles.goodGreen, "Protesters celebrated after what form of intervention?"), """ This is fine, but
-           if the question is excessively unnatural, like """, <.span(Styles.badRed, "The what protesters?"), """
-           or if it lacks a question word altogether and simply copies a phrase from the sentence
-           (for example, """, <.span(Styles.badRed, "The protesters celebrated after?"), """) then it should be counted invalid.
-        """),
     <.p("""If a question betrays a clear misunderstanding of the task or is clearly not written by a native English speaker,
            it should be counted invalid. You should forgive minor spelling errors (e.g., who's/whose, it's/its)
            as long as they do not change the meaning of the question."""),
@@ -300,7 +291,7 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
     <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
     <.ul(
       <.li(<.div("When was something leaked?")),
-      <.li(<.div("On what day was something leaked?"))
+      <.li(<.div("What day was something leaked?"))
     ),
     <.p("""They have the same answer (""", <.i("today"), """) and the second question is just a minor rephrasing of the first, so """,
         <.b(Styles.badRed, "these are redundant. "), """
@@ -327,9 +318,6 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
       validationExample(question = "What was enacted?", answer = "the regulations", isGood = true,
               tooltip = """This is a standard, straightforward question that is answered literally by the sentence.
                            Most questions should look something like this."""),
-      validationExample(question = "In the what since?", answer = "<Invalid>", isGood = false,
-              tooltip = """The question writer simply replaced a word with "what"
-                           instead of using it to form a proper English question."""),
       validationExample(question = "How long was it since the regulations were enacted?", answer = "the year", isGood = true,
               tooltip = """While "a year" is a more natural answer, "the year" is the closest you can get
                            and the question is answered in the sentence so it is still acceptable."""),
@@ -351,7 +339,7 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
               tooltip = """While "responsibility" is not explicitly mentioned in the sentence,
                            this fact is part of the meaning of the name "Environmental Protection Agency".
                            Breaking down the meanings of names and descriptors like this is fine."""),
-      validationExample(question = "Was McCarthy aggressive or lax?", answer = "<Invalid>", isGood = false,
+      validationExample(question = "What was McCarthy, aggressive or lax?", answer = "<Invalid>", isGood = false,
               tooltip = """This is an either/or question, which is disallowed.""")
     ),
     <.p("Now suppose you are given the following sentence:"),
@@ -402,7 +390,9 @@ object Dispatcher extends QAMRDispatcher[SentenceId] with JSApp {
         but you can check it at any time in your qualifications.
         (Note, however, that other validators will sometimes make mistakes,
         so there is an element of randomness to it: don't read too deeply into small changes in your agreement rate.)
-        As long as you are qualified, your work will be approved and the bonus will be paid within an hour."""),
+        As long as you are qualified, your work will be approved and the bonus will be paid within an hour.""",
+        <.b(" Note: if you worked on a previous iteration of this task, your accuracy and agreement ratings will not be retained. "),
+        " This is to aid in the replicability of our annotation process. "),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
   )

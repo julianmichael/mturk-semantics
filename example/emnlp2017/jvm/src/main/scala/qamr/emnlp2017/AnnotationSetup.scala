@@ -35,5 +35,6 @@ class AnnotationSetup(implicit config: TaskConfig) {
 
   lazy val experiment = new AnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
-    liveAnnotationDataService, isStopword)
+    liveAnnotationDataService, isStopword,
+    qualTest = EMNLPQualTest)
 }
