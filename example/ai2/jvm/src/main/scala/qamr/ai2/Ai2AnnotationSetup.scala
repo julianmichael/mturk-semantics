@@ -1,4 +1,4 @@
-package qamr.aristo
+package qamr.ai2
 
 import qamr._
 import qamr.annotation._
@@ -26,12 +26,12 @@ import scala.util.Try
 
 import upickle.default._
 
-class AristoAnnotationSetup(implicit config: TaskConfig) {
+class Ai2AnnotationSetup(implicit config: TaskConfig) {
 
   import config._
 
   import java.nio.file.{Paths, Path, Files}
-  private[this] val dataPath = Paths.get("live-data/aristo")
+  private[this] val dataPath = Paths.get("live-data/ai2")
   val liveAnnotationDataService = new FileSystemAnnotationDataService(dataPath)
 
   lazy val sourceIds: Vector[Ai2SentenceId] = {
@@ -75,9 +75,12 @@ class AristoAnnotationSetup(implicit config: TaskConfig) {
   def numGenerationAssignmentsForPrompt(p: GenerationPrompt[Ai2SentenceId]) = 3
 
   lazy val experiment = new AnnotationPipeline(
-    allIds, numGenerationAssignmentsForPrompt,
+    allIds,
+    numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
     IsStopword(isReallyUninteresting),
-    AristoQualTest,
+    Ai2QualTest,
+    frozenGenerationHITTypeID = Some("3554GQY3BJXDVEL54N24OMP560NSLM"),
+    frozenValidationHITTypeID = Some("3LAWS9V4CCTFCTDV94LP13R03M38YF"),
     validationTestQualTypeLabel = Some("round 2"))
 }

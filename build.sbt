@@ -2,7 +2,7 @@ val monocleVersion = "1.4.0-M2"
 val scalaJSReactVersion = "0.11.1"
 
 lazy val root = project.in(file("."))
-  .aggregate(qamrJVM, qamrJS, emnlp2017JVM, emnlp2017JS, aristoJVM, aristoJS)
+  .aggregate(qamrJVM, qamrJS, emnlp2017JVM, emnlp2017JS, ai2JVM, ai2JS)
   .settings(
   publish := {},
   publishLocal := {})
@@ -125,18 +125,18 @@ lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(qamrJVM).settings(
   (resources in Compile) += (packageJSDependencies in (emnlp2017JS, Compile)).value
 )
 
-lazy val aristo = crossProject.in(file("example/aristo"))
+lazy val ai2 = crossProject.in(file("example/ai2"))
   .settings(commonSettings)
   .settings(exampleProjectSettings)
-  .settings(name := "qamr-aristo",
+  .settings(name := "qamr-ai2",
             version := "0.1-SNAPSHOT")
   .jvmSettings(commonJVMSettings)
   .jvmSettings(exampleProjectJVMSettings)
   .jsSettings(commonJSSettings)
 
-lazy val aristoJS = aristo.js.dependsOn(qamrJS)
-lazy val aristoJVM = aristo.jvm.dependsOn(qamrJVM).settings(
-  (resources in Compile) += (fastOptJS in (aristoJS, Compile)).value.data,
-  (resources in Compile) += (packageScalaJSLauncher in (aristoJS, Compile)).value.data,
-  (resources in Compile) += (packageJSDependencies in (aristoJS, Compile)).value
+lazy val ai2JS = ai2.js.dependsOn(qamrJS)
+lazy val ai2JVM = ai2.jvm.dependsOn(qamrJVM).settings(
+  (resources in Compile) += (fastOptJS in (ai2JS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (ai2JS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (ai2JS, Compile)).value
 )

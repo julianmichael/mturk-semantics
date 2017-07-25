@@ -1,11 +1,10 @@
-package qamr.aristo
+package qamr.ai2
 
 case class MathProblemId(id: Int)
 
 sealed trait Ai2SentenceId
 
 object Ai2SentenceId {
-  // TODO toString, fromString
   def toString(id: Ai2SentenceId) = id match {
     case KBSentenceId(pairIndex, isKBSentence) =>
       val kbIndicator = if(isKBSentence) 0 else 1
@@ -14,6 +13,7 @@ object Ai2SentenceId {
       s"Euclid: $problemId $sentenceIndex"
   }
 
+  // TODO
   def fromString(s: String): Ai2SentenceId = {
     ???
   }

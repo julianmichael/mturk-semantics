@@ -1,8 +1,8 @@
-package qamr.aristo
+package qamr.ai2
 
 import qamr.annotation._
 
-object AristoQualTest extends QualTest {
+object Ai2QualTest extends QualTest {
   override val testString = s"""<?xml version="1.0" encoding="UTF-8"?>
 <QuestionForm xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionForm.xsd">
 <Overview>

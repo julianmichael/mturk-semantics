@@ -1,4 +1,4 @@
-package qamr.aristo
+package qamr.ai2
 
 import qamr.annotation._
 import qamr.util.dollarsToCents
@@ -11,7 +11,7 @@ import scalacss.ScalaCssReact._
 
 import scalajs.js.JSApp
 
-object AristoDispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
+object Ai2Dispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
 
   override lazy val genClient = new GenerationClient[Ai2SentenceId](
     instructions = ai2GenerationInstructions,

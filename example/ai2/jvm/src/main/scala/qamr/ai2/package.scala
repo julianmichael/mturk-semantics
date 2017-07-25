@@ -14,7 +14,7 @@ import edu.stanford.nlp.ling.Word
 import edu.stanford.nlp.process.PTBTokenizer
 import edu.stanford.nlp.process.WordTokenFactory
 
-package object aristo {
+package object ai2 {
 
   def sentenceSegmentAndTokenize(s: String): Vector[Vector[String]] = {
     import edu.stanford.nlp.process.DocumentPreprocessor;
@@ -30,7 +30,7 @@ package object aristo {
 
   // def posTag(s: List[String]): List[POSTaggedToken] = qamr.emnlp2017.posTag(s)
 
-  val staticDataPath = Paths.get("static-data/aristo")
+  val staticDataPath = Paths.get("static-data/ai2")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
     val directory = staticDataPath.resolve("out")

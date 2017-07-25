@@ -33,6 +33,8 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
   annotationDataService: AnnotationDataService,
   isStopword: IsStopword,
   qualTest: QualTest,
+  frozenGenerationHITTypeID: Option[String] = None,
+  frozenValidationHITTypeID: Option[String] = None,
   generationAccuracyQualTypeLabel: Option[String] = None,
   validationAgreementQualTypeLabel: Option[String] = None,
   validationTestQualTypeLabel: Option[String] = None)(
@@ -151,7 +153,8 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
   lazy val sampleGenPrompt = GenerationPrompt[SID](allIds.head, tokenSplits(allIds.head.tokens).head)
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], List[WordedQAPair], GenerationApiRequest[SID], GenerationApiResponse](
-    expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt)
+    expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    frozenHITTypeId = frozenGenerationHITTypeID)
 
   // validation task definition
 
@@ -182,7 +185,8 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt[SID], List[ValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
-    expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt)
+    expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    frozenHITTypeId = frozenValidationHITTypeID)
 
   // hit management --- circularly defined so they can communicate
 

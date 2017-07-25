@@ -1,4 +1,4 @@
-package qamr.aristo
+package qamr.ai2
 
 import qamr._
 import qamr.annotation._
@@ -16,9 +16,9 @@ import nlpdata.util.Text
   * You shouldn't expect to be able to run this unless you have the original, non-anonymized data
   * gathered during the run on MTurk.
   */
-class AristoDataExporter(implicit config: TaskConfig) {
+class Ai2DataExporter(implicit config: TaskConfig) {
 
-  val pipeline = new AristoAnnotationSetup
+  val pipeline = new Ai2AnnotationSetup
 
   import config._
   import pipeline._
