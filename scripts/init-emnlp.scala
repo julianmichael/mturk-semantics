@@ -1,5 +1,5 @@
-import qamr._
-import qamr.util._
+import turksem.qamr._
+import turksem.util._
 import turkey._
 import turkey.tasks._
 import akka.pattern.ask

@@ -2,7 +2,7 @@ val monocleVersion = "1.4.0-M2"
 val scalaJSReactVersion = "0.11.1"
 
 lazy val root = project.in(file("."))
-  .aggregate(qamrJVM, qamrJS, emnlp2017JVM, emnlp2017JS, ai2JVM, ai2JS)
+  .aggregate(turksemJVM, turksemJS, emnlp2017JVM, emnlp2017JS, ai2JVM, ai2JS)
   .settings(
   publish := {},
   publishLocal := {})
@@ -26,9 +26,9 @@ lazy val commonJSSettings = Seq(
   persistLauncher in Test := false,
   skip in packageJSDependencies := false)
 
-lazy val qamr = crossProject
+lazy val turksem = crossProject
   .settings(commonSettings).settings(
-  name := "qamr",
+  name := "turksem",
   version := "0.1-SNAPSHOT",
   resolvers += Resolver.sonatypeRepo("snapshots"),
   libraryDependencies ++= Seq(
@@ -79,8 +79,8 @@ lazy val qamr = crossProject
   )
 )
 
-lazy val qamrJS = qamr.js
-lazy val qamrJVM = qamr.jvm
+lazy val turksemJS = turksem.js
+lazy val turksemJVM = turksem.jvm
 
 lazy val exampleProjectSettings = Seq(
   resolvers += Resolver.sonatypeRepo("snapshots"),
@@ -109,7 +109,7 @@ lazy val exampleProjectJVMSettings = Seq(
 lazy val emnlp2017 = crossProject.in(file("example/emnlp2017"))
   .settings(commonSettings)
   .settings(exampleProjectSettings)
-  .settings(name := "qamr-emnlp2017",
+  .settings(name := "turksem-emnlp2017",
             version := "0.1-SNAPSHOT")
   .jvmSettings(commonJVMSettings)
   .jvmSettings(exampleProjectJVMSettings)
@@ -118,8 +118,8 @@ lazy val emnlp2017 = crossProject.in(file("example/emnlp2017"))
 )
   .jsSettings(commonJSSettings)
 
-lazy val emnlp2017JS = emnlp2017.js.dependsOn(qamrJS)
-lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(qamrJVM).settings(
+lazy val emnlp2017JS = emnlp2017.js.dependsOn(turksemJS)
+lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(turksemJVM).settings(
   (resources in Compile) += (fastOptJS in (emnlp2017JS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (emnlp2017JS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (emnlp2017JS, Compile)).value
@@ -128,14 +128,14 @@ lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(qamrJVM).settings(
 lazy val ai2 = crossProject.in(file("example/ai2"))
   .settings(commonSettings)
   .settings(exampleProjectSettings)
-  .settings(name := "qamr-ai2",
+  .settings(name := "turksem-ai2",
             version := "0.1-SNAPSHOT")
   .jvmSettings(commonJVMSettings)
   .jvmSettings(exampleProjectJVMSettings)
   .jsSettings(commonJSSettings)
 
-lazy val ai2JS = ai2.js.dependsOn(qamrJS)
-lazy val ai2JVM = ai2.jvm.dependsOn(qamrJVM).settings(
+lazy val ai2JS = ai2.js.dependsOn(turksemJS)
+lazy val ai2JVM = ai2.jvm.dependsOn(turksemJVM).settings(
   (resources in Compile) += (fastOptJS in (ai2JS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (ai2JS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (ai2JS, Compile)).value
