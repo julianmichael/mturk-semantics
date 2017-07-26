@@ -1,8 +1,6 @@
-package turksem.qamr.emnlp2017
+package turksem.qasrl.multitask
 
-import turksem.QualTest
-
-object EMNLPQualTest extends turksem.QualTest {
+object MultitaskQualTest extends turksem.QualTest {
   override val testString = s"""<?xml version="1.0" encoding="UTF-8"?>
 <QuestionForm xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionForm.xsd">
 <Overview>

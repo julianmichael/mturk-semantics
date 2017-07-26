@@ -1,7 +1,8 @@
-package turksem.qamr
+package turksem.qasrl
 
-import turksem._
+import turksem.FileSystemAnnotationDataService
 import turksem.qamr.annotation._
+import turksem.qasrl.annotation._
 
 import edu.stanford.nlp.ling.Word
 import edu.stanford.nlp.process.PTBTokenizer
@@ -15,6 +16,7 @@ import nlpdata.datasets.ptb
 import nlpdata.datasets.ptb.PTBSentencePath
 import nlpdata.datasets.propbank
 import nlpdata.datasets.nombank
+import nlpdata.datasets.qasrl
 import nlpdata.datasets.wiki1k
 import nlpdata.datasets.wiki1k.Wiki1kPath
 import nlpdata.datasets.wiktionary
@@ -25,13 +27,13 @@ import scala.util.Try
 import scala.util.Random
 import upickle.default._
 
-package object emnlp2017 {
+package object multitask {
 
   import java.nio.file.{Paths, Path, Files}
-  private[this] val liveDataPath = Paths.get("live-data/emnlp2017")
+  private[this] val liveDataPath = Paths.get("live-data/multitask")
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  val staticDataPath = Paths.get("static-data/emnlp2017")
+  val staticDataPath = Paths.get("static-data/multitask")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
     val directory = staticDataPath.resolve("out")
@@ -180,7 +182,7 @@ package object emnlp2017 {
     resourcePath.resolve("nombank.1.0"), PTB
   )
 
-  val QASRL = new nlpdata.datasets.qasrl.QASRLFileSystemService(
+  val QASRL = new qasrl.QASRLFileSystemService(
     resourcePath.resolve("qasrl"), PTB
   )
 

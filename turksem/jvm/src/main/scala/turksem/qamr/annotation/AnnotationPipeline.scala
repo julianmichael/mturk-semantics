@@ -35,6 +35,7 @@ class AnnotationPipeline[SID : Reader : Writer : HasTokens](
   implicit val ads = annotationDataService
   implicit val is = isStopword
   implicit val settings = QAMRSettings
+  import settings._
 
   import config.hitDataService
 

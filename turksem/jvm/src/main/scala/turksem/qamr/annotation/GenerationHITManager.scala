@@ -3,6 +3,7 @@ package turksem.qamr.annotation
 import turkey._
 import turkey.tasks._
 
+import turksem._
 import turksem.qamr._
 import turksem.util._
 
@@ -23,13 +24,13 @@ import com.typesafe.scalalogging.StrictLogging
 case class FlagBadSentence[SID](id: SID)
 
 object GenerationHITManager {
-  def notificationEmailText(curAccuracy: Double) = {
-    val explanatoryText = if(curAccuracy < generationAccuracyBlockingThreshold) {
-      s"""There will be a grace period of several more assignments ($generationBufferBeforeBlocking more after this calculation was done), and after that, if your accuracy remains below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. Note that your qualification value may not accurately reflect your accuracy: it will be prevented from going below ${math.round(generationAccuracyBlockingThreshold * 100).toInt} until the grace period is over."""
+  def notificationEmailText(curAccuracy: Double)(implicit settings: PipelineSettings) = {
+    val explanatoryText = if(curAccuracy < settings.generationAccuracyBlockingThreshold) {
+      s"""There will be a grace period of several more assignments (${settings.generationBufferBeforeBlocking} more after this calculation was done), and after that, if your accuracy remains below ${math.round(settings.generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. Note that your qualification value may not accurately reflect your accuracy: it will be prevented from going below ${math.round(settings.generationAccuracyBlockingThreshold * 100).toInt} until the grace period is over."""
     } else {
-      s"""You are fine for now, but if this drops below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period ($generationBufferBeforeBlocking more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}."""
+      s"""You are fine for now, but if this drops below ${math.round(settings.generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period (${settings.generationBufferBeforeBlocking} more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(settings.generationAccuracyBlockingThreshold * 100).toInt}."""
     }
-    val dropOrRemain = if(curAccuracy < generationAccuracyBlockingThreshold) "remain" else "drop"
+    val dropOrRemain = if(curAccuracy < settings.generationAccuracyBlockingThreshold) "remain" else "drop"
     f"""
 Of your question-answer pairs that have been reviewed so far, ${math.round(curAccuracy * 10000.0) / 100.0}%.2f%% were judged valid or non-redundant by validators. $explanatoryText%s
 

@@ -140,3 +140,19 @@ lazy val ai2JVM = ai2.jvm.dependsOn(turksemJVM).settings(
   (resources in Compile) += (packageScalaJSLauncher in (ai2JS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (ai2JS, Compile)).value
 )
+
+lazy val multitask = crossProject.in(file("example/multitask"))
+  .settings(commonSettings)
+  .settings(exampleProjectSettings)
+  .settings(name := "turksem-multitask",
+            version := "0.1-SNAPSHOT")
+  .jvmSettings(commonJVMSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(commonJSSettings)
+
+lazy val multitaskJS = multitask.js.dependsOn(turksemJS)
+lazy val multitaskJVM = multitask.jvm.dependsOn(turksemJVM).settings(
+  (resources in Compile) += (fastOptJS in (multitaskJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (multitaskJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (multitaskJS, Compile)).value
+)

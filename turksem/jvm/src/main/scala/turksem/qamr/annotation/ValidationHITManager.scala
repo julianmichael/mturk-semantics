@@ -1,5 +1,6 @@
 package turksem.qamr.annotation
 
+import turksem._
 import turksem.qamr._
 import turksem.util._
 
@@ -28,7 +29,8 @@ object ValidationHITManager {
     sentenceTrackingActor: ActorRef,
     numAssignmentsForPrompt: ValidationPrompt[SID] => Int,
     initNumHITsToKeepActive: Int)(
-    implicit annotationDataService: AnnotationDataService
+    implicit annotationDataService: AnnotationDataService,
+    settings: PipelineSettings
   ) = {
 
     new ValidationHITManager[SID](
@@ -45,13 +47,13 @@ object ValidationHITManager {
     .toOption
     .fold(List.empty[ValidationPrompt[SID]])(lines => read[List[ValidationPrompt[SID]]](lines.mkString))
 
-  def notificationEmailText(curAgreement: Double): String = {
-    val explanatoryText = if(curAgreement < validationAgreementBlockingThreshold) {
-      s"""There will be a grace period of several more assignments ($validationBufferBeforeBlocking more after this calculation was done), and after that, if your agreement rate remains below ${math.round(validationAgreementBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. Note that your qualification value may not accurately reflect your agreement rate: it will be prevented from going below ${math.round(validationAgreementBlockingThreshold * 100).toInt} until the grace period is over."""
+  def notificationEmailText(curAgreement: Double)(implicit settings: PipelineSettings): String = {
+    val explanatoryText = if(curAgreement < settings.validationAgreementBlockingThreshold) {
+      s"""There will be a grace period of several more assignments (${settings.validationBufferBeforeBlocking} more after this calculation was done), and after that, if your agreement rate remains below ${math.round(settings.validationAgreementBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. Note that your qualification value may not accurately reflect your agreement rate: it will be prevented from going below ${math.round(settings.validationAgreementBlockingThreshold * 100).toInt} until the grace period is over."""
     } else {
-      s"""You are fine for now, but if this drops below ${math.round(validationAgreementBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period ($validationBufferBeforeBlocking more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(validationAgreementBlockingThreshold * 100).toInt}."""
+      s"""You are fine for now, but if this drops below ${math.round(settings.validationAgreementBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period (${settings.validationBufferBeforeBlocking} more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(settings.validationAgreementBlockingThreshold * 100).toInt}."""
     }
-    val dropOrRemain = if(curAgreement < validationAgreementBlockingThreshold) "remain" else "drop"
+    val dropOrRemain = if(curAgreement < settings.validationAgreementBlockingThreshold) "remain" else "drop"
     f"""
 The answer judgments that you have provided so far agree with other annotators ${math.round(curAgreement * 10000.0) / 100.0}%.2f%% of the time. $explanatoryText%s
 
@@ -94,7 +96,7 @@ class ValidationHITManager[SID : Reader : Writer] private (
   override def promptFinished(prompt: ValidationPrompt[SID]): Unit = {
     val assignments = promptToAssignments(prompt)
     sentenceTrackingActor ! ValidationFinished(prompt, assignments)
-    val numValid = numValidQuestions(assignments.map(_.response))
+    val numValid = ValidationAnswer.numValidQuestions(assignments.map(_.response))
     generationActor ! ValidationResult(prompt.genPrompt, prompt.sourceHITId, prompt.sourceAssignmentId, numValid)
     promptToAssignments = promptToAssignments - prompt
   }

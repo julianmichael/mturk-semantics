@@ -1,6 +1,6 @@
 package turksem.qamr.ai2
 
-import turksem.qamr.annotation._
+import turksem.QualTest
 
 object Ai2QualTest extends QualTest {
   override val testString = s"""<?xml version="1.0" encoding="UTF-8"?>

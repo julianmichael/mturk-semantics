@@ -13,6 +13,8 @@ import turkey.tasks._
 import turksem._
 import turksem.util._
 import turksem.qasrl._
+import turksem.qamr._
+import turksem.qamr.annotation._
 
 import upickle.default._
 
@@ -34,7 +36,9 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   implicit val ads = annotationDataService
   implicit val is = isStopword
-  implicit val settings = QAMRSettings
+  implicit val settings = QASRLSettings
+
+  import settings._
 
   import config.hitDataService
 
@@ -146,7 +150,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   lazy val sampleGenPrompt = GenerationPrompt[SID](allIds.head, tokenSplits(allIds.head.tokens).head)
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], GenerationResponse, GenerationApiRequest[SID], GenerationApiResponse](
-    expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
     frozenHITTypeId = frozenGenerationHITTypeID)
 
   // validation task definition
@@ -172,13 +176,13 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val sampleValPrompt = ValidationPrompt[SID](
     sampleGenPrompt, "", "",
-    List(QASRLPair(0, "Who is awesome?", Set(1, 2, 3, 4)),
-         QASRLPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
-         QASRLPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
-         QASRLPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
+    List(WordedQAPair(0, "Who is awesome?", Set(1, 2, 3, 4)),
+         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
+         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
+         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification[ValidationPrompt[SID], List[ValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
-    expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
     frozenHITTypeId = frozenValidationHITTypeID)
 
   // hit management --- circularly defined so they can communicate
@@ -287,7 +291,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   lazy val dashboardTaskSpec = TaskSpecification[Unit, Unit, Unit, SummaryInfo[SID]](
-    expHDashboardTaskKey, null, dashboardApiFlow, (),
+    dashboardTaskKey, null, dashboardApiFlow, (),
     frozenHITTypeId = null)
 
   lazy val server = new Server(List(genTaskSpec, valTaskSpec, dashboardTaskSpec))

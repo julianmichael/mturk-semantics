@@ -1,12 +1,16 @@
 package turksem.qamr.annotation
 
+import turksem._
 import turksem.qamr._
+
 import akka.actor.Actor
+
 import turkey._
 import turkey.tasks._
+
 import upickle.default._
+
 import com.typesafe.scalalogging.StrictLogging
-import turksem.{HasTokens, IsStopword}
 
 sealed trait TrackingUpdate[SID]
 case class GenerationFinished[SID](prompt: GenerationPrompt[SID]) extends TrackingUpdate[SID]

@@ -51,7 +51,8 @@ trait PackagePlatformExtensions {
     status: SentenceStatus[SID],
     genHITTypeId: String,
     valHITTypeId: String)(
-    implicit config: TaskConfig
+    implicit config: TaskConfig,
+    settings: PipelineSettings
   ): SentenceStats[SID] = {
     val allValidations = status.finishedAssignments
     val id = status.id
@@ -103,7 +104,7 @@ trait PackagePlatformExtensions {
 
     val numQAPairs = genHITInfos.flatMap(_.assignments).flatMap(_.response).size
     val numValidQAPairs = alignedValidations
-      .map(av => numValidQuestions(av.valAssignments.map(_.response)))
+      .map(av => ValidationAnswer.numValidQuestions(av.valAssignments.map(_.response)))
       .sum
     val completionTime = Try(
       valHITInfos.flatMap(_.assignments).map(_.submitTime).max
@@ -276,7 +277,7 @@ trait PackagePlatformExtensions {
       val wqa = WordedQAPair(keyword, question, origAnswer)
 
       val valResponses = (7 until fields.size by 2).map { i =>
-        (fields(i), readValidationAnswerIndices(fields(i + 1)))
+        (fields(i), ValidationAnswer.readIndices(fields(i + 1)))
       }.toList
 
       SourcedQA(qaPairId, wqa, valResponses)
