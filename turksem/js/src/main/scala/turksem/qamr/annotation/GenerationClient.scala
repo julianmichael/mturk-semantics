@@ -1,5 +1,7 @@
 package turksem.qamr.annotation
 
+import cats.implicits._
+
 import turksem._
 import turksem.qamr._
 import turksem.util._
@@ -168,7 +170,6 @@ class GenerationClient[SID : Reader : Writer](
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
             case Loaded(GenerationApiResponse(sentence), _) =>
-              import cats.implicits._
               Highlighting(
                 HighlightingProps(
                   isEnabled = !isNotAssigned, update = updateHighlights, render = {

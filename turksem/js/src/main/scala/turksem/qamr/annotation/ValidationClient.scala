@@ -1,6 +1,7 @@
 package turksem.qamr.annotation
 
 import turkey.tasks._
+import cats.implicits._
 
 import turksem._
 import turksem.qamr._
@@ -162,7 +163,6 @@ class ValidationClient[SID : Writer : Reader](
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
             case Loaded(ValidationApiResponse(sentence), _) =>
-              import cats.implicits._
               import state._
               Highlighting(
                 HighlightingProps(

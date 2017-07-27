@@ -1,5 +1,7 @@
 package turksem.qasrl.annotation
 
+import cats.implicits._
+
 import akka.actor._
 import akka.stream.scaladsl.{Flow, Source}
 import com.amazonaws.mturk.requester._
@@ -321,7 +323,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   def setValHITsActive(n: Int) =
     valManager ! SetNumHITsActive(n)
 
-  import TaskManager._
+  import TaskManager.Message._
   def start(interval: FiniteDuration = 30 seconds) = {
     server
     startSaves()

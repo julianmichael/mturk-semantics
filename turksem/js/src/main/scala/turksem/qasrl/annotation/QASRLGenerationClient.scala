@@ -1,5 +1,7 @@
 package turksem.qasrl.annotation
 
+import cats.implicits._
+
 import turksem._
 import turksem.qamr._
 import turksem.qamr.annotation._
@@ -31,11 +33,12 @@ import japgolly.scalajs.react.MonocleReact._
 
 class QASRLGenerationClient[SID : Reader : Writer](
   instructions: ReactTag,
-  requireWhAtQuestionBeginning: Boolean,
   settings: PipelineSettings)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[WordedQAPair]] // same as above
 ) extends TaskClient[GenerationPrompt[SID], List[WordedQAPair]] {
+
+  val requireWhAtQuestionBeginning: Boolean = true
 
   import settings._
 

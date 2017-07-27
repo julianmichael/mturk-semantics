@@ -1,5 +1,7 @@
 package turksem.qasrl.multitask
 
+import turksem.qasrl.QASRLSettings
+import turksem.qasrl.annotation._
 import turksem.qamr.annotation._
 import turksem.util.dollarsToCents
 
@@ -13,14 +15,7 @@ import scalajs.js.JSApp
 
 object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
 
-  implicit val settings = QAMRSettings
-
-  override lazy val genClient = new GenerationClient[SentenceId](
-    instructions = generationInstructions,
-    requireWhAtQuestionBeginning = false)
-
-  override lazy val valClient = new ValidationClient[SentenceId](
-    instructions = validationInstructions)
+  import QASRLSettings._
 
   def generationExample(question: String, answer: String, isGood: Boolean, tooltip: String) =
     <.li(
@@ -35,7 +30,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
       )
     )
 
-  val generationInstructions = <.div(
+  override val generationInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into lists of questions and answers.
@@ -233,7 +228,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     )
 
 
-  val validationInstructions = <.div(
+  override val validationInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.

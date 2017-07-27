@@ -1,5 +1,7 @@
 package turksem.qasrl.annotation
 
+import cats.implicits._
+
 import turkey.tasks._
 
 import turksem._

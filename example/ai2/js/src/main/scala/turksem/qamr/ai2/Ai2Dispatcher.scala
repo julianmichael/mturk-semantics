@@ -1,5 +1,6 @@
 package turksem.qamr.ai2
 
+import turksem.qamr.QAMRSettings
 import turksem.qamr.annotation._
 import turksem.util.dollarsToCents
 
@@ -13,11 +14,9 @@ import scalajs.js.JSApp
 
 object Ai2Dispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
 
-  override lazy val genClient = new GenerationClient[Ai2SentenceId](
-    instructions = ai2GenerationInstructions,
-    requireWhAtQuestionBeginning = true)
-  override lazy val valClient = new ValidationClient[Ai2SentenceId](
-    instructions = ai2ValidationInstructions)
+  import QAMRSettings._
+
+  override val requireWhAtQuestionBeginning = true
 
   import japgolly.scalajs.react.vdom.prefix_<^._
   import japgolly.scalajs.react._
@@ -38,7 +37,7 @@ object Ai2Dispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
       )
     )
 
-  val ai2GenerationInstructions = <.div(
+  override val generationInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into lists of questions and answers.
@@ -231,7 +230,7 @@ object Ai2Dispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
     )
 
 
-  val ai2ValidationInstructions = <.div(
+  override val validationInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.

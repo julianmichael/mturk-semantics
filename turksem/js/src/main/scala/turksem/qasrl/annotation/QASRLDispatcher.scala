@@ -15,12 +15,10 @@ import japgolly.scalajs.react.vdom.prefix_<^.ReactTag
 abstract class QASRLDispatcher[SID : Reader : Writer] extends TaskDispatcher {
 
   def generationInstructions: ReactTag
-  def requireWhAtQuestionBeginning: Boolean
   def validationInstructions: ReactTag
 
   lazy val genClient = new QASRLGenerationClient[SID](
     generationInstructions,
-    requireWhAtQuestionBeginning,
     QASRLSettings)
 
   lazy val valClient = new QASRLValidationClient[SID](

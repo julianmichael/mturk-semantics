@@ -1,5 +1,7 @@
 package turksem.qamr
 
+import cats.implicits._
+
 import nlpdata.util.Text
 import turksem.util._
 

@@ -1,4 +1,4 @@
-package turksem.qasrl.annotation
+package turksem.qasrl
 
 import turksem.PipelineSettings
 
