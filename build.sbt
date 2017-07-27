@@ -2,7 +2,7 @@ val monocleVersion = "1.4.0-M2"
 val scalaJSReactVersion = "0.11.1"
 
 lazy val root = project.in(file("."))
-  .aggregate(turksemJVM, turksemJS, emnlp2017JVM, emnlp2017JS, ai2JVM, ai2JS)
+  .aggregate(turksemJVM, turksemJS, emnlp2017JVM, emnlp2017JS, ai2JVM, ai2JS, multitaskJVM, multitaskJS)
   .settings(
   publish := {},
   publishLocal := {})
