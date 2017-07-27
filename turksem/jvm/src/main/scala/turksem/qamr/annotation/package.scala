@@ -12,6 +12,8 @@ import turkey.tasks._
 import scala.util.Try
 import upickle.default._
 
+import nlpdata.util._
+
 trait PackagePlatformExtensions {
 
   // message definitions

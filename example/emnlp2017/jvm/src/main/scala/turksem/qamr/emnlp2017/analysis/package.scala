@@ -11,7 +11,7 @@ import cats.data._
 import cats.implicits._
 
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.util.Text
+import nlpdata.util._
 // import nlpdata.structure._
 // import nlpdata.datasets.ptb._
 // import nlpdata.datasets.wiki1k._
@@ -507,7 +507,7 @@ package object analysis {
     // simple templatization
 
     def naiveTemplatizeQuestion(id: SentenceId, question: String): QuestionTemplate[AbstractSlot] = {
-      val sentenceTokens = getTokensForId(id)
+      val sentenceTokens = id.tokens
       val qTokens = {
         val toks = tokenize(question)
         if(toks.last == "?") toks
@@ -600,7 +600,7 @@ package object analysis {
         index: Int,
         reinflection: Reinflection)
 
-      val sentenceTokens = getTokensForId(sqa.id.sentenceId)
+      val sentenceTokens = sqa.id.sentenceId.tokens
       val posTaggedSentenceTokens = posTag(sentenceTokens)
       val qTokens = {
         val toks = tokenize(sqa.question)
@@ -842,7 +842,7 @@ package object analysis {
   // ): String = {
   //   val sb = new StringBuilder
   //   for(id <- ids) {
-  //     val sentence = getTokensForId(id)
+  //     val sentence = id.tokens
   //     sb.append("\t\t\t" + sentence.mkString(" ") + "\n")
   //     val sortedQAPairData = {
   //       val qaPairs = for {
@@ -1030,7 +1030,7 @@ package object analysis {
 //   }
 
 //   def renderQAs(id: SentenceId, qas: Map[WordedQAPair, List[Set[Int]]]) = {
-//     val sentence = getTokensForId(id)
+//     val sentence = id.tokens
 //     Text.render(sentence) + "\n" +
 //       qas.map { case (WordedQAPair(kwIndex, question, answerIndices), valAnswers) =>
 //         val answerStrings = (answerIndices :: valAnswers).map(Text.renderSpan(sentence, _)).mkString(" \t| ")
@@ -1039,7 +1039,7 @@ package object analysis {
 //   }
 
 //   def getExternalVocabulary(id: SentenceId, qas: List[SourcedQA[SentenceID]]) = {
-//     val tokens = getTokensForId(id)
+//     val tokens = id.tokens
 //     qas.flatMap { sqa =>
 //       val qTokens = tokenize(sqa.question.toLowerCase).toVector
 //       qTokens.indices
@@ -1050,7 +1050,7 @@ package object analysis {
 
 //   def delexicalizeQuestion(id: SentenceId, question: String) = {
 //     val qTokens = tokenize(question)
-//     val sentenceTokens = getTokensForId(id)
+//     val sentenceTokens = id.tokens
 //     val alignedQIs = getAlignedQuestionIndices(sentenceTokens, qTokens.toVector)
 //     val posTagged = posTag(qTokens)
 //     posTagged.zipWithIndex.map {
@@ -1327,7 +1327,7 @@ package object analysis {
 //         val res = for {
 //           (id @ PTBSentenceId(path), qas) <- ptbData.sentenceToQAs.iterator
 //           pbPath <- PropBank.ptbToPropBankSentencePath(path).toOption.iterator
-//           tokens = getTokensForId(id)
+//           tokens = id.tokens
 //           sampledQAs = sampleQAPairs(qas, n)
 //         } yield propBankPR(pbPath, tokens, sampledQAs.toList).stats
 //         res.toList
@@ -1349,7 +1349,7 @@ package object analysis {
 //       def allNomBankPRs(n: Int = 1) = {
 //         val res = for {
 //           (id @ PTBSentenceId(path), qas) <- ptbData.sentenceToQAs.iterator
-//           tokens = getTokensForId(id)
+//           tokens = id.tokens
 //           sampledQAs = sampleQAPairs(qas, n)
 //         } yield nomBankPR(path, tokens, sampledQAs.toList).stats
 //         res.toList
@@ -1381,7 +1381,7 @@ package object analysis {
 //         val res = for {
 //           (id @ PTBSentenceId(path), qas) <- ptbData.sentenceToQAs.iterator
 //           if qasrl.keySet.contains(path)
-//           tokens = getTokensForId(id)
+//           tokens = id.tokens
 //           sampledQAs = sampleQAPairs(qas, n)
 //         } yield qasrlPR(path, tokens, sampledQAs.toList).stats
 //         res.toList
@@ -1399,7 +1399,7 @@ package object analysis {
 //         val shuffledSentences = shuffleRand.shuffle(ptbData.sentenceToQAs.keys.toVector)
 //         for (id @ PTBSentenceId(path) <- shuffledSentences; if qasrl.keySet.contains(path)) {
 //           val qas = ptbData.sentenceToQAs(id)
-//           val tokens = getTokensForId(id)
+//           val tokens = id.tokens
 
 //           val pbAlignmentOpt = PropBank.ptbToPropBankSentencePath(path)
 //             .toOption.map(propBankPR(_, tokens, qas))
@@ -1604,7 +1604,7 @@ package object analysis {
 //     def makeTSV(thisData: QAData): String = {
 //       val sb = new StringBuilder
 //       for((id, sqas) <- thisData.sentenceToQAs.iterator) {
-//         val sentence = getTokensForId(id)
+//         val sentence = id.tokens
 //         sb.append("\t\t\t" + sentence.mkString(" ") + "\n")
 //         for(sqa <- sqas.iterator) {
 //           val answerStrings = sqa.answers.map(Text.renderSpan(sentence, _))
@@ -1726,7 +1726,7 @@ package object analysis {
 //     def isInteresting(t: String) = !isReallyUninteresting(t) || interestingWords.contains(t)
 
 //     // def getAllRelationWords(sqa: SourcedQA[SentenceID]) = {
-//     //   val tokens = getTokensForId(sqa.id.prompt.id)
+//     //   val tokens = sqa.id.prompt.id.tokens
 //     //   val qTokens = sqa.questionTokens.map(_.toLowerCase).toVector
 //     //   val alignedIndices = getAlignedQuestionIndices(tokens, qTokens)
 //     //   qTokens.indices.foldRight(PhraseState(Nil, Nil)) { case (index, acc) =>
@@ -1737,7 +1737,7 @@ package object analysis {
 //     //   }.phrases.map(_.mkString(" "))
 //     // }
 //     // def getWhRelationPhrases(sqa: SourcedQA[SentenceID]) = {
-//     //   val tokens = getTokensForId(sqa.id.prompt.id)
+//     //   val tokens = sqa.id.prompt.id.tokens
 //     //   val qTokens = sqa.questionTokens.map(_.toLowerCase).toVector
 //     //   val alignedIndices = getAlignedQuestionIndices(tokens, qTokens)
 //     //   val finalPhraseState = qTokens.indices.foldRight(PhraseState(Nil, Nil)) { case (index, phraseState) =>
@@ -1754,7 +1754,7 @@ package object analysis {
 //     //   finalPhraseState.finish(finalPhraseState.hasQWord && finalPhraseState.hasNonQWord).phrases.map(_.mkString(" "))
 //     // }
 //     // def getNonWhRelationWords(sqa: SourcedQA[SentenceID]) = {
-//     //   val tokens = getTokensForId(sqa.id.prompt.id)
+//     //   val tokens = sqa.id.prompt.id.tokens
 //     //   val qTokens = sqa.questionTokens.map(_.toLowerCase).toVector
 //     //   val alignedIndices = getAlignedQuestionIndices(tokens, qTokens)
 //     //   qTokens.indices.foldRight(PhraseState(Nil, Nil)) { case (index, acc) =>
@@ -1766,7 +1766,7 @@ package object analysis {
 //     // }
 
 //     def getExternalPhrases(sqa: SourcedQA[SentenceID]) = {
-//       val tokens = getTokensForId(sqa.id.prompt.id)
+//       val tokens = sqa.id.prompt.id.tokens
 //       val qTokens = sqa.questionTokens.map(_.toLowerCase).toVector
 //       val alignedIndices = getAlignedQuestionIndices(tokens, qTokens)
 //       val finalPhraseState = qTokens.indices.foldRight(PhraseState(Nil, Nil)) { case (index, phraseState) =>
@@ -1842,7 +1842,7 @@ package object analysis {
 //         def numValidQAs = sqas.filter(_.isValid).size
 //         def numGoodQAs = sqas.filter(_.isGood).size
 //         def cost = assignmentInfos.map(_.totalReward.toDouble).sum
-//         def costPerToken = cost / getTokensForId(id).size
+//         def costPerToken = cost / id.tokens.size
 //         def numKeywords = assignmentInfos.map(_.numKeywords).sum
 //       }
 
@@ -1993,7 +1993,7 @@ package object analysis {
 //         val printer = for {
 //           _ <- append(s"Below are all question-answer pairs we collected for a sample of ${allQAs.size} sentences. (tab-separated; best viewed as a spreadsheet)")
 //                      (id, qas) <- iter(allQAs)
-//           sentenceTokens = getTokensForId(id)
+//           sentenceTokens = id.tokens)
 //           _ <- append("\n" + Text.render(sentenceTokens) + "\n")
 //           sqa <- iter(qas)
 //           _ <- append(s"${sqa.question}\t")
@@ -2055,7 +2055,7 @@ package object analysis {
 //         val printer = for {
 //           _ <- append("\nCode\tPhrases\tQuestion\tOriginal Answer\tValidator Answers\n")
 //                      (id, qas) <- iter(allQAs.toList)
-//           sentenceTokens = getTokensForId(id)
+//           sentenceTokens = id.tokens
 //           _ <- append("==\t" + Text.render(sentenceTokens) + "\n")
 //                      (phrases, (sqa)) <- iter(qas.toList)
 //           _ <- append("\t" + phrases.mkString("; ") + s"\t${sqa.question}\t")
@@ -2068,7 +2068,7 @@ package object analysis {
 //         val printer = for {
 //           _ <- append("\nCode\tQuestion\tOriginal Answer\tValidator Answers\n")
 //                      (id, qas) <- iter(allQAs.toList)
-//           sentenceTokens = getTokensForId(id)
+//           sentenceTokens = id.tokens
 //           _ <- append("==\t" + Text.render(sentenceTokens) + "\n")
 //           sqa <- iter(qas)
 //           _ <- append(s"\t${sqa.question}\t")
@@ -2103,7 +2103,7 @@ package object analysis {
 //       import scala.language.higherKinds
 //       val sb = new StringBuilder
 //       for((id, sqas) <- data.sentenceToQAs.iterator) {
-//         val sentence = getTokensForId(id)
+//         val sentence = id.tokens
 //         sb.append("\t\t\t" + sentence.mkString(" ") + "\n")
 //         for(sqa <- sqas.iterator) {
 //           val answerStrings = sqa.answers.map(Text.renderSpan(sentence, _))
@@ -2177,13 +2177,13 @@ package object analysis {
 //     // case class PairCoverage(
 //     //   id: SentenceId,
 //     //   pairs: Set[(Int, Int)]) {
-//     //   def sentence = getTokensForId(id)
+//     //   def sentence = id.tokens
 //     //   def numCovered = pairs.size
 //     //   def numPossible = math.pow(sentence.size, 2).toInt
 //     // }
 //     // def nSamplePairCoverage(n: Int): Map[SentenceId, PairCoverage] = alignedInfos.map {
 //     //   case (id, promptToAlignments) =>
-//     //     val sentence = getTokensForId(id)
+//     //     val sentence = id.tokens
 //     //     val wqas = sampleQAPairs(id, n)
 //     //     val pairs = wqas.map {
 //     //       case WordedQAPair(_, question, answer) => orderedPairsCovered(sentence, question, answer)
@@ -2263,7 +2263,7 @@ package object analysis {
 //   //   val genSB = new StringBuilder
 //   //   sb.append("assignmentId\thitId\tworkerId")
 //   //   for(HITInfo(hit, assignments) <- allGenInfos) {
-//   //     val sentence = getTokensForId(hit.prompt.id)
+//   //     val sentence = hit.prompt.id.tokens
 //   //     for(assignment <- assignments) {
 
 //   //     }
@@ -2288,7 +2288,7 @@ package object analysis {
 
 // class QuestionModeling(data: QAData) {
 //   // def validQAsForNumQuestionWords(p: Int => Boolean) = theseValidQAs.map { case (id, qas) =>
-//   //   val tokens = getTokensForId(id)
+//   //   val tokens = id.tokens
 //   //   id -> qas.filter { case (wqa, answers) => p(getWordsInQuestion(tokens, wqa.question).size) }
 //   // }.toMap
 
@@ -2334,7 +2334,7 @@ package object analysis {
 
 //   // lazy val collapsedQuestions = allValidQuestions.map {
 //   //   case (id, questions) => id -> questions.map { q =>
-//   //     val alignedTokens = getAlignedQuestionIndices(getTokensForId(id), q.map(_.token).toVector)
+//   //     val alignedTokens = getAlignedQuestionIndices(id.tokens, q.map(_.token).toVector)
 //   //     val collapsedTokens = q.zipWithIndex.foldRight(List.empty[POSTaggedToken]) { case ((posToken, index), acc) =>
 //   //       if(alignedTokens.contains(index)) {
 //   //         if(acc.headOption.fold(true)(_.token != "<>")) POSTaggedToken("<>", "<>") :: acc
@@ -2375,7 +2375,7 @@ package object analysis {
 //   //   val sb = new StringBuilder
 //   //   for {
 //   //     (id, qaPairToAnswers) <- theseValidQAs
-//   //     sentenceTokens = posTag(getTokensForId(id).toList)
+//   //     sentenceTokens = posTag(id.tokens.toList)
 //   //                            (wqa, answers) <- qaPairToAnswers
 //   //     (qTokens, qTags) = delexicalizeQuestion(id, wqa.question).unzip
 //   //     alignments = getQuestionSentenceAlignments(sentenceTokens.toVector.map(_.token), qTokens.toVector)

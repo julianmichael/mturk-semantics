@@ -7,7 +7,7 @@ import akka.stream.scaladsl.{Flow, Source}
 import com.amazonaws.mturk.requester._
 import com.amazonaws.mturk.service.axis.RequesterService
 
-import nlpdata.util.Text
+import nlpdata.util._
 
 import turkey._
 import turkey.tasks._

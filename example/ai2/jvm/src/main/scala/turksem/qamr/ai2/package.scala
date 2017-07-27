@@ -3,8 +3,7 @@ package turksem.qamr
 import turksem.qamr.annotation._
 import nlpdata.datasets.wiktionary
 import nlpdata.util.LowerCaseStrings._
-import turksem.HasTokens
-// import nlpdata.util.Text
+import nlpdata.util._
 
 import scala.util.Try
 import java.io.StringReader
@@ -114,21 +113,19 @@ package object ai2 {
     mathProblem.background.indices.map(index => MathProblemSentenceId(id, index))
   }.toVector
 
-  def getTokensForId(id: Ai2SentenceId): Vector[String] = id match {
-    case KBSentenceId(sentenceIndex, isKBSentence) =>
-      if(isKBSentence) tokenize(allKBSentencePairs(sentenceIndex).kbSentence)
-      else tokenize(allKBSentencePairs(sentenceIndex).qaSentence)
-    case MathProblemSentenceId(problemIndex, sentenceIndex) =>
-      allMathProblems(problemIndex).background(sentenceIndex)
-  }
-
-  implicit val ai2SentenceIdHasTokens = new HasTokens[Ai2SentenceId] {
-    def getTokens(id: Ai2SentenceId): Vector[String] = getTokensForId(id)
+  implicit object Ai2SentenceIdHasTokens extends HasTokens[Ai2SentenceId] {
+    def getTokens(id: Ai2SentenceId): Vector[String] = id match {
+      case KBSentenceId(sentenceIndex, isKBSentence) =>
+        if(isKBSentence) tokenize(allKBSentencePairs(sentenceIndex).kbSentence)
+        else tokenize(allKBSentencePairs(sentenceIndex).qaSentence)
+      case MathProblemSentenceId(problemIndex, sentenceIndex) =>
+        allMathProblems(problemIndex).background(sentenceIndex)
+    }
   }
 
   lazy val kbNonDuplicateSentenceIds = allKBSentenceIds.foldLeft((List.empty[KBSentenceId], Set.empty[String])) {
     case ((idSet, sentenceSet), newId) =>
-      val newSentence = getTokensForId(newId).mkString(" ")
+      val newSentence = newId.tokens.mkString(" ")
       if(sentenceSet.contains(newSentence)) (idSet, sentenceSet)
       else (newId :: idSet, sentenceSet + newSentence)
   }._1.reverse.toVector

@@ -3,10 +3,12 @@ package turksem.qamr.annotation
 import turksem._
 import turksem.qamr._
 
-import akka.actor.Actor
-
 import turkey._
 import turkey.tasks._
+
+import nlpdata.util._
+
+import akka.actor.Actor
 
 import upickle.default._
 

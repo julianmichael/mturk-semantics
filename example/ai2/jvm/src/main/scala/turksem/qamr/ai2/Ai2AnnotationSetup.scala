@@ -13,7 +13,7 @@ import nlpdata.datasets.ptb._
 import nlpdata.datasets.wiki1k._
 import nlpdata.datasets.wiktionary.Inflections
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.util.Text
+import nlpdata.util._
 
 import akka.actor._
 import akka.stream.scaladsl.Flow

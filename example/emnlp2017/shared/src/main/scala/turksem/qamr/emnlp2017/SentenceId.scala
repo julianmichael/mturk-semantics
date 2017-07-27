@@ -2,6 +2,7 @@ package turksem.qamr.emnlp2017
 
 import nlpdata.datasets.ptb._
 import nlpdata.datasets.wiki1k._
+import nlpdata.util._
 
 sealed trait SentenceId {
   def getPTB = Some(this) collect { case id @ PTBSentenceId(_) => id }
@@ -31,4 +32,5 @@ object SentenceId {
     case Wiki1kMatch(domain, suffix, paragraphNum, sentenceNum) =>
       WikiSentenceId(Wiki1kSentencePath(Wiki1kPath(domain, suffix), paragraphNum.toInt, sentenceNum.toInt))
   }
+
 }

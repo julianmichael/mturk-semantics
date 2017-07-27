@@ -10,7 +10,7 @@ import java.io.StringReader
 import java.nio.file.{Files, Path, Paths}
 
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.util.Text
+import nlpdata.util._
 import nlpdata.datasets.ptb
 import nlpdata.datasets.ptb.PTBSentencePath
 import nlpdata.datasets.propbank
@@ -19,7 +19,7 @@ import nlpdata.datasets.wiki1k
 import nlpdata.datasets.wiki1k.Wiki1kPath
 import nlpdata.datasets.wiktionary
 import nlpdata.datasets.wiktionary.Inflections
-import turksem.{HasTokens, IsStopword}
+import turksem.IsStopword
 
 import scala.util.Try
 import scala.util.Random
@@ -150,20 +150,11 @@ package object emnlp2017 {
   val ptbVerbPosTags = Set("VB", "VBD", "VBG", "VBN", "VBP", "VBZ")
   val ptbNounPosTags = Set("NN", "NNS", "NNP", "NNPS")
 
-  def getPTBSentenceTokens(sentence: ptb.PTBSentence): Vector[String] = {
-    sentence.words.filter(_.pos != "-NONE-").map(_.token)
-  }
-
-  def getTokensForId(id: SentenceId): Vector[String] = id match {
-    case PTBSentenceId(path) => getPTBSentenceTokens(
-      PTB.getSentence(path).get
-    )
-    case WikiSentenceId(path) =>
-      Wiki1k.getSentence(path).get.tokens
-  }
-
-  implicit val sentenceIdHasTokens = new HasTokens[SentenceId] {
-    def getTokens(id: SentenceId): Vector[String] = getTokensForId(id)
+  implicit object SentenceIdHasTokens extends HasTokens[SentenceId] {
+    def getTokens(id: SentenceId): Vector[String] = id match {
+      case PTBSentenceId(path) => PTB.getSentence(path).get.tokens
+      case WikiSentenceId(path) => Wiki1k.getSentence(path).get.tokens
+    }
   }
 
   val resourcePath = java.nio.file.Paths.get("resources")
