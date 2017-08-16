@@ -21,7 +21,7 @@ import upickle.default._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class AnnotationPipeline[SID : Reader : Writer : HasTokens](
+class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,

@@ -2,7 +2,7 @@ package turksem.qamr.emnlp2017
 
 import turksem.qamr.QAMRSettings
 import turksem.qamr.annotation._
-import turksem.util.dollarsToCents
+import turksem.util._
 
 import japgolly.scalajs.react.vdom.prefix_<^._
 import japgolly.scalajs.react._

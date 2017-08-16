@@ -11,9 +11,11 @@ import turksem.util._
 import turkey.tasks._
 
 import nlpdata.util.Text
+import nlpdata.util.LowerCaseStrings._
 
 import scalajs.js
 import org.scalajs.dom
+import org.scalajs.dom.ext.KeyCode
 import org.scalajs.dom.raw._
 import org.scalajs.jquery.jQuery
 
@@ -28,6 +30,9 @@ import scalacss.ScalaCssReact._
 import upickle.default._
 
 import monocle._
+import monocle.function.all._
+// import monocle.std.list._
+import monocle.syntax._
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
@@ -38,8 +43,6 @@ class QASRLGenerationClient[SID : Reader : Writer](
   responseWriter: Writer[List[WordedQAPair]] // same as above
 ) extends TaskClient[GenerationPrompt[SID], List[WordedQAPair]] {
 
-  val requireWhAtQuestionBeginning: Boolean = true
-
   import settings._
 
   def main(): Unit = jQuery { () =>
@@ -47,102 +50,253 @@ class QASRLGenerationClient[SID : Reader : Writer](
     ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
   }
 
-  val WebsocketLoadableComponent = new WebsocketLoadableComponent[GenerationApiRequest[SID], GenerationApiResponse]
+  val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse]
   import WebsocketLoadableComponent._
-  val HighlightingComponent = new HighlightingComponent[(Int, Int, Int)] // keyword INDEX among keywords, qa index, answer word index
+  val HighlightingComponent = new HighlightingComponent[(Int, Int, Int)] // keyword index AMONG KEYWORDS, qa index, answer word index
   import HighlightingComponent._
 
-  @Lenses case class State(
-    qaGroups: List[List[WordedQAPair]], // each group == 1 keyword
-    curFocus: (Int, Int)) {
-  }
-  object State {
-    val initial = State(prompt.keywords.map(kw => List(emptyQA(kw))), (0, 0))
-  }
+  val IntState = new LocalStateComponent[Int]
 
   def emptyQA(keyword: Int) = WordedQAPair(keyword, "", Set.empty[Int])
 
-  def isComplete(wqa: WordedQAPair) = !wqa.question.isEmpty && !wqa.answer.isEmpty &&
-    (!requireWhAtQuestionBeginning || beginsWithWh(wqa.question))
+  @Lenses case class QAGroup(
+    verbIndex: Int,
+    template: QASRLTemplate,
+    qas: List[WordedQAPair]) {
+    def withNewEmptyQA: QAGroup = copy(qas = this.qas :+ emptyQA(verbIndex))
+  }
+
+  @Lenses case class State(
+    qaGroups: List[QAGroup],
+    curFocus: (Int, Int)) {
+  }
+  object State {
+    val empty: State = State(Nil, (0, 0))
+    def initFromResponse(response: QASRLGenerationApiResponse): State = response match {
+      case QASRLGenerationApiResponse(sentence, indicesWithTemplates) =>
+        val qaGroups = indicesWithTemplates.map {
+          case IndexWithTemplate(verbIndex, template) =>
+            QAGroup(verbIndex, template, Nil)
+        }
+        State(qaGroups, (0, 0))
+    }
+  }
+
+  def questionLens(groupIndex: Int, qaIndex: Int) = State.qaGroups
+    .composeOptional(index(groupIndex))
+    .composeLens(QAGroup.qas)
+    .composeOptional(index(qaIndex))
+    .composeLens(WordedQAPair.question)
+
+  def isComplete(
+    template: QASRLTemplate,
+    wqa: WordedQAPair
+  ): Boolean = {
+    !wqa.question.isEmpty && !wqa.answer.isEmpty && {
+      val lowerTokens = wqa.question.split(" ").toList.map(_.lowerCase)
+      template.isValid(lowerTokens)
+    }
+  }
+
+  def getCompleteQAPairs(group: QAGroup): List[WordedQAPair] = for {
+    qa <- group.qas
+    if isComplete(group.template, qa)
+  } yield qa
+
+  def getAllCompleteQAPairs(groups: List[QAGroup]): List[WordedQAPair] =
+    groups.flatMap(getCompleteQAPairs)
+
+  // val groupInndexingIso = Iso[List[QAGroup], List[(QAGroup, Int)]](_.zipWithIndex)(_.map(_._1))
+  // val groupIndexPassingIso = Iso[(QAGroup, Int), List[(QAGroup, Int)]](_.zipWithIndex)(_.map(_._1))
+
+  // val allGroupsOptics = State.qaGroups
+  //   .composeIso(groupIndexingIso)
+  //   .composeTraversal(list.each)
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
 
-    def addQAFields: (State => State) =
-      State.qaGroups.modify(groups =>
-        groups.map(group =>
-          if(group.filter(isComplete).size == group.size) group ++ List(emptyQA(group.head.wordIndex))
-          else group
-        )
-      )
+    def addQAFields: (State => State) = State.qaGroups.modify(groups =>
+      groups.map { group =>
+        if(group.qas.forall(isComplete(group.template, _))) group.withNewEmptyQA
+        else group
+      }
+    )
 
+    // TODO figure out how to do this with lenses, if possible
     def updateHighlights(hs: HighlightingState) =
       scope.modState(
         State.qaGroups.modify(groups =>
           groups.zipWithIndex.map {
             case (group, gIndex) =>
-              group.zipWithIndex.map {
-                case (WordedQAPair(keyword, question, _), qaIndex) => WordedQAPair(
-                  keyword, question, hs.span.collect {
-                    case (`gIndex`, `qaIndex`, aIndex) => aIndex
-                  }.toSet)
-              }
+              group.copy(
+                qas = group.qas.zipWithIndex.map {
+                  case (WordedQAPair(keyword, question, _), qaIndex) => WordedQAPair(
+                    keyword, question, hs.span.collect {
+                      case (`gIndex`, `qaIndex`, aIndex) => aIndex
+                    }.toSet)
+                }
+              )
           }
         ) andThen addQAFields
       )
 
     def updateResponse: Callback = scope.state.map { st =>
-      setResponse(st.qaGroups.flatten.filter(isComplete))
+      setResponse(getAllCompleteQAPairs(st.qaGroups))
     }
 
     def qaField(s: State, sentence: Vector[String], groupIndex: Int, qaIndex: Int) = s match {
       case State(qaGroups, curFocus) =>
+        val qaGroup = qaGroups(groupIndex)
+        val template = qaGroup.template
         val isFocused = curFocus == (groupIndex, qaIndex)
-        val numQAsInGroup = qaGroups(groupIndex).size
-        val WordedQAPair(_, question, answer) = s.qaGroups(groupIndex)(qaIndex)
-        val charsLeft = questionCharLimit - question.length
+        val numQAsInGroup = qaGroup.qas.size
+        val WordedQAPair(_, question, answer) = qaGroup.qas(qaIndex)
         val isAnswerEmpty = answer.isEmpty
-        val nextBonus = bonusFor(qaGroups.map(_.drop(1)).flatten.filter(isComplete).size + 1)
+        val nextBonus = bonusFor(getAllCompleteQAPairs(qaGroups).size + 1)
+
+        // TODO make question templater work on arb. strings
+        // and do the tokenization itself (also track bad character index?),
+        val questionTokens = question.split("\\s+|\\(?=\\?\\)|\\(?<=\\?\\)").toVector
+        // ^ splits on spaces and splits out q-mark. TODO maybe remove lookbehind, since apparently it doesn't work (and we don't need)
+
+        case class TokenSuggestion(token: String, isPrefixCompletion: Boolean)
+
+        sealed trait AutocompleteState
+        case object Complete extends AutocompleteState
+        @Lenses case class NextWords(menuItems: List[TokenSuggestion]) extends AutocompleteState
+
+        object AutocompleteState {
+          def nextWords: Prism[AutocompleteState, NextWords] = GenPrism[AutocompleteState, NextWords]
+        }
+
+        val menuItemsPrism = AutocompleteState.nextWords composeLens NextWords.menuItems
+
+        val wordIncompleteTemplateState = template.processTokens(questionTokens.init.map(_.lowerCase))
+        val (autocompleteState, invalidTokenIndexOpt) = wordIncompleteTemplateState match {
+          case template.Invalid(nextStates, firstInvalidTokenIndex) =>
+            val menuItems = template
+              .getNextSlotChoices(nextStates)
+              .flatMap(_.tokens)
+              .toList.sortBy(_.toLowerCase)
+              .map(TokenSuggestion(_, true))
+            (NextWords(menuItems), Some(firstInvalidTokenIndex))
+          // cannot add anything after completing (we know this due to q-mark)
+          case template.Complete =>
+            (NextWords(Nil), Some(questionTokens.size - 1))
+          case template.InProgress(nextStates) =>
+            val nextSlotChoices = template.getNextSlotChoices(nextStates)
+            val lastToken = questionTokens.last.lowerCase
+            // can either use next word as prefix for next state, or as complete word
+            val lastTokenCompletions = nextSlotChoices
+              .flatMap(_.prefixMatches(lastToken))
+              .filter(_.lowerCase != lastToken)
+              .map(TokenSuggestion(_, true))
+              .toSet
+            val nextTokenState = template.advanceStateThroughToken(
+              wordIncompleteTemplateState,
+              questionTokens.last.lowerCase,
+              questionTokens.size - 1)
+
+            nextTokenState match {
+              case template.Complete => (Complete, None)
+              case template.InProgress(nextStates) =>
+                val newItems = template
+                  .getNextSlotChoices(nextStates)
+                  .flatMap(_.tokens)
+                  .map(TokenSuggestion(_, false))
+                val allItems = lastTokenCompletions ++ newItems
+                val menuItems = allItems.toList.sortBy(_.token.toLowerCase)
+                (NextWords(menuItems), None)
+              case template.Invalid(_, firstInvalidTokenIndex) =>
+                val menuItems = lastTokenCompletions.toList.sortBy(_.token.toLowerCase)
+                val invalidTokenIndexOpt = Some(firstInvalidTokenIndex)
+                  .filter(_ => lastTokenCompletions.isEmpty)
+                (NextWords(menuItems), invalidTokenIndexOpt)
+            }
+        }
+
+        // TODO fix formatting problems:
+        // 1. place autocomplete menu in the right place (likely requires splitting it out into its own component)
+        // 2. fix issues with focus; keep text field focused even when interacting with menu
         <.div(
+          ^.display := "inline-block",
           ^.overflow := "hidden",
-          <.div(
-            Styles.badRed,
-            ^.float := "left",
-            ^.width := "10px",
-            ^.minHeight := "1px",
-            ^.margin := "1px",
-            ^.padding := "1px",
-            ^.textAlign := "right",
-            (charsLeft <= 10 && isFocused) ?= s"$charsLeft"
-          ),
-          <.input(
-            isNotAssigned ?= (^.disabled := true),
-            (!question.isEmpty && !isFocused && requireWhAtQuestionBeginning && !beginsWithWh(question)) ?= (^.backgroundColor := "#FF8888"),
-            ^.float := "left",
-            ^.`type` := "text",
-            ^.placeholder := (
-              if(qaIndex == 0) "Question (required)"
-              else s"Question (+${math.round(100 * nextBonus).toInt}c)"
-            ),
-            ^.margin := "1px",
-            ^.padding := "1px",
-            // ^.width := "240px",
-            ^.size := questionCharLimit,
-            ^.maxLength := questionCharLimit,
-            ^.onChange ==> (
-              (e: ReactEventI) => {
-                val newValue = e.target.value
-                scope.modState(
-                  State.qaGroups.modify(groups =>
-                    groups.updated(
-                      groupIndex,
-                      groups(groupIndex).updated(
-                        qaIndex,
-                        groups(groupIndex)(qaIndex).copy(question = newValue))
-                    )) andThen addQAFields)
-              }),
-            ^.onFocus --> scope.modState(State.curFocus.set((groupIndex, qaIndex))),
-            ^.value := question
-          ),
+          IntState.LocalState(
+            IntState.LocalStateProps(
+              initialValue = 0,
+              render = (highlightedIndex: Int, setHighlightedIndex: Int => Callback) => {
+                def selectItem(suggestion: TokenSuggestion): Callback = suggestion match {
+                  case TokenSuggestion(token, isPrefixCompletion) =>
+                    // TODO handle when have invalid token
+                    val beforeToken = if(isPrefixCompletion) questionTokens.init else questionTokens
+                    scope.modState(
+                      questionLens(groupIndex, qaIndex).set(
+                        (beforeToken :+ token).mkString(" ")
+                      ))
+                }
+                def handleKey(menuItems: List[TokenSuggestion])(e: ReactKeyboardEvent): Callback = {
+                  def next = setHighlightedIndex((highlightedIndex + 1) % menuItems.size)
+                  def prev = setHighlightedIndex((highlightedIndex - 1 + menuItems.size) % menuItems.size)
+                  CallbackOption.keyCodeSwitch(e) {
+                    case KeyCode.Down => next
+                    case KeyCode.Up => prev
+                    case KeyCode.Enter => selectItem(menuItems(highlightedIndex))
+                  } >> e.preventDefaultCB
+                }
+                  <.div(
+                  invalidTokenIndexOpt.map(invalidTokenIndex =>
+                    <.div() // TODO red at badness location if bad
+                  ),
+                  <.input(
+                    isNotAssigned ?= (^.disabled := true),
+                    (autocompleteState == Complete) ?= (^.backgroundColor := "#88FF88"),
+                    ^.float := "left",
+                    ^.`type` := "text",
+                    ^.placeholder := (
+                      if(qaIndex == 0) "Question (required)"
+                      else s"Question (+${math.round(100 * nextBonus).toInt}c)"
+                    ),
+                    ^.margin := "1px",
+                    ^.padding := "1px",
+                    ^.width := "480px",
+                    menuItemsPrism.getOption(autocompleteState).map(menuItems =>
+                      ^.onKeyDown ==> handleKey(menuItems)
+                    ),
+                    ^.onChange ==> (
+                      (e: ReactEventI) => {
+                        val newValue = e.target.value
+                        scope.modState(questionLens(groupIndex, qaIndex).set(newValue) andThen addQAFields)
+                      }),
+                    ^.onFocus --> scope.modState(State.curFocus.set((groupIndex, qaIndex))),
+                    ^.value := question
+                  ),
+                  isFocused ?= AutocompleteState.nextWords.getOption(autocompleteState).map {
+                    case NextWords(menuItems) =>
+                      <.div(
+                        ^.border := "solid 1px #ccc",
+                        ^.borderRadius := "3px",
+                        ^.boxShadow := "0 2px 12px rgba(0, 0, 0, 0.1)",
+                        ^.background := "rgba(255, 255, 255, 0.9)",
+                        ^.padding := "2px 0",
+                        ^.fontSize := "90%",
+                        ^.position := "fixed",
+                        ^.overflow := "auto",
+                        ^.maxHeight := "50%",
+                        menuItems.zipWithIndex.map {
+                          case (ts @ TokenSuggestion(token, isPrefixCompletion), tokenIndex) =>
+                            <.div(
+                              (tokenIndex == highlightedIndex) ?= (^.backgroundColor := "rgb(40, 162, 254)"),
+                              ^.padding := "2px 6px",
+                              ^.cursor := "default",
+                              ^.onMouseEnter --> setHighlightedIndex(tokenIndex),
+                              ^.onClick --> selectItem(ts),
+                              token
+                            )
+                        }
+                      )
+                  }
+                )
+              })),
           <.div(
             Styles.answerIndicator,
             ^.float := "left",
@@ -168,19 +322,19 @@ class QASRLGenerationClient[SID : Reader : Writer](
       WebsocketLoadable(
         WebsocketLoadableProps(
           websocketURI = websocketUri,
-          request = GenerationApiRequest(prompt.id),
+          request = prompt,
+          onLoad = ((response: QASRLGenerationApiResponse) => scope.setState(State.initFromResponse(response))),
           render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
-            case Loaded(GenerationApiResponse(sentence), _) =>
-              import cats.implicits._
+            case Loaded(QASRLGenerationApiResponse(sentence, _), _) =>
               Highlighting(
                 HighlightingProps(
                   isEnabled = !isNotAssigned, update = updateHighlights, render = {
                     case (HighlightingState(spans, status),
                           HighlightingContext(setSpan, startHighlight, startErase, stopHighlight, touchElement)) =>
 
-                      val curCompleteQAPairs = s.qaGroups.flatten.filter(isComplete)
+                      val curCompleteQAPairs = getAllCompleteQAPairs(s.qaGroups)
 
                       val curPotentialBonus = (1 to (curCompleteQAPairs.size - s.qaGroups.size))
                         .map(bonusFor).sum
@@ -247,7 +401,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                               ),
                               <.ul(
                                 Styles.listlessList,
-                                (0 until s.qaGroups(groupIndex).size).map(qaIndex =>
+                                (0 until s.qaGroups(groupIndex).qas.size).map(qaIndex =>
                                   <.li(
                                     ^.display := "block",
                                     qaField(s, sentence, groupIndex, qaIndex)
@@ -277,7 +431,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         ),
                         <.input(
                           ^.`type` := "submit",
-                          ^.disabled := !s.qaGroups.forall(_.filter(isComplete).size > 0),
+                          ^.disabled := !s.qaGroups.forall(getCompleteQAPairs(_).size > 0),
                           ^.id := submitButtonLabel,
                           ^.value := "submit"),
                         instructions
@@ -288,7 +442,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
   }
 
   val FullUI = ReactComponentB[Unit]("Full UI")
-    .initialState(State.initial)
+    .initialState(State.empty)
     .renderBackend[FullUIBackend]
     .componentDidUpdate(context => context.$.backend.updateResponse)
     .build

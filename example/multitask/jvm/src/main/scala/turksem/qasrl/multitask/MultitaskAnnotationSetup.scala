@@ -2,6 +2,7 @@ package turksem.qasrl.multitask
 
 import turksem.qamr._
 import turksem.qamr.annotation._
+import turksem.qasrl.annotation._
 import turksem.util._
 
 import turkey._
@@ -25,12 +26,11 @@ import scala.util.Try
 
 import upickle.default._
 
-/** Replicates the annotation setup for our emnlp2017 submission. */
-class AnnotationSetup(implicit config: TaskConfig) {
+class MultitaskAnnotationSetup(implicit config: TaskConfig) {
 
   def numGenerationAssignmentsForPrompt(p: GenerationPrompt[SentenceId]) = 1
 
-  lazy val experiment = new AnnotationPipeline(
+  lazy val experiment = new QASRLAnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService, isStopword,
     qualTest = MultitaskQualTest)

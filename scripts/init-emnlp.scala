@@ -1,3 +1,4 @@
+// XXX this init script is outdated
 import turksem.qamr._
 import turksem.util._
 import turkey._
@@ -10,10 +11,10 @@ implicit val config: TaskConfig = {
   val isProduction = false // sandbox. change to true for production
   if(isProduction) {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("production"))
-    ProductionTaskConfig("qamr-emnlp2017", "localhost", hitDataService)
+    ProductionTaskConfig("turksem-emnlp2017", "localhost", hitDataService)
   } else {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("sandbox"))
-    SandboxTaskConfig("qamr-emnlp2017", "localhost", hitDataService)
+    SandboxTaskConfig("turksem-emnlp2017", "localhost", hitDataService)
   }
 }
 def exit = {

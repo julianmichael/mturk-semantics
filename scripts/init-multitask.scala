@@ -1,5 +1,5 @@
-// XXX this init script is outdated
 import turksem.qamr._
+import turksem.qasrl._
 import turksem.util._
 import turkey._
 import turkey.tasks._
@@ -7,8 +7,8 @@ import akka.pattern.ask
 import scala.concurrent.duration._
 
 val isProduction = false // sandbox. change to true for production
-val domain = "nlp.cs.washington.edu" // change to your comain, or keep localhost for testing
-val projectName = "qamr-ai2" // make sure it matches the SBT project;
+val domain = "localhost" // change to your domain, or keep localhost for testing
+val projectName = "turksem-multitask" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
 
 val annotationPath = java.nio.file.Paths.get("annotations")
@@ -32,6 +32,6 @@ def exit = {
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
 
-val setup = new ai2.Ai2AnnotationSetup
+val setup = new multitask.MultitaskAnnotationSetup
 val exp = setup.experiment
 exp.server

@@ -12,6 +12,12 @@ package object util extends PackagePlatformExtensions {
       .filter(ai => sets.filter(_.contains(ai)).size >= (sets.size / 2))
   }
 
+  // TODO contribute this to mouse
+  implicit class RichBoolean(val b: Boolean) extends AnyVal {
+    import cats.Monoid
+    def ifTrue[M](m: => M)(implicit M: Monoid[M]): M = if(b) m else M.empty
+  }
+
   // TODO make this return an option
   implicit class RichSeq[A](val a: Seq[A]) extends AnyVal {
     def mean(implicit N: Numeric[A]): Double = N.toDouble(a.sum) / a.size

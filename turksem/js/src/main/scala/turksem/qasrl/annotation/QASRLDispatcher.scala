@@ -21,7 +21,7 @@ abstract class QASRLDispatcher[SID : Reader : Writer] extends TaskDispatcher {
     generationInstructions,
     QASRLSettings)
 
-  lazy val valClient = new QASRLValidationClient[SID](
+  lazy val valClient = new turksem.qamr.annotation.ValidationClient[SID](
     validationInstructions,
     QASRLSettings)
 

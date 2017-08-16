@@ -1,5 +1,5 @@
-val monocleVersion = "1.4.0-M2"
 val scalaJSReactVersion = "0.11.1"
+val monocleVersion = "1.4.0-M2"
 
 lazy val root = project.in(file("."))
   .aggregate(turksemJVM, turksemJS, emnlp2017JVM, emnlp2017JS, ai2JVM, ai2JS, multitaskJVM, multitaskJS)
@@ -12,7 +12,15 @@ lazy val commonSettings = Seq(
   scalaOrganization in ThisBuild := "org.typelevel", // for fixing stupid serialization woes
   scalaVersion in ThisBuild := "2.11.8",
   scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds"),
-  addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full)
+  addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full),
+  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4"),
+  resolvers += Resolver.sonatypeRepo("snapshots"),
+  libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
+  libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
+  libraryDependencies += "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
+  libraryDependencies += "com.lihaoyi" %%% "upickle" % "0.4.1",
+  libraryDependencies += "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
+  libraryDependencies += "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
 )
 
 lazy val commonJVMSettings = Seq(
@@ -29,13 +37,7 @@ lazy val commonJSSettings = Seq(
 lazy val turksem = crossProject
   .settings(commonSettings).settings(
   name := "turksem",
-  version := "0.1-SNAPSHOT",
-  resolvers += Resolver.sonatypeRepo("snapshots"),
-  libraryDependencies ++= Seq(
-    "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
-    "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
-    "com.lihaoyi" %%% "upickle" % "0.4.1"
-  )
+  version := "0.1-SNAPSHOT"
 ).jvmSettings(commonJVMSettings).jvmSettings(
   fork in console := true,
   libraryDependencies ++= Seq(
@@ -52,9 +54,7 @@ lazy val turksem = crossProject
     "com.github.japgolly.scalajs-react" %%% "core" % scalaJSReactVersion,
     "com.github.japgolly.scalajs-react" %%% "ext-monocle" % scalaJSReactVersion,
     "com.github.japgolly.scalacss" %%% "core" % "0.4.1",
-    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1",
-    "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
-    "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1"
   ),
   jsDependencies ++= Seq(
     RuntimeDOM,
@@ -82,16 +82,7 @@ lazy val turksem = crossProject
 lazy val turksemJS = turksem.js
 lazy val turksemJVM = turksem.jvm
 
-lazy val exampleProjectSettings = Seq(
-  resolvers += Resolver.sonatypeRepo("snapshots"),
-  libraryDependencies ++= Seq(
-    "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
-    "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
-    "org.typelevel" %% "cats" % "0.9.0",
-    "com.lihaoyi" %%% "upickle" % "0.4.1"
-  ),
-  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4")
-)
+// lazy val exampleProjectSettings = Seq()
 
 lazy val exampleProjectJVMSettings = Seq(
   libraryDependencies ++= Seq(
@@ -108,7 +99,7 @@ lazy val exampleProjectJVMSettings = Seq(
 
 lazy val emnlp2017 = crossProject.in(file("example/emnlp2017"))
   .settings(commonSettings)
-  .settings(exampleProjectSettings)
+  // .settings(exampleProjectSettings)
   .settings(name := "turksem-emnlp2017",
             version := "0.1-SNAPSHOT")
   .jvmSettings(commonJVMSettings)
@@ -127,7 +118,7 @@ lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(turksemJVM).settings(
 
 lazy val ai2 = crossProject.in(file("example/ai2"))
   .settings(commonSettings)
-  .settings(exampleProjectSettings)
+  // .settings(exampleProjectSettings)
   .settings(name := "turksem-ai2",
             version := "0.1-SNAPSHOT")
   .jvmSettings(commonJVMSettings)
@@ -143,7 +134,7 @@ lazy val ai2JVM = ai2.jvm.dependsOn(turksemJVM).settings(
 
 lazy val multitask = crossProject.in(file("example/multitask"))
   .settings(commonSettings)
-  .settings(exampleProjectSettings)
+  // .settings(exampleProjectSettings)
   .settings(name := "turksem-multitask",
             version := "0.1-SNAPSHOT")
   .jvmSettings(commonJVMSettings)

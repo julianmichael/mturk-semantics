@@ -33,7 +33,7 @@ class AnnotationSetup(implicit config: TaskConfig) {
     case id @ WikiSentenceId(_) => if(isTrain(id)) 1 else 3
   }
 
-  lazy val experiment = new AnnotationPipeline(
+  lazy val experiment = new QAMRAnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService, isStopword,
     qualTest = EMNLPQualTest)

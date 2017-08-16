@@ -8,6 +8,7 @@ import com.amazonaws.mturk.requester._
 import com.amazonaws.mturk.service.axis.RequesterService
 
 import nlpdata.util._
+import nlpdata.datasets.wiktionary._
 
 import turkey._
 import turkey.tasks._
@@ -34,7 +35,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   generationAccuracyQualTypeLabel: Option[String] = None,
   validationAgreementQualTypeLabel: Option[String] = None,
   validationTestQualTypeLabel: Option[String] = None)(
-  implicit config: TaskConfig) {
+  implicit config: TaskConfig,
+  inflections: Inflections) {
 
   implicit val ads = annotationDataService
   implicit val is = isStopword
@@ -144,14 +146,16 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       approvalRateRequirement, locationRequirement, genAccuracyRequirement
     ))
 
-  lazy val genApiFlow = Flow[GenerationApiRequest[SID]].map {
-    case GenerationApiRequest(id) =>
-      GenerationApiResponse(id.tokens)
+  lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {
+    case GenerationPrompt(id, keywords) =>
+      val tokens = id.tokens
+      val templates = keywords.flatMap(kw => makeTemplateFromTokensWithVerb(tokens, kw).map(IndexWithTemplate(kw, _)))
+      QASRLGenerationApiResponse(tokens, templates)
   }
 
   lazy val sampleGenPrompt = GenerationPrompt[SID](allIds.head, tokenSplits(allIds.head.tokens).head)
 
-  lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], GenerationResponse, GenerationApiRequest[SID], GenerationApiResponse](
+  lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], GenerationResponse, QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
     generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
     frozenHITTypeId = frozenGenerationHITTypeID)
 
