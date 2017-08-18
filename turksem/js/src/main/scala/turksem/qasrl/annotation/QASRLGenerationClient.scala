@@ -47,7 +47,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
-    ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
+    ReactDOM.render(FullUI(), dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse]
@@ -422,7 +422,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         <.p(
                           <.input(
                             ^.`type` := "text",
-                            ^.name := feedbackLabel,
+                            ^.name := FieldLabels.feedbackLabel,
                             ^.placeholder := "Feedback? (Optional)",
                             ^.margin := "1px",
                             ^.padding := "1px",
@@ -432,7 +432,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         <.input(
                           ^.`type` := "submit",
                           ^.disabled := !s.qaGroups.forall(getCompleteQAPairs(_).size > 0),
-                          ^.id := submitButtonLabel,
+                          ^.id := FieldLabels.submitButtonLabel,
                           ^.value := "submit"),
                         instructions
                       )

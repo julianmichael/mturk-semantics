@@ -86,9 +86,11 @@ lazy val turksemJVM = turksem.jvm
 
 lazy val exampleProjectJVMSettings = Seq(
   libraryDependencies ++= Seq(
+    "com.lihaoyi" %% "scalatags" % "0.6.5",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
     // java deps:
     "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
+    "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0" classifier "models", // for automatically downloading pos-tagging model
     "org.slf4j" % "slf4j-api" % "1.7.21", // decided to match scala-logging transitive dep
     "ch.qos.logback" % "logback-classic" % "1.2.3",
     "log4j" % "log4j" % "1.2.17", // runtime error if not included?
@@ -146,4 +148,20 @@ lazy val multitaskJVM = multitask.jvm.dependsOn(turksemJVM).settings(
   (resources in Compile) += (fastOptJS in (multitaskJS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (multitaskJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (multitaskJS, Compile)).value
+)
+
+lazy val scisrlexample = crossProject.in(file("example/scisrlexample"))
+  .settings(commonSettings)
+// .settings(exampleProjectSettings)
+  .settings(name := "turksem-scisrlexample",
+            version := "0.1-SNAPSHOT")
+  .jvmSettings(commonJVMSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(commonJSSettings)
+
+lazy val scisrlexampleJS = scisrlexample.js.dependsOn(turksemJS)
+lazy val scisrlexampleJVM = scisrlexample.jvm.dependsOn(turksemJVM).settings(
+  (resources in Compile) += (fastOptJS in (scisrlexampleJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (scisrlexampleJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (scisrlexampleJS, Compile)).value
 )

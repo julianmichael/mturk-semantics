@@ -14,7 +14,9 @@ import java.io.StringReader
 import java.nio.file.{Files, Path, Paths}
 
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.util._
+import nlpdata.util.Text
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
 import nlpdata.datasets.ptb3._
 import nlpdata.datasets.qasrl
 import nlpdata.datasets.wiktionary

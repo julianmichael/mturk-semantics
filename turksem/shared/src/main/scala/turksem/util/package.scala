@@ -12,6 +12,23 @@ package object util extends PackagePlatformExtensions {
       .filter(ai => sets.filter(_.contains(ai)).size >= (sets.size / 2))
   }
 
+  def dollarsToCents(d: Double): Int = math.round(100 * d).toInt
+
+  def longestCommonPrefix(s: String, t: String): String =
+    (s, t).zipped.takeWhile(Function.tupled(_ == _)).map(_._1).mkString
+
+  def percent(amount: Int, total: Int): Double =
+    amount * 100.0 / total
+
+  def pctString(num: Int, denom: Int): String =
+    f"$num%d (${num * 100.0 / denom}%.2f%%)"
+  def distString[N](iter: Seq[N])(implicit N : Numeric[N]): String =
+    f"${N.toDouble(iter.sum)}%.2f (${iter.mean}%.2f ± ${iter.stdev}%.4f)"
+  def noSumDistString[N](iter: Seq[N])(implicit N : Numeric[N]): String =
+    f"${iter.mean}%.2f ± ${iter.stdev}%.4f"
+
+  def const[A](a: A): Any => A = _ => a
+
   // TODO contribute this to mouse
   implicit class RichBoolean(val b: Boolean) extends AnyVal {
     import cats.Monoid
@@ -68,21 +85,4 @@ package object util extends PackagePlatformExtensions {
   implicit class RichIterator[A](val t: Iterator[A]) extends AnyVal {
     def nextOption: Option[A] = if(t.hasNext) Some(t.next) else None
   }
-
-  def dollarsToCents(d: Double): Int = math.round(100 * d).toInt
-
-  def longestCommonPrefix(s: String, t: String): String =
-    (s, t).zipped.takeWhile(Function.tupled(_ == _)).map(_._1).mkString
-
-  def percent(amount: Int, total: Int): Double =
-    amount * 100.0 / total
-
-  def pctString(num: Int, denom: Int): String =
-    f"$num%d (${num * 100.0 / denom}%.2f%%)"
-  def distString[N](iter: Seq[N])(implicit N : Numeric[N]): String =
-    f"${N.toDouble(iter.sum)}%.2f (${iter.mean}%.2f ± ${iter.stdev}%.4f)"
-  def noSumDistString[N](iter: Seq[N])(implicit N : Numeric[N]): String =
-    f"${iter.mean}%.2f ± ${iter.stdev}%.4f"
-
-  def const[A](a: A): Any => A = _ => a
 }

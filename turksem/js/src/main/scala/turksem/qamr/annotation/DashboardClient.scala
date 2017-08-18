@@ -36,7 +36,7 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
-    ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
+    ReactDOM.render(FullUI(), dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
   val WebsocketComponent = new WebsocketComponent[Unit, SummaryInfo[SID]]

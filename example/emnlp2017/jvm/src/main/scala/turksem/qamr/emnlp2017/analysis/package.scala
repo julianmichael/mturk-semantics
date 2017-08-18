@@ -11,7 +11,9 @@ import cats.data._
 import cats.implicits._
 
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.util._
+import nlpdata.util.Text
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
 // import nlpdata.structure._
 // import nlpdata.datasets.ptb._
 // import nlpdata.datasets.wiki1k._
@@ -172,7 +174,7 @@ package object analysis {
     def getGoodInflectedIndices(admissiblePosTags: Set[String]) = posTaggedSpan.indicesYielding {
       case POSTaggedToken(t, pos) =>
         val isGood = admissiblePosTags.contains(pos)
-        inflections.getInflectedForms(t.lowerCase).filter(const(isGood))
+        inflections.getInflectedForms(t.lowerCase).filter(const(isGood)).map(_.allForms)
     }.toList
 
     def inflectFirstOccurrence(form: Int, pairs: List[(Int, List[LowerCaseString])]) = {

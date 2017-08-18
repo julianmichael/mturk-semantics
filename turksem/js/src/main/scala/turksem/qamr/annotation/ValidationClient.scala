@@ -40,7 +40,7 @@ class ValidationClient[SID : Writer : Reader](
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
-    ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
+    ReactDOM.render(FullUI(), dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[ValidationApiRequest[SID], ValidationApiResponse]
@@ -240,7 +240,7 @@ class ValidationClient[SID : Writer : Reader](
                         <.p(
                           <.input(
                             ^.`type` := "text",
-                            ^.name := feedbackLabel,
+                            ^.name := FieldLabels.feedbackLabel,
                             ^.placeholder := "Feedback? (Optional)",
                             ^.margin := "1px",
                             ^.padding := "1px",
@@ -250,7 +250,7 @@ class ValidationClient[SID : Writer : Reader](
                         <.input(
                           ^.`type` := "submit",
                           ^.disabled := !state.answers.forall(_.isComplete),
-                          ^.id := submitButtonLabel,
+                          ^.id := FieldLabels.submitButtonLabel,
                           ^.value := "submit"),
                         instructions
                       )

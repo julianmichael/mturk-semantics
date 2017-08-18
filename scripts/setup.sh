@@ -42,14 +42,14 @@ fi
 
 if [ ! -e "resources/ptb/" ]
 then
-    echo "-WARNING- Please download the Penn Treebank and place it at resources/ptb in order to run experiments related to the Penn Treebank data (including those with PropBank and NomBank)."
+    echo "-WARNING- Please download the Penn Treebank and place it at resources/ptb in order to run experiments related to the Penn Treebank data (including those with PropBank and NomBank). Relevant projects: emnlp2017"
     echo "It requires an LDC license. Webpage: https://catalog.ldc.upenn.edu/ldc99t42"
     # TODO did I use the PTB 3?
 fi
 
 if [ ! -e "resources/nombank.1.0/" ]
 then
-    read -p $'Download NomBank? [y/N]\n' answer
+    read -p $'Download NomBank? (relevant projects: emnlp2017) [y/N]\n' answer
     case ${answer:0:1} in
         y|Y )
             wget http://nlp.cs.nyu.edu/meyers/nombank/nombank.1.0.tgz \
@@ -66,7 +66,7 @@ fi
 
 if [ ! -e "resources/qasrl/" ]
 then
-    read -p $'Download the QA-SRL data? [y/N]\n' answer
+    read -p $'Download the QA-SRL data? (relevant projects: emnlp2017) [y/N]\n' answer
     case ${answer:0:1} in
         y|Y )
             wget https://www.dropbox.com/s/dvfk6rhiuzc5rmw/qasrl.tar.gz?dl=1 \
@@ -83,7 +83,7 @@ fi
 
 if [ ! -e "resources/wiki1k/" ]
 then
-    read -p $'Download Wiki1k data? [y/N]\n' answer
+    read -p $'Download Wiki1k data? (relevant projects: emnlp2017) [y/N]\n' answer
     case ${answer:0:1} in
         y|Y )
             wget https://www.dropbox.com/s/j5rmbppa4mk6hit/wiki1k.tar.gz?dl=1 \
@@ -100,7 +100,7 @@ fi
 
 if [ ! -e "resources/wiktionary/" ]
 then
-    read -p $'Download the Wiktionary data? [y/N]\n' answer
+    read -p $'Download the Wiktionary data? (relevant projects: all) [y/N]\n' answer
     case ${answer:0:1} in
         y|Y )
             wget \

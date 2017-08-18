@@ -7,8 +7,10 @@ import akka.stream.scaladsl.{Flow, Source}
 import com.amazonaws.mturk.requester._
 import com.amazonaws.mturk.service.axis.RequesterService
 
-import nlpdata.util._
-import nlpdata.datasets.wiktionary._
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
+import nlpdata.util.Text
+import nlpdata.datasets.wiktionary.Inflections
 
 import turkey._
 import turkey.tasks._

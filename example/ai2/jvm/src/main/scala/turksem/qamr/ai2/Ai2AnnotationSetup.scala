@@ -13,7 +13,9 @@ import nlpdata.datasets.ptb._
 import nlpdata.datasets.wiki1k._
 import nlpdata.datasets.wiktionary.Inflections
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.util._
+import nlpdata.util.Text
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
@@ -74,7 +76,7 @@ class Ai2AnnotationSetup(implicit config: TaskConfig) {
   // seems reasonable
   def numGenerationAssignmentsForPrompt(p: GenerationPrompt[Ai2SentenceId]) = 3
 
-  lazy val experiment = new AnnotationPipeline(
+  lazy val experiment = new QAMRAnnotationPipeline(
     allIds,
     numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,

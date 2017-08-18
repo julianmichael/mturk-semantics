@@ -11,7 +11,7 @@ trait PackagePlatformExtensions {
     verbIndex: Int)(
     implicit inflections: Inflections
   ): Option[QASRLTemplate] =
-    inflections.getWellTypedInflectedForms(tokens(verbIndex).lowerCase).map(forms =>
+    inflections.getInflectedForms(tokens(verbIndex).lowerCase).map(forms =>
       QASRLTemplate(
         Slots.getVerbSlotChoices(forms),
         Slots.getPrepositionSlotChoices(tokens)

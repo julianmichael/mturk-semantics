@@ -10,7 +10,9 @@ import java.io.StringReader
 import java.nio.file.{Files, Path, Paths}
 
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.util._
+import nlpdata.util.Text
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
 import nlpdata.datasets.ptb
 import nlpdata.datasets.ptb.PTBSentencePath
 import nlpdata.datasets.propbank
@@ -138,7 +140,7 @@ package object emnlp2017 {
         } else if(!allForms.contains(lowerQToken)) {
           Nil // no alignment
         } else {
-          List(qIndex -> InflectedAlignment(sIndex, inflectedFormsOpt.flatMap(_.indexOpt(lowerQToken))))
+          List(qIndex -> InflectedAlignment(sIndex, inflectedFormsOpt.flatMap(_.allForms.indexOpt(lowerQToken))))
         }
       }
     } yield res

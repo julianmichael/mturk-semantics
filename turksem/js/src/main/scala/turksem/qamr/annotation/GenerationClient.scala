@@ -41,7 +41,7 @@ class GenerationClient[SID : Reader : Writer](
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
-    ReactDOM.render(FullUI(), dom.document.getElementById(rootClientDivLabel))
+    ReactDOM.render(FullUI(), dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[GenerationApiRequest[SID], GenerationApiResponse]
@@ -264,7 +264,7 @@ class GenerationClient[SID : Reader : Writer](
                         <.p(
                           <.input(
                             ^.`type` := "text",
-                            ^.name := feedbackLabel,
+                            ^.name := FieldLabels.feedbackLabel,
                             ^.placeholder := "Feedback? (Optional)",
                             ^.margin := "1px",
                             ^.padding := "1px",
@@ -274,7 +274,7 @@ class GenerationClient[SID : Reader : Writer](
                         <.input(
                           ^.`type` := "submit",
                           ^.disabled := !s.qaGroups.forall(_.filter(isComplete).size > 0),
-                          ^.id := submitButtonLabel,
+                          ^.id := FieldLabels.submitButtonLabel,
                           ^.value := "submit"),
                         instructions
                       )

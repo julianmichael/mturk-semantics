@@ -3,7 +3,9 @@ package turksem.qamr
 import turksem.qamr.annotation._
 import nlpdata.datasets.wiktionary
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.util._
+import nlpdata.util.Text
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
 
 import scala.util.Try
 import java.io.StringReader

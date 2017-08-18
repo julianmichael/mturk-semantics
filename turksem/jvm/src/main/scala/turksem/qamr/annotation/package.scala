@@ -12,7 +12,9 @@ import turkey.tasks._
 import scala.util.Try
 import upickle.default._
 
-import nlpdata.util._
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
+import nlpdata.util.Text
 
 trait PackagePlatformExtensions {
 
