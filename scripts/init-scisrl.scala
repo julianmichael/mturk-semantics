@@ -7,7 +7,7 @@ import scala.concurrent.duration._
 
 val isProduction = false // sandbox. change to true for production
 val domain = "localhost" // change to your domain, or keep localhost for testing
-val projectName = "turksem-scisrlexample" // make sure it matches the SBT project;
+val projectName = "turksem-scisrl" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
 
 val annotationPath = java.nio.file.Paths.get("annotations")

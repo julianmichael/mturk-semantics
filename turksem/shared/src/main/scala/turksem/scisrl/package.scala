@@ -11,9 +11,18 @@ package object scisrl {
   // input to the task
   case class SciSRLPrompt[SID](sentenceId: SID, verbIndices: List[Int])
 
-  // TODO
+  // represents each span as its set of indices in the sentence
+  case class Proposition(
+    subj: Option[Set[Int]],
+    obj: Option[Set[Int]],
+    loc: Option[Set[Int]],
+    time: Option[Set[Int]])
+
   // output of the task that turkers produce
-  case class SciSRLResponse()
+  case class SciSRLResponse(
+    propositions: List[Proposition],
+    enablers: Set[(Int, Int)], // (i, j) -> propositions(i) enables propositions(j)
+    preventers: Set[(Int, Int)]) // (i, j) -> propositions(i) prevents propositions(j)
 
   // request type for the task client to send the server over websockets
   case class SciSRLApiRequest[SID](prompt: SciSRLPrompt[SID])

@@ -62,7 +62,9 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
   // represents the answer to one of the kinds of questions. spans can be non-contiguous (it's easier to implement this way anyway)
   @Lenses case class AnswerSpan(
     indices: Set[Int],
-    isInvalid: Boolean)
+    isInvalid: Boolean) {
+    def toOptionalSpan = isInvalid.ifTrue(Option(indices))
+  }
   object AnswerSpan {
     val empty = AnswerSpan(Set.empty[Int], false)
   }
@@ -82,6 +84,12 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
     def subjSpan = spans(1)
     def locSpan  = spans(2)
     def timeSpan = spans(3)
+
+    val propositionObject = Proposition(
+      subj = subjSpan.toOptionalSpan,
+      obj  =  objSpan.toOptionalSpan,
+      loc  =  locSpan.toOptionalSpan,
+      time = timeSpan.toOptionalSpan)
 
     val originalVerb = Text.normalizeToken(sentence(verbIndex)).toLowerCase
     val verbStem = inflectedForms.stem
@@ -161,12 +169,18 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
   // global state for the interface.
   @Lenses case class State(
     qaGroups: List[QAGroup],
-    evRelations: Unit,
-    curFocus: (Int, Int)) // (group index, question index)
+    enablers: Set[(Int, Int)],
+    preventers: Set[(Int, Int)],
+    curFocus: (Int, Int)) {// (group index, question index)
+    val response = SciSRLResponse(
+      qaGroups.map(_.propositionObject),
+      enablers,
+      preventers)
+  }
 
   object State {
     // for before we have the response from the server
-    val empty: State = State(Nil, (), (0, 0))
+    val empty: State = State(Nil, Set.empty[(Int, Int)], Set.empty[(Int, Int)], (0, 0))
     // ...and for after we receive it
     def initFromResponse(response: SciSRLApiResponse): State = response match {
       case SciSRLApiResponse(posTaggedSentence, verbInflectedForms) =>
@@ -174,7 +188,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
           case (verbIndex, inflectedForms) =>
             QAGroup(posTaggedSentence, verbIndex, inflectedForms, List.fill(4)(AnswerSpan.empty))
         }.toList
-        State(qaGroups, (), (0, 0))
+        State(qaGroups, Set.empty[(Int, Int)], Set.empty[(Int, Int)], (0, 0))
     }
   }
 
@@ -186,6 +200,12 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
   def answerLens(groupIndex: Int, questionIndex: Int) = groupLens(groupIndex)
     .composeLens(QAGroup.spans)
     .composeOptional(index(questionIndex))
+
+  def enablerLens(enabler: Int, enablee: Int) = State.enablers
+    .composeLens(at((enabler, enablee)))
+
+  def preventerLens(preventer: Int, preventee: Int) = State.preventers
+    .composeLens(at((preventer, preventee)))
 
   // used to determine whether the HIT can be submitted
 
@@ -255,9 +275,9 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
     // should be called any time the relevant state changes what the response to the HIT should be.
     // you can see this is the case below: `.componentDidUpdate(context => context.$.backend.updateResponse)` does this.
     def updateResponse: Callback = scope.state.map { st =>
-      // TODO actual data
       // setResponse is taken from the TaskClient superclass and writes the response data to the DOM to be submitted through Turk.
-      setResponse(SciSRLResponse())
+      println("setting response... " + write(st.response))
+      setResponse(st.response)
     }
 
     def qaField(state: State, groupIndex: Int, questionIndex: Int, sentence: Vector[String], question: String) = {
@@ -308,7 +328,11 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
       )
     }
 
-    def makeEventRelationsQuestion(state: State, groupIndex: Int, relationWord: String) = {
+    def makeEventRelationsQuestion(
+      state: State,
+      groupIndex: Int,
+      relationWord: String,
+      relationLens: Int => Lens[State, Boolean]) = {
       val group = state.qaGroups(groupIndex)
       val prop = group.propositionGerund
       <.div(
@@ -319,9 +343,9 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
             case (relGroup, relGroupIndex) =>
               <.li(
                 <.input(
-                  ^.`type` := "checkbox"
-                    // ^.checked := isGood,
-                    // ^.onChange --> scope.modState(isGoodLens.modify(!_))
+                  ^.`type` := "checkbox",
+                  ^.checked := relationLens(relGroupIndex).get(state),
+                  ^.onChange --> scope.modState(relationLens(relGroupIndex).modify(!_))
                 ),
                 " ",
                 relGroup.proposition
@@ -332,8 +356,8 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
     }
 
     def makeEventRelationsForm(state: State, groupIndex: Int) = <.div(
-      makeEventRelationsQuestion(state, groupIndex, "enabled"),
-      makeEventRelationsQuestion(state, groupIndex, "prevented")
+      makeEventRelationsQuestion(state, groupIndex, "enabled", enablerLens(groupIndex, _)),
+      makeEventRelationsQuestion(state, groupIndex, "prevented", preventerLens(groupIndex, _))
     )
 
     def render(s: State) = {
