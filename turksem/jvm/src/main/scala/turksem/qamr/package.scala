@@ -1,4 +1,4 @@
-package turksem.qamr.annotation
+package turksem.qamr
 
 import cats.implicits._
 

@@ -1,6 +1,5 @@
 package turksem.qamr
 
-import turksem.qamr.annotation._
 import nlpdata.datasets.wiktionary
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.util.Text

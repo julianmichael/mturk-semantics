@@ -1,9 +1,8 @@
 package turksem.qamr.emnlp2017
 
 import turksem._
-import turksem.qamr._
 import turksem.qamr.emnlp2017._
-import turksem.qamr.annotation._
+import turksem.qamr._
 import turksem.util._
 
 import cats._

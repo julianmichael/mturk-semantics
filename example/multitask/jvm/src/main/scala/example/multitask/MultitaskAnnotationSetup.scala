@@ -1,8 +1,7 @@
 package example.multitask
 
-import turksem.qamr._
-import turksem.qamr.annotation._
-import turksem.qasrl.annotation._
+import turksem.qasrl.QASRLAnnotationPipeline
+import turksem.qasrl.QASRLGenerationPrompt
 import turksem.util._
 
 import turkey._
@@ -28,7 +27,7 @@ import upickle.default._
 
 class MultitaskAnnotationSetup(implicit config: TaskConfig) {
 
-  def numGenerationAssignmentsForPrompt(p: GenerationPrompt[SentenceId]) = 1
+  def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[SentenceId]) = 1
 
   lazy val experiment = new QASRLAnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,

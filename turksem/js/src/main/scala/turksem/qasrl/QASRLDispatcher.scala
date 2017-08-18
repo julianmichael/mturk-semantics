@@ -1,6 +1,4 @@
-package turksem.qasrl.annotation
-
-import turksem.qasrl._
+package turksem.qasrl
 
 import turkey.tasks._
 
@@ -21,12 +19,12 @@ abstract class QASRLDispatcher[SID : Reader : Writer] extends TaskDispatcher {
     generationInstructions,
     QASRLSettings)
 
-  lazy val valClient = new turksem.qamr.annotation.ValidationClient[SID](
+  lazy val valClient = new turksem.qamr.ValidationClient[SID](
     validationInstructions,
     QASRLSettings)
 
-  val dashClient: turksem.qamr.annotation.DashboardClient[SID] =
-    new turksem.qamr.annotation.DashboardClient[SID](QASRLSettings)
+  val dashClient: turksem.qamr.DashboardClient[SID] =
+    new turksem.qamr.DashboardClient[SID](QASRLSettings)
 
   final override lazy val taskMapping = Map[String, () => Unit](
     QASRLSettings.generationTaskKey -> genClient.main,

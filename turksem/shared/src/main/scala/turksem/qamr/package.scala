@@ -1,4 +1,4 @@
-package turksem.qamr
+package turksem
 
 import nlpdata.util.Text
 
@@ -6,7 +6,7 @@ import turksem.util._
 import turksem._
 import turkey._
 
-package object annotation extends PackagePlatformExtensions {
+package object qamr extends PackagePlatformExtensions {
 
   // prompt/response datatypes for turk tasks and websocket APIs
 

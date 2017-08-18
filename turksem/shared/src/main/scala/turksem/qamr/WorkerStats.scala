@@ -1,6 +1,5 @@
-package turksem.qamr.annotation
+package turksem.qamr
 
-import turksem.qamr._
 import turksem.util._
 
 /** Data structure to keep track of a single worker's stats on the generation task. */

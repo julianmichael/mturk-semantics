@@ -1,3 +1,3 @@
-package turksem.qasrl.annotation
+package turksem.qamr
 
 trait PackagePlatformExtensions

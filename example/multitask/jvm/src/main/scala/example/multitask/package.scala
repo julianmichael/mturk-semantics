@@ -4,8 +4,7 @@ import cats._
 import cats.implicits._
 
 import turksem.FileSystemAnnotationDataService
-import turksem.qamr.annotation._
-import turksem.qasrl.annotation._
+import turksem.qamr._
 
 import edu.stanford.nlp.ling.Word
 import edu.stanford.nlp.process.PTBTokenizer

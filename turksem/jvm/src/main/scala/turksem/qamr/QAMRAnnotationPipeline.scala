@@ -1,4 +1,4 @@
-package turksem.qamr.annotation
+package turksem.qamr
 
 import cats.implicits._
 
@@ -16,7 +16,6 @@ import turkey.tasks._
 
 import turksem._
 import turksem.util._
-import turksem.qamr._
 
 import upickle.default._
 

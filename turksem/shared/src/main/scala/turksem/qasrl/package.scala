@@ -2,7 +2,9 @@ package turksem
 
 package object qasrl extends PackagePlatformExtensions {
 
-  type QASRLGenerationApiRequest[SID] = qamr.annotation.GenerationPrompt[SID]
+  type QASRLGenerationPrompt[SID] = qamr.GenerationPrompt[SID]
+
+  type QASRLGenerationApiRequest[SID] = qamr.GenerationPrompt[SID]
 
   case class IndexWithTemplate(
     wordIndex: Int,

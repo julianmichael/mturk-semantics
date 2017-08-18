@@ -1,8 +1,8 @@
 package example.multitask
 
 import turksem.qasrl.QASRLSettings
-import turksem.qasrl.annotation._
-import turksem.qamr.annotation._
+import turksem.qasrl.QASRLDispatcher
+import turksem.qamr._
 import turksem.util._
 
 import japgolly.scalajs.react.vdom.prefix_<^._

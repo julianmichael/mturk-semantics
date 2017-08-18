@@ -1,10 +1,9 @@
-package turksem.qamr.annotation
+package turksem.qamr
 
 import turkey._
 import turkey.tasks._
 
 import turksem._
-import turksem.qamr._
 import turksem.util._
 
 import scala.collection.mutable

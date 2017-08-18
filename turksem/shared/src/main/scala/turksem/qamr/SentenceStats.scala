@@ -1,7 +1,6 @@
-package turksem.qamr.annotation
+package turksem.qamr
 
 import turksem.util._
-import turksem.qamr._
 
 import turkey._
 

@@ -1,6 +1,4 @@
-package turksem.qamr.annotation
-
-import turksem.qamr._
+package turksem.qamr
 
 /** Data structure to keep track of a single worker's stats on the validation task. */
 case class WorkerInfo(

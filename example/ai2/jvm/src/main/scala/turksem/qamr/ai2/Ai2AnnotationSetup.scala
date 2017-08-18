@@ -2,7 +2,6 @@ package turksem.qamr.ai2
 
 import turksem._
 import turksem.qamr._
-import turksem.qamr.annotation._
 import turksem.util._
 
 import turkey._

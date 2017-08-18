@@ -1,7 +1,6 @@
 package turksem.qamr
 
 import turksem._
-import turksem.qamr.annotation._
 
 import edu.stanford.nlp.ling.Word
 import edu.stanford.nlp.process.PTBTokenizer
