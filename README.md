@@ -23,15 +23,23 @@ Some of the most important components include the following:
 After cloning this repo, run ```./scripts/setup.sh``` (you need `wget`)
 and it should tell you what to do and download the necessary files.
 
-In order to run all of the examples, you will need to download the
+In order to run some of the examples, you may need to download the
 [Penn Treebank](https://catalog.ldc.upenn.edu/ldc99t42) from the LDC---which requires a license---and
 place it at `resources/ptb`.
 
 In order to run any Mechanical Turk host, you will need to place a file called `mturk.properties`
-in the base directory containing your AWS credentials for MTurk. (See `scripts/setup.sh`.)
+in the base directory containing your AWS credentials for MTurk (See `scripts/setup.sh`),
+and you will need your SSL certs/keystore in the `resources` folder of your project
+(ask me for details on this part) in order for it to work on MTurk.
 
 ## Usage
 
-Assuming all of the setup is done, you can run our example annotation pipeline by executing `scripts/run.sh`.
-This will open up the sbt console and start the webserver; at this point `exp.start` will begin uploading
-HITs to the MTurk sandbox.
+Assuming all of the setup is done, you can run an example annotation pipeline by executing `scripts/run.sh <project>`
+(e.g., `scripts/run.sh scisrl`).
+This will open up the sbt console and start the webserver.
+At this point entering `exp.start` on the console will cause it to begin uploading HITs.
+However, by default the task will point at `localhost` for JS files, which means you won't be able to test it on MTurk,
+but you will be able to view the interface at `localhost:8888?taskKey=generation`.
+Change the value of `domain` in `scripts/init-<project>.scala` to set the appropriate domain name where Turk can reach your server;
+then you should be able to view and do example HITs on the sandbox.
+To go to production, change the value of `isProduction` to `true` in `scripts/init-<project>.scala`.

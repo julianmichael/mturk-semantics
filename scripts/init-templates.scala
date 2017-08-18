@@ -1,8 +1,8 @@
 import cats._
 import cats.data._
 import cats.implicits._
-import turksem.qamr.emnlp2017._
-import turksem.qamr.emnlp2017.analysis._
+import example.emnlp2017._
+import example.emnlp2017.analysis._
 val trainTA = new TemplateAnalysis(Datasets.train)
 val devTA = new TemplateAnalysis(Datasets.dev)
 def loadDevSentence(i: Int) = {
