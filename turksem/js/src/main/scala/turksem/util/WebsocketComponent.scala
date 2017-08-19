@@ -10,7 +10,7 @@ import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -33,7 +33,7 @@ class WebsocketComponent[Request : Writer, Response : Reader] {
   case class WebsocketProps(
     websocketURI: String,
     onMessage: (Response => Callback) = (_ => Callback.empty),
-    render: (WebsocketState => ReactElement))
+    render: (WebsocketState => VdomElement))
 
   class WebsocketBackend(scope: BackendScope[WebsocketProps, WebsocketState]) {
     def connect(props: WebsocketProps): Callback = scope.state map {
@@ -70,7 +70,7 @@ class WebsocketComponent[Request : Writer, Response : Reader] {
       props.render(s)
   }
 
-  val Websocket = ReactComponentB[WebsocketProps]("Websocket")
+  val Websocket = ScalaComponent.builder[WebsocketProps]("Websocket")
     .initialState(Connecting: WebsocketState)
     .renderBackend[WebsocketBackend]
     .componentDidMount(context => context.backend.connect(context.props))

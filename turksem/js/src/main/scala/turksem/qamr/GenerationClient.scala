@@ -16,7 +16,7 @@ import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -29,7 +29,7 @@ import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
 class GenerationClient[SID : Reader : Writer](
-  instructions: ReactTag,
+  instructions: VdomTag,
   requireWhAtQuestionBeginning: Boolean,
   settings: PipelineSettings)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
@@ -40,7 +40,7 @@ class GenerationClient[SID : Reader : Writer](
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
-    ReactDOM.render(FullUI(), dom.document.getElementById(FieldLabels.rootClientDivLabel))
+    FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[GenerationApiRequest[SID], GenerationApiResponse]
@@ -108,11 +108,12 @@ class GenerationClient[SID : Reader : Writer](
             ^.margin := "1px",
             ^.padding := "1px",
             ^.textAlign := "right",
-            (charsLeft <= 10 && isFocused) ?= s"$charsLeft"
+            s"$charsLeft".when(charsLeft <= 10 && isFocused)
           ),
           <.input(
-            isNotAssigned ?= (^.disabled := true),
-            (!question.isEmpty && !isFocused && requireWhAtQuestionBeginning && !beginsWithWh(question)) ?= (^.backgroundColor := "#FF8888"),
+            (^.disabled := true).when(isNotAssigned),
+            (^.backgroundColor := "#FF8888").when(
+              !question.isEmpty && !isFocused && requireWhAtQuestionBeginning && !beginsWithWh(question)),
             ^.float := "left",
             ^.`type` := "text",
             ^.placeholder := (
@@ -125,7 +126,7 @@ class GenerationClient[SID : Reader : Writer](
             ^.size := questionCharLimit,
             ^.maxLength := questionCharLimit,
             ^.onChange ==> (
-              (e: ReactEventI) => {
+              (e: ReactEventFromInput) => {
                 val newValue = e.target.value
                 scope.modState(
                   State.qaGroups.modify(groups =>
@@ -144,13 +145,13 @@ class GenerationClient[SID : Reader : Writer](
             ^.float := "left",
             ^.minHeight := "1px",
             ^.width := "25px",
-            isFocused ?= "-->"
+            "-->".when(isFocused)
           ),
           <.div(
             ^.float := "left",
             ^.margin := "1px",
             ^.padding := "1px",
-            isAnswerEmpty ?= (^.color := "#CCCCCC"),
+            (^.color := "#CCCCCC").when(isAnswerEmpty),
             if(isAnswerEmpty && isFocused) {
               "Highlight your answer above"
             } else {
@@ -212,8 +213,8 @@ class GenerationClient[SID : Reader : Writer](
                                 " ")),
                             (index: Int) => List(
                               <.span(
-                                prompt.keywords.contains(index) ?= Styles.specialWord,
-                                prompt.keywords.contains(index) ?= Styles.niceBlue,
+                                Styles.specialWord.when(prompt.keywords.contains(index)),
+                                Styles.niceBlue.when(prompt.keywords.contains(index)),
                                 ^.backgroundColor := (
                                   if(curAnswer.contains(index)) {
                                     "#FFFF00"
@@ -223,7 +224,7 @@ class GenerationClient[SID : Reader : Writer](
                                 ),
                                 ^.onMouseMove --> touchWord(index),
                                 ^.onMouseDown ==> (
-                                  (e: ReactEventI) => if(curAnswer.contains(index)) {
+                                  (e: ReactEvent) => if(curAnswer.contains(index)) {
                                     e.stopPropagation
                                     startErase >> touchWord(index)
                                   } else {
@@ -232,9 +233,9 @@ class GenerationClient[SID : Reader : Writer](
                                 ),
                                 Text.normalizeToken(sentence(index))
                               ))
-                          )),
+                          ).toVdomArray),
                         <.div(
-                          (0 until s.qaGroups.size).map(groupIndex =>
+                          (0 until s.qaGroups.size).toVdomArray(groupIndex =>
                             <.div(
                               <.p(
                                 Styles.bolded,
@@ -242,7 +243,7 @@ class GenerationClient[SID : Reader : Writer](
                               ),
                               <.ul(
                                 Styles.listlessList,
-                                (0 until s.qaGroups(groupIndex).size).map(qaIndex =>
+                                (0 until s.qaGroups(groupIndex).size).toVdomArray(qaIndex =>
                                   <.li(
                                     ^.display := "block",
                                     qaField(s, sentence, groupIndex, qaIndex)
@@ -255,8 +256,8 @@ class GenerationClient[SID : Reader : Writer](
                         <.p(
                           "Potential bonus so far: ",
                           <.span(
-                            curPotentialBonus > 0 ?= Styles.goodGreen,
-                            curPotentialBonus > 0 ?= Styles.bolded,
+                            Styles.goodGreen.when(curPotentialBonus > 0),
+                            Styles.bolded.when(curPotentialBonus > 0),
                             s"${math.round(100 * curPotentialBonus).toInt}c"
                           )
                         ),
@@ -282,10 +283,10 @@ class GenerationClient[SID : Reader : Writer](
     }
   }
 
-  val FullUI = ReactComponentB[Unit]("Full UI")
+  val FullUI = ScalaComponent.builder[Unit]("Full UI")
     .initialState(State.initial)
     .renderBackend[FullUIBackend]
-    .componentDidUpdate(context => context.$.backend.updateResponse)
+    .componentDidUpdate(_.backend.updateResponse)
     .build
 
 }

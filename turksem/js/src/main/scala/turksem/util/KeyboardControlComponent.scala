@@ -1,6 +1,6 @@
 package turksem.util
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import monocle._
@@ -13,7 +13,7 @@ object KeyboardControlComponent {
   case class KeyboardControlProps(
     handleKey: ReactKeyboardEvent => Callback,
     message: String,
-    render: ReactTag)
+    render: VdomTag)
 
   class KeyboardControlBackend(scope: BackendScope[KeyboardControlProps, KeyboardControlState]) {
     def render(props: KeyboardControlProps, state: KeyboardControlState) = <.div(
@@ -22,7 +22,7 @@ object KeyboardControlComponent {
       ^.onBlur --> scope.modState(KeyboardControlState.isFocused.set(false)),
       ^.onKeyDown ==> props.handleKey,
       ^.position := "relative",
-      !state.isFocused ?= <.div(
+      <.div(
         ^.position := "absolute",
         ^.top := "20px",
         ^.left := "0px",
@@ -31,12 +31,13 @@ object KeyboardControlComponent {
         ^.textAlign := "center",
         ^.color := "rgba(48, 140, 20, .3)",
         ^.fontSize := "48pt",
-        props.message),
+        props.message
+      ).when(!state.isFocused),
       props.render
     )
   }
 
-  val KeyboardControl = ReactComponentB[KeyboardControlProps]("Keyboard Control")
+  val KeyboardControl = ScalaComponent.builder[KeyboardControlProps]("Keyboard Control")
     .initialState(KeyboardControlState(false))
     .renderBackend[KeyboardControlBackend]
     .build

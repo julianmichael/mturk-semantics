@@ -1,3 +1,4 @@
+import example.multitask
 import turksem.qamr._
 import turksem.qasrl._
 import turksem.util._

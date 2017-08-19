@@ -7,7 +7,7 @@ import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -44,7 +44,7 @@ class HighlightingComponent[Index] {
     isEnabled: Boolean,
     update: HighlightingState => Callback,
     initial: Set[Index] = Set.empty[Index],
-    render: (HighlightingState, HighlightingContext) => ReactElement)
+    render: (HighlightingState, HighlightingContext) => VdomElement)
 
   class HighlightingBackend(scope: BackendScope[HighlightingProps, HighlightingState]) {
 
@@ -72,8 +72,8 @@ class HighlightingComponent[Index] {
       props.render(state, HighlightingContext(setSpan, startHighlight, startErase, stop, touchElement(props)))
   }
 
-  val Highlighting = ReactComponentB[HighlightingProps]("Highlighting")
-    .initialState_P(props => HighlightingState.init(props.initial))
+  val Highlighting = ScalaComponent.builder[HighlightingProps]("Highlighting")
+    .initialStateFromProps(props => HighlightingState.init(props.initial))
     .renderBackend[HighlightingBackend]
     .build
 }

@@ -23,7 +23,7 @@ import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -42,7 +42,7 @@ import japgolly.scalajs.react.MonocleReact._
   * Extends TaskClient, which provides a bunch of fields (like `prompt`, which is the input to this task instance)
   * that extract data relevant to this HIT from the HTML on the underlying page.
   */
-class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
+class SciSRLClient[SID : Reader : Writer](instructions: VdomTag)(
   implicit promptReader: Reader[SciSRLPrompt[SID]], // need bc macro serializers fail for superclass constructor parameters
   responseWriter: Writer[SciSRLResponse] // same as above
 ) extends TaskClient[SciSRLPrompt[SID], SciSRLResponse] {
@@ -296,12 +296,12 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
           ^.borderRadius := "2px",
           ^.textAlign := "center",
           ^.width := "55px",
-          answer.isInvalid ?= (^.backgroundColor := "#E01010"),
+          (^.backgroundColor := "#E01010").when(answer.isInvalid ),
           ^.onClick --> toggleInvalid(groupIndex, questionIndex),
           "Invalid"
         ),
         <.span(
-          isFocused ?= Styles.bolded,
+          Styles.bolded.when(isFocused),
           Styles.unselectable,
           ^.float := "left",
           ^.margin := "1px",
@@ -314,13 +314,13 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
           ^.float := "left",
           ^.minHeight := "1px",
           ^.width := "25px",
-          isFocused ?= "-->"
+          "-->".when(isFocused)
         ),
         <.div(
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
-          (answer.isInvalid || answer.indices.isEmpty) ?= (^.color := "#CCCCCC"),
+          (^.color := "#CCCCCC").when((answer.isInvalid || answer.indices.isEmpty)),
           if(answer.isInvalid) "N/A"
           else if(isFocused && answer.indices.isEmpty) "Highlight answer above, move with arrow keys"
           else Text.renderSpan(sentence, answer.indices)
@@ -339,7 +339,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
         <.p("Please check the propositions below that are ", <.b(relationWord), " by ", prop, "."),
         <.ul(
           ^.classSet1("list-unstyled"),
-          state.qaGroups.zipWithIndex.filter(_._2 != groupIndex).map {
+          state.qaGroups.zipWithIndex.filter(_._2 != groupIndex).toVdomArray {
             case (relGroup, relGroupIndex) =>
               <.li(
                 <.input(
@@ -414,11 +414,11 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
                                       ^.backgroundColor := "white",
                                       ^.classSet1("blockquote"),
                                       Styles.unselectable,
-                                      elements)
+                                      elements.toVdomArray)
                                   ))
                               ),
                               <.div(
-                                s.qaGroups.zipWithIndex.map {
+                                s.qaGroups.zipWithIndex.toVdomArray {
                                   case (group, groupIndex) =>
                                     <.div(
                                       <.h4(
@@ -435,7 +435,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
                           )
                         ),
                         // relations between predicates
-                        <.div(s.qaGroups.indices.map(makeEventRelationsForm(s, _)).toList),
+                        <.div(s.qaGroups.indices.toVdomArray(makeEventRelationsForm(s, _))),
                         <.p(
                           <.input(
                             ^.`type` := "text",
@@ -459,14 +459,14 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
     }
   }
 
-  val FullUI = ReactComponentB[Unit]("Full UI")
+  val FullUI = ScalaComponent.builder[Unit]("Full UI")
     .initialState(State.empty).renderBackend[FullUIBackend]
-    .componentDidUpdate(context => context.$.backend.updateResponse)
+    .componentDidUpdate(_.backend.updateResponse)
     .build
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
-    ReactDOM.render(FullUI(), dom.document.getElementById(FieldLabels.rootClientDivLabel))
+    FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
 }

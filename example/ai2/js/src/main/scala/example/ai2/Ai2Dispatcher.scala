@@ -4,7 +4,7 @@ import turksem.qamr.QAMRSettings
 import turksem.qamr.QAMRDispatcher
 import turksem.util._
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -18,17 +18,13 @@ object Ai2Dispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
 
   override val requireWhAtQuestionBeginning = true
 
-  import japgolly.scalajs.react.vdom.prefix_<^._
-  import japgolly.scalajs.react._
-
   import scalacss.DevDefaults._
   import scalacss.ScalaCssReact._
 
   def generationExample(question: String, answer: String, isGood: Boolean, tooltip: String) =
     <.li(
       <.div(
-        isGood ?= Styles.goodGreen,
-        !isGood ?= Styles.badRed,
+        if(isGood) Styles.goodGreen else Styles.badRed,
         ^.className := "tooltip",
         <.span(question),
         <.span(" --> "),
@@ -222,8 +218,7 @@ object Ai2Dispatcher extends QAMRDispatcher[Ai2SentenceId] with JSApp {
         <.span(question),
         <.span(" --> "),
         <.span(
-          isGood ?= Styles.goodGreen,
-          !isGood ?= Styles.badRed,
+          if(isGood) Styles.goodGreen else Styles.badRed,
           answer),
         <.span(^.className := "tooltiptext", tooltip)
       )

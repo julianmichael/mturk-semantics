@@ -10,7 +10,7 @@ import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -38,7 +38,7 @@ class WebsocketLoadableComponent[Request : Writer, Response : Reader] {
     request: Request,
     onLoad: (Response => Callback) = (_ => Callback.empty),
     onMessage: (Response => Callback) = (_ => Callback.empty),
-    render: (WebsocketLoadableState => ReactElement))
+    render: (WebsocketLoadableState => VdomElement))
 
   class WebsocketLoadableBackend(scope: BackendScope[WebsocketLoadableProps, WebsocketLoadableState]) {
     def load(props: WebsocketLoadableProps): Callback = scope.state map {
@@ -86,7 +86,7 @@ class WebsocketLoadableComponent[Request : Writer, Response : Reader] {
       props.render(s)
   }
 
-  val WebsocketLoadable = ReactComponentB[WebsocketLoadableProps]("Websocket Loadable")
+  val WebsocketLoadable = ScalaComponent.builder[WebsocketLoadableProps]("Websocket Loadable")
     .initialState(Connecting: WebsocketLoadableState)
     .renderBackend[WebsocketLoadableBackend]
     .componentDidMount(context => context.backend.load(context.props))

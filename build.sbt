@@ -1,4 +1,4 @@
-val scalaJSReactVersion = "0.11.1"
+val scalaJSReactVersion = "1.1.0"
 val monocleVersion = "1.4.0-M2"
 
 lazy val root = project.in(file("."))
@@ -27,6 +27,10 @@ lazy val commonJVMSettings = Seq(
   fork in console := true
 )
 
+// TODO: update this to the new hotness with newer scala.js version!
+// scalaJSUseMainModuleInitializer
+// need to change this in turkey as well..
+
 lazy val commonJSSettings = Seq(
   relativeSourceMaps := true,
   scalaJSStage in Global := FastOptStage,
@@ -53,25 +57,25 @@ lazy val turksem = crossProject
     "be.doeraene" %%% "scalajs-jquery" % "0.9.0",
     "com.github.japgolly.scalajs-react" %%% "core" % scalaJSReactVersion,
     "com.github.japgolly.scalajs-react" %%% "ext-monocle" % scalaJSReactVersion,
-    "com.github.japgolly.scalacss" %%% "core" % "0.4.1",
-    "com.github.japgolly.scalacss" %%% "ext-react" % "0.4.1"
+    "com.github.japgolly.scalacss" %%% "core" % "0.5.3",
+    "com.github.japgolly.scalacss" %%% "ext-react" % "0.5.3"
   ),
   jsDependencies ++= Seq(
     RuntimeDOM,
     "org.webjars" % "jquery" % "2.1.4" / "2.1.4/jquery.js",
 
-    "org.webjars.bower" % "react" % "15.0.2"
+    "org.webjars.bower" % "react" % "15.6.1"
       /        "react-with-addons.js"
       minified "react-with-addons.min.js"
       commonJSName "React",
 
-    "org.webjars.bower" % "react" % "15.0.2"
+    "org.webjars.bower" % "react" % "15.6.1"
       /         "react-dom.js"
       minified  "react-dom.min.js"
       dependsOn "react-with-addons.js"
       commonJSName "ReactDOM",
 
-    "org.webjars.bower" % "react" % "15.0.2"
+    "org.webjars.bower" % "react" % "15.6.1"
       /         "react-dom-server.js"
       minified  "react-dom-server.min.js"
       dependsOn "react-dom.js"
@@ -82,9 +86,9 @@ lazy val turksem = crossProject
 lazy val turksemJS = turksem.js
 lazy val turksemJVM = turksem.jvm
 
-// lazy val exampleProjectSettings = Seq()
+lazy val exampleProjectSettings = commonSettings
 
-lazy val exampleProjectJVMSettings = Seq(
+lazy val exampleProjectJVMSettings = commonJVMSettings ++ Seq(
   libraryDependencies ++= Seq(
     "com.lihaoyi" %% "scalatags" % "0.6.5",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
@@ -99,17 +103,14 @@ lazy val exampleProjectJVMSettings = Seq(
   )
 )
 
+lazy val exampleProjectJSSettings = commonJSSettings
+
 lazy val emnlp2017 = crossProject.in(file("example/emnlp2017"))
-  .settings(commonSettings)
-  // .settings(exampleProjectSettings)
-  .settings(name := "turksem-emnlp2017",
-            version := "0.1-SNAPSHOT")
-  .jvmSettings(commonJVMSettings)
+  .settings(name := "turksem-emnlp2017", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
   .jvmSettings(exampleProjectJVMSettings)
-  .jvmSettings(
-  libraryDependencies += "io.argonaut" %% "argonaut" % "6.1"
-)
-  .jsSettings(commonJSSettings)
+  .jvmSettings(libraryDependencies += "io.argonaut" %% "argonaut" % "6.1")
+  .jsSettings(exampleProjectJSSettings)
 
 lazy val emnlp2017JS = emnlp2017.js.dependsOn(turksemJS)
 lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(turksemJVM).settings(
@@ -119,13 +120,10 @@ lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(turksemJVM).settings(
 )
 
 lazy val ai2 = crossProject.in(file("example/ai2"))
-  .settings(commonSettings)
-  // .settings(exampleProjectSettings)
-  .settings(name := "turksem-ai2",
-            version := "0.1-SNAPSHOT")
-  .jvmSettings(commonJVMSettings)
+  .settings(name := "turksem-ai2", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
   .jvmSettings(exampleProjectJVMSettings)
-  .jsSettings(commonJSSettings)
+  .jsSettings(exampleProjectJSSettings)
 
 lazy val ai2JS = ai2.js.dependsOn(turksemJS)
 lazy val ai2JVM = ai2.jvm.dependsOn(turksemJVM).settings(
@@ -135,13 +133,10 @@ lazy val ai2JVM = ai2.jvm.dependsOn(turksemJVM).settings(
 )
 
 lazy val multitask = crossProject.in(file("example/multitask"))
-  .settings(commonSettings)
-  // .settings(exampleProjectSettings)
-  .settings(name := "turksem-multitask",
-            version := "0.1-SNAPSHOT")
-  .jvmSettings(commonJVMSettings)
+  .settings(name := "turksem-multitask", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
   .jvmSettings(exampleProjectJVMSettings)
-  .jsSettings(commonJSSettings)
+  .jsSettings(exampleProjectJSSettings)
 
 lazy val multitaskJS = multitask.js.dependsOn(turksemJS)
 lazy val multitaskJVM = multitask.jvm.dependsOn(turksemJVM).settings(
@@ -151,13 +146,10 @@ lazy val multitaskJVM = multitask.jvm.dependsOn(turksemJVM).settings(
 )
 
 lazy val scisrl = crossProject.in(file("example/scisrl"))
-  .settings(commonSettings)
-// .settings(exampleProjectSettings)
-  .settings(name := "turksem-scisrl",
-            version := "0.1-SNAPSHOT")
-  .jvmSettings(commonJVMSettings)
+  .settings(name := "turksem-scisrl", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
   .jvmSettings(exampleProjectJVMSettings)
-  .jsSettings(commonJSSettings)
+  .jsSettings(exampleProjectJSSettings)
 
 lazy val scisrlJS = scisrl.js.dependsOn(turksemJS)
 lazy val scisrlJVM = scisrl.jvm.dependsOn(turksemJVM).settings(

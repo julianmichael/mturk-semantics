@@ -4,7 +4,7 @@ import turkey.tasks.TaskDispatcher
 
 import upickle.default._
 
-import japgolly.scalajs.react.vdom.prefix_<^.ReactTag
+import japgolly.scalajs.react.vdom.html_<^.VdomTag
 
 /**
   * Forms the main class for the annotation project, and
@@ -12,7 +12,7 @@ import japgolly.scalajs.react.vdom.prefix_<^.ReactTag
   */
 abstract class SciSRLDispatcher[SID : Reader : Writer] extends TaskDispatcher {
 
-  def generationInstructions: ReactTag
+  def generationInstructions: VdomTag
 
   lazy val genClient = new SciSRLClient[SID](generationInstructions)
 

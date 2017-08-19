@@ -6,15 +6,15 @@ import scalajs.js
 import scalajs.js.JSApp
 import org.scalajs.jquery.jQuery
 
-import japgolly.scalajs.react.vdom.prefix_<^.ReactTag
+import japgolly.scalajs.react.vdom.html_<^.VdomTag
 
 import upickle.default._
 
 abstract class QAMRDispatcher[SID : Reader : Writer] extends TaskDispatcher {
 
-  def generationInstructions: ReactTag
+  def generationInstructions: VdomTag
   def requireWhAtQuestionBeginning: Boolean
-  def validationInstructions: ReactTag
+  def validationInstructions: VdomTag
 
   lazy val genClient = new GenerationClient[SID](
     generationInstructions,

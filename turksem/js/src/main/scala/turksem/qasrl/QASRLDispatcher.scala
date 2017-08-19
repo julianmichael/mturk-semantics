@@ -8,12 +8,12 @@ import org.scalajs.jquery.jQuery
 
 import upickle.default._
 
-import japgolly.scalajs.react.vdom.prefix_<^.ReactTag
+import japgolly.scalajs.react.vdom.html_<^.VdomTag
 
 abstract class QASRLDispatcher[SID : Reader : Writer] extends TaskDispatcher {
 
-  def generationInstructions: ReactTag
-  def validationInstructions: ReactTag
+  def generationInstructions: VdomTag
+  def validationInstructions: VdomTag
 
   lazy val genClient = new QASRLGenerationClient[SID](
     generationInstructions,

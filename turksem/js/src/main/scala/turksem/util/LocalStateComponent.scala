@@ -9,7 +9,7 @@ import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -29,10 +29,10 @@ class LocalStateComponent[A] {
   type LocalStateContext = A => Callback
   case class LocalStateProps(
     initialValue: A,
-    render: (LocalStateState, LocalStateContext) => ReactElement)
+    render: (LocalStateState, LocalStateContext) => VdomElement)
   object LocalProps {
     def apply(
-      render: (LocalStateState, LocalStateContext) => ReactElement)(
+      render: (LocalStateState, LocalStateContext) => VdomElement)(
       implicit m: Monoid[A]
     ): LocalStateProps =
       LocalStateProps(m.empty, render)
@@ -44,8 +44,8 @@ class LocalStateComponent[A] {
     def render(props: LocalStateProps, state: LocalStateState) = props.render(state, context)
   }
 
-  val LocalState = ReactComponentB[LocalStateProps]("Local")
-    .initialState_P(_.initialValue)
+  val LocalState = ScalaComponent.builder[LocalStateProps]("Local")
+    .initialStateFromProps(_.initialValue)
     .renderBackend[LocalStateBackend]
     .build
 }

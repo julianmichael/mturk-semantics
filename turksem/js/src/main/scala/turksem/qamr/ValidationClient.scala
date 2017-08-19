@@ -16,7 +16,7 @@ import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -29,7 +29,7 @@ import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
 class ValidationClient[SID : Writer : Reader](
-  instructions: ReactTag,
+  instructions: VdomTag,
   settings: PipelineSettings)(
   implicit promptReader: Reader[ValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[ValidationAnswer]] // same as above
@@ -39,7 +39,7 @@ class ValidationClient[SID : Writer : Reader](
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
-    ReactDOM.render(FullUI(), dom.document.getElementById(FieldLabels.rootClientDivLabel))
+    FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[ValidationApiRequest[SID], ValidationApiResponse]
@@ -102,7 +102,7 @@ class ValidationClient[SID : Writer : Reader](
           ^.borderRadius := "2px",
           ^.textAlign := "center",
           ^.width := "50px",
-          answer.isInvalid ?= (^.backgroundColor := "#E01010"),
+          (^.backgroundColor := "#E01010").when(answer.isInvalid),
           ^.onClick --> scope.modState(
             State.answers.modify(answers =>
               answers.updated(
@@ -114,8 +114,8 @@ class ValidationClient[SID : Writer : Reader](
           "Invalid"
         ),
         <.span(
-          isFocused ?= Styles.bolded,
-          s.answers(s.curQuestion).getRedundant.fold(false)(_.other == index) ?= Styles.uncomfortableOrange,
+          Styles.bolded.when(isFocused),
+          Styles.uncomfortableOrange.when(s.answers(s.curQuestion).getRedundant.fold(false)(_.other == index)),
           Styles.unselectable,
           ^.float := "left",
           ^.margin := "1px",
@@ -136,13 +136,13 @@ class ValidationClient[SID : Writer : Reader](
           ^.float := "left",
           ^.minHeight := "1px",
           ^.width := "25px",
-          isFocused ?= "-->"
+          "-->".when(isFocused)
         ),
         <.div(
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
-          (answer.getAnswer.fold(true)(_.indices.isEmpty)) ?= (^.color := "#CCCCCC"),
+          (^.color := "#CCCCCC").when(answer.getAnswer.fold(true)(_.indices.isEmpty)),
           answer match {
             case InvalidQuestion => "N/A"
             case Redundant(other) => <.span("Redundant with ", <.i(questions(other)))
@@ -188,7 +188,7 @@ class ValidationClient[SID : Writer : Reader](
                           ^.onBlur --> scope.modState(State.isInterfaceFocused.set(false)),
                           ^.onKeyDown ==> handleKey,
                           ^.position := "relative",
-                          !isInterfaceFocused ?= <.div(
+                          <.div(
                             ^.position := "absolute",
                             ^.top := "20px",
                             ^.left := "0px",
@@ -198,7 +198,7 @@ class ValidationClient[SID : Writer : Reader](
                             ^.color := "rgba(48, 140, 20, .3)",
                             ^.fontSize := "48pt",
                             (if(isNotAssigned) "Accept assignment to start" else "Click here to start")
-                          ),
+                          ).when(!isInterfaceFocused),
                           <.p(
                             Styles.unselectable,
                             Text.render(
@@ -218,7 +218,7 @@ class ValidationClient[SID : Writer : Reader](
                                     else "transparent"),
                                   ^.onMouseMove --> touchWord(index),
                                   ^.onMouseDown ==> (
-                                    (e: ReactEventI) => if(curSpan.contains(index)) {
+                                    (e: ReactEvent) => if(curSpan.contains(index)) {
                                       e.stopPropagation // so we don't trigger the global startHighlight
                                       startErase >> touchWord(index)
                                     } else {
@@ -227,12 +227,13 @@ class ValidationClient[SID : Writer : Reader](
                                   ),
                                   Text.normalizeToken(sentence(index))
                                 ))
-                            )),
+                            ).toVdomArray),
                           <.ul(
                             Styles.listlessList,
                             (0 until questions.size)
                               .map(qaField(state, sentence, hs.span))
                               .map(field => <.li(^.display := "block", field))
+                              .toVdomArray
                           ),
                           <.p(s"Bonus: ${dollarsToCents(validationBonus(questions.size))}c")
                         ),
@@ -262,10 +263,10 @@ class ValidationClient[SID : Writer : Reader](
     }
   }
 
-  val FullUI = ReactComponentB[Unit]("Full UI")
+  val FullUI = ScalaComponent.builder[Unit]("Full UI")
     .initialState(State.initial)
     .renderBackend[FullUIBackend]
-    .componentDidUpdate(context => context.$.backend.updateResponse)
+    .componentDidUpdate(_.backend.updateResponse)
     .build
 
 }

@@ -2,7 +2,7 @@ package turksem.util
 
 import org.scalajs.dom.html
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -23,9 +23,9 @@ object HighlightableSentenceComponent {
     startHighlight: Callback,
     startErase: Callback,
     touchWord: Int => Callback,
-    render: List[ReactTagOf[html.Span]] => ReactElement) // word/span elements to whole thing
+    render: List[VdomTagOf[html.Span]] => VdomElement) // word/span elements to whole thing
 
-  val HighlightableSentence = ReactComponentB[HighlightableSentenceProps]("Highlightable Sentence")
+  val HighlightableSentence = ScalaComponent.builder[HighlightableSentenceProps]("Highlightable Sentence")
     .render_P {
     case HighlightableSentenceProps(sentence, specialWordIndices, highlightedIndices, startHighlight, startErase, touchWord, render) =>
       val spans = Text.render(
@@ -42,8 +42,8 @@ object HighlightableSentenceComponent {
             " ")),
         (index: Int) => List(
           <.span(
-            specialWordIndices.contains(index) ?= Styles.specialWord,
-            specialWordIndices.contains(index) ?= Styles.niceBlue,
+            Styles.specialWord.when(specialWordIndices.contains(index)),
+            Styles.niceBlue.when(specialWordIndices.contains(index)),
             ^.backgroundColor := (
               if(highlightedIndices.contains(index)) {
                 "#FFFF00"
@@ -53,7 +53,7 @@ object HighlightableSentenceComponent {
             ),
             ^.onMouseMove --> touchWord(index),
             ^.onMouseDown ==> (
-              (e: ReactEventI) => if(highlightedIndices.contains(index)) {
+              (e: ReactEvent) => if(highlightedIndices.contains(index)) {
                 e.stopPropagation
                 startErase >> touchWord(index)
               } else {

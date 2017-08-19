@@ -5,7 +5,7 @@ import turksem.qasrl.QASRLDispatcher
 import turksem.qamr._
 import turksem.util._
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -20,8 +20,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
   def generationExample(question: String, answer: String, isGood: Boolean, tooltip: String) =
     <.li(
       <.div(
-        isGood ?= Styles.goodGreen,
-        !isGood ?= Styles.badRed,
+        if(isGood) Styles.goodGreen else Styles.badRed,
         ^.className := "tooltip",
         <.span(question),
         <.span(" --> "),
@@ -220,8 +219,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         <.span(question),
         <.span(" --> "),
         <.span(
-          isGood ?= Styles.goodGreen,
-          !isGood ?= Styles.badRed,
+          if(isGood) Styles.goodGreen else Styles.badRed,
           answer),
         <.span(^.className := "tooltiptext", tooltip)
       )

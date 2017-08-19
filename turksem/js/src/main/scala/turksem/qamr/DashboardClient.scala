@@ -17,7 +17,7 @@ import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-import japgolly.scalajs.react.vdom.prefix_<^._
+import japgolly.scalajs.react.vdom.html_<^._
 import japgolly.scalajs.react._
 
 import scalacss.DevDefaults._
@@ -35,7 +35,7 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
-    ReactDOM.render(FullUI(), dom.document.getElementById(FieldLabels.rootClientDivLabel))
+    FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
   val WebsocketComponent = new WebsocketComponent[Unit, SummaryInfo[SID]]
@@ -74,7 +74,7 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
 
                 <.div(
                   <.h2("Sentences"),
-                  estSentenceCompletionRate.map(r => f"Est. completion rate (sentences/hour): $r%.2f"),
+                  estSentenceCompletionRate.map(r => f"Est. completion rate (sentences/hour): $r%.2f").whenDefined,
                   aggSentenceStats match {
                     case AggregateSentenceStats(
                       earliestTime, latestTime,
@@ -87,18 +87,18 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                         <.div(s"Number of keywords covered: $numKeywords"),
                         <.div(f"Number of QA pairs submitted: $numQAPairs%d (${numQAPairs.toDouble / numSentences}%.1f per sentence)"),
                         <.div(s"Number of QA pairs valid: ${percent(numValidQAPairs, numQAPairs)}"),
-                        for {
-                          mean <- keywordPromptQAPairHist.mean
-                          stdev <- keywordPromptQAPairHist.stdev
-                        } yield <.div(f"QA pairs given per keyword prompt: $mean%.2f, stdev $stdev%.2f"),
-                        for {
-                          mean <- keywordActualQAPairHist.mean
-                          stdev <- keywordActualQAPairHist.stdev
-                        } yield <.div(f"QA pairs expected to contain a keyword: $mean%.2f, stdev $stdev%.2f"),
-                        for {
-                          mean <- validationLatencyHist.mean
-                          stdev <- validationLatencyHist.stdev
-                        } yield <.div(f"Latency from generation to validation (seconds): $mean%.2f, stdev $stdev%.2f"),
+                        (for {
+                           mean <- keywordPromptQAPairHist.mean
+                           stdev <- keywordPromptQAPairHist.stdev
+                         } yield <.div(f"QA pairs given per keyword prompt: $mean%.2f, stdev $stdev%.2f")).whenDefined,
+                        (for {
+                           mean <- keywordActualQAPairHist.mean
+                           stdev <- keywordActualQAPairHist.stdev
+                         } yield <.div(f"QA pairs expected to contain a keyword: $mean%.2f, stdev $stdev%.2f")).whenDefined,
+                        (for {
+                           mean <- validationLatencyHist.mean
+                           stdev <- validationLatencyHist.stdev
+                         } yield <.div(f"Latency from generation to validation (seconds): $mean%.2f, stdev $stdev%.2f")).whenDefined,
                         <.div(s"Total cost of generation: $generationCost"),
                         <.div(s"Total cost of validation: $validationCost"),
                         <.div(f"Average cost per sentence: ${(generationCost + validationCost) / numSentences}%.2f")
@@ -113,7 +113,7 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                         <.li(
                           ^.onClick --> Callback(println(write(a))),
                           s"${a.workerId}: ${a.feedback}"
-                        )))
+                        )).toVdomArray)
                   ),
                   <.h3("Generation worker stats"),
                   <.table(
@@ -122,7 +122,7 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                       <.tr(
                         List("Worker ID", "Assignments", "Accuracy",
                              "Earnings", "Time spent (min)", "$ / hr", "sec / QA pair", "QA pairs", "Valid QA pairs",
-                             "Warning", "Block").map(<.th(_))
+                             "Warning", "Block").map(<.th(_)).toVdomArray
                       )
                     ),
                     <.tbody(
@@ -141,9 +141,9 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                                  f"$earnings%.2f", f"$minutesSpent%.2f", f"$dollarsPerHour%.2f", f"$sPerQA%.2f",
                                  numQAPairsWritten.toString, numQAPairsValid.toString,
                                  warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
-                            ).map(<.td(_))
+                            ).map(<.td(_)).toVdomArray
                           )
-                      }
+                      }.toVdomArray
                     )
                   ),
                   <.h2("Validation"),
@@ -156,7 +156,7 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                         <.li(
                           ^.onClick --> Callback(println(write(a))),
                           s"${a.workerId}: ${a.feedback}"
-                        )))
+                        )).toVdomArray)
                   ),
                   <.h3("Validation worker stats"),
                   <.table(
@@ -167,7 +167,7 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                              "Time spent (min)", "$ / hr", "sec / QA pair",
                              "Agreement rate", "Comparisons", "Agreements",
                              "Answer spans", "Invalids", "Redundants",
-                             "Warning", "Block").map(<.th(_))
+                             "Warning", "Block").map(<.th(_)).toVdomArray
                       )
                     ),
                     <.tbody(
@@ -191,9 +191,9 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                                  f"${wi.agreement}%.3f", numComparisonInstances.toString, numComparisonAgreements.toString,
                                  percentAs(numAnswerSpans), percentAs(numInvalids), percentAs(numRedundants),
                                  warnedAt.fold("")(_.toString), blockedAt.fold("")(_.toString)
-                            ).map(<.td(_))
+                            ).map(<.td(_)).toVdomArray
                           )
-                      }
+                      }.toVdomArray
                     )
                   ),
                   <.h3("Recently completed sentences"),
@@ -215,11 +215,11 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                             <.tr(
                               List(
                                 "Worker ID", "Keyword", "Question", "Answer"
-                              ).map(<.td(_))
+                              ).map(<.td(_)).toVdomArray
                             )
                           ),
                           <.tbody(
-                            for {
+                            (for {
                               ValidatedAssignment(genHIT, genAssignment, valAssignments) <- shi.alignValidations
                               validations = valAssignments.map(_.response).transpose
                               (WordedQAPair(keywordIndex, question, answer), qaIndex) <- genAssignment.response.zipWithIndex
@@ -230,13 +230,13 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
                                 genAssignment.workerId,
                                 Text.normalizeToken(sentence(keywordIndex)),
                                 question, Text.renderSpan(sentence, answer)
-                              ).map(<.td(_)),
-                              validationCells
-                            )
+                              ).map(<.td(_)).toVdomArray,
+                              validationCells.toVdomArray
+                            )).toVdomArray
                           )
                         )
                       )
-                  }
+                  }.toVdomArray
                 )
             }
           }
@@ -245,7 +245,7 @@ class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends
     }
   }
 
-  val FullUI = ReactComponentB[Unit]("Full UI")
+  val FullUI = ScalaComponent.builder[Unit]("Full UI")
     .initialState(State.initial)
     .renderBackend[FullUIBackend]
     .build
