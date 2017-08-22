@@ -1,32 +1,21 @@
 package turksem.qasrl
 
+import cats.data.NonEmptyList
+
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.datasets.wiktionary.InflectedForms
-
-case class SlotChoices(
-  tokens: Set[String],
-  canSkip: Boolean) {
-  val lowerCaseTokens = tokens.map(_.lowerCase)
-  def admits(token: LowerCaseString): Boolean = lowerCaseTokens.contains(token)
-  def prefixMatches(token: LowerCaseString): Set[String] =
-    tokens.filter(_.toLowerCase.startsWith(token))
-  def admitsPrefix(token: LowerCaseString): Boolean =
-    prefixMatches(token).nonEmpty
-}
 
 object Slots {
   // slots:
   // WH, AUX, PH1, TRG, PH2, PP, PH3
 
-  val whChoices = SlotChoices(
-    tokens = Set(
-      "Who", "What", "When", "Where", "Why",
-      "How", "How much"
-    ),
-    canSkip = false)
+  val whChoices = NonEmptyList.of(
+    "Who", "What", "When", "Where", "Why",
+    "How", "How much"
+  )
 
-  val auxChoices = SlotChoices(
-    tokens = Set(
+  val auxChoices = NonEmptyList.of(
+    "", List(
       "is", "are", "was", "were",
       "do", "does", "did",
       "has", "have", "had",
@@ -41,33 +30,37 @@ object Slots {
       "would not", "should not",
       "might not", "must not", "mustn't",
       "won't"
-    ),
-    canSkip = true)
+    ).map(" " + _): _*)
 
 
-  // val beOptions = Set(
+  // val beOptions = NonEmptyList.of(
   //   "is", "are", "was", "isn't", "aren't", "wasn't", "weren't"
   // ).map(_.lowerCase)
 
-  // val haveOptions = Set(
+  // val haveOptions = NonEmptyList.of(
   //   "has", "have", "had",
   //   "hasn't", "haven't", "hadn't"
   // ).map(_.lowerCase)
 
   // ph1 and ph2
-  val subjChoices = SlotChoices(
-    tokens = Set("", "someone", "something"),
-    canSkip = true)
+  val subjChoices = NonEmptyList.of(
+    "", List(
+      "someone", "something"
+    ).map(" " + _): _*)
 
-  val objChoices = SlotChoices(
-    tokens = Set("", "someone", "something"),
-    canSkip = true)
+  val objChoices = NonEmptyList.of(
+    "", List(
+      "someone", "something"
+    ).map(" " + _): _*)
 
-  val obj2Choices = SlotChoices(
-    tokens = Set(
-      "", "someone", "something", "somewhere",
-      "do", "doing", "do something", "doing something"),
-    canSkip = true)
+  val obj2Choices = NonEmptyList.of(
+    "", List(
+      "someone", "something", "somewhere",
+      "do", "doing", "do something", "doing something"
+    ).map(" " + _): _*
+  )
+
+  val questionMark = NonEmptyList.of("?")
 
   val mostCommonPrepositions = Set(
     "by", "to", "for", "with", "about",
@@ -85,14 +78,9 @@ object Slots {
 		"without"
   ).map(_.lowerCase)
 
-  val questionMark = SlotChoices(
-    tokens = Set("?"),
-    canSkip = false)
-
-
   def getPrepositionSlotChoices(
     tokens: Vector[String]
-  ): SlotChoices = {
+  ): NonEmptyList[String] = {
     val lowerTokens = tokens.map(_.lowerCase)
     def isPreposition(lcs: LowerCaseString): Boolean = Slots.lotsOfPrepositions.contains(lcs)
     val newPrepositions = lowerTokens.filter(isPreposition)
@@ -105,31 +93,27 @@ object Slots {
         prepositionBigrams ++
         Slots.mostCommonPrepositions.iterator).toSet
 
-    SlotChoices(
-      tokens = chosenPrepositions.map(_.toString),
-      canSkip = true)
+    NonEmptyList.of("", chosenPrepositions.toSeq.map(" " + _): _*)
   }
 
   def getVerbSlotChoices(
     forms: InflectedForms
-  ): SlotChoices = {
+  ): NonEmptyList[String] = {
     import forms._
-    SlotChoices(
-      tokens = Set(
-        stem.toString,
-        present.toString,
-        presentParticiple.toString,
-        s"be $presentParticiple",
-        s"been $presentParticiple",
-        s"have been $presentParticiple",
-        past.toString,
-        s"being $pastParticiple",
-        s"be $pastParticiple",
-        s"been $pastParticiple",
-        s"have $pastParticiple",
-        s"have been $pastParticiple"
-      ),
-      canSkip = false)
+    NonEmptyList.of(
+      stem.toString,
+      present.toString,
+      presentParticiple.toString,
+      s"be $presentParticiple",
+      s"been $presentParticiple",
+      s"have been $presentParticiple",
+      past.toString,
+      s"being $pastParticiple",
+      s"be $pastParticiple",
+      s"been $pastParticiple",
+      s"have $pastParticiple",
+      s"have been $pastParticiple"
+    ).map(" " + _)
   }
 
 }

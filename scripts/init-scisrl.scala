@@ -1,4 +1,4 @@
-import turksem.scisrl._
+import example.scisrl
 import turksem.util._
 import turkey._
 import turkey.tasks._

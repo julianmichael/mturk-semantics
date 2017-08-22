@@ -16,6 +16,7 @@ lazy val commonSettings = Seq(
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4"),
   resolvers += Resolver.sonatypeRepo("snapshots"),
   libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
+  libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.10.0",
   libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
   libraryDependencies += "com.lihaoyi" %%% "upickle" % "0.4.1",

@@ -1,3 +1,0 @@
-package example.multitask
-
-trait PackagePlatformExtensions

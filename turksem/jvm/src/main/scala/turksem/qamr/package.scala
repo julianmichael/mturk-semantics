@@ -5,6 +5,7 @@ import cats.implicits._
 import turksem._
 import turksem.qamr._
 import turksem.util._
+import turksem.HasKeyIndices.ops._
 
 import turkey._
 import turkey.tasks._
@@ -133,13 +134,9 @@ trait PackagePlatformExtensions {
       genHITIds, valHITIds)
   }
 
-  def emptyStatus[SID : HasTokens](id: SID)(implicit isStopword: IsStopword) = {
-    val sentence = id.tokens
-    val allKeywords = sentence.indices
-      .filter(i => !isStopword(sentence(i)))
-      .toSet
+  def emptyStatus[SID : HasKeyIndices](id: SID) = {
     SentenceStatus(
-      id, allKeywords,
+      id, id.keyIndices,
       Set.empty[Int], Set.empty[ValidationPrompt[SID]],
       List.empty[Assignment[List[ValidationAnswer]]])
   }

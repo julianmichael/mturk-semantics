@@ -11,7 +11,7 @@ import scalacss.ScalaCssReact._
 
 import scalajs.js.JSApp
 
-object SciSRLExampleDispatcher extends SciSRLDispatcher[SentenceId] with JSApp {
+object SciSRLExDispatcher extends SciSRLDispatcher[SentenceId] with JSApp {
 
   import scalacss.DevDefaults._
   import scalacss.ScalaCssReact._

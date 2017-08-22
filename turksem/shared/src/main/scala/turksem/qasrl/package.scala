@@ -3,6 +3,7 @@ package turksem
 package object qasrl extends PackagePlatformExtensions {
 
   type QASRLGenerationPrompt[SID] = qamr.GenerationPrompt[SID]
+  val QASRLGenerationPrompt = qamr.GenerationPrompt
 
   type QASRLGenerationApiRequest[SID] = qamr.GenerationPrompt[SID]
 

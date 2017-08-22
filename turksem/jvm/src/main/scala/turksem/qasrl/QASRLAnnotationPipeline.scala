@@ -7,9 +7,12 @@ import akka.stream.scaladsl.{Flow, Source}
 import com.amazonaws.mturk.requester._
 import com.amazonaws.mturk.service.axis.RequesterService
 
+import nlpdata.structure._
 import nlpdata.util.HasTokens
 import nlpdata.util.HasTokens.ops._
 import nlpdata.util.Text
+import nlpdata.util.PosTags
+import nlpdata.util.LowerCaseStrings._
 import nlpdata.datasets.wiktionary.Inflections
 
 import turkey._
@@ -28,7 +31,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
-  isStopword: IsStopword,
   qualTest: QualTest,
   frozenGenerationHITTypeID: Option[String] = None,
   frozenValidationHITTypeID: Option[String] = None,
@@ -38,8 +40,23 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   implicit config: TaskConfig,
   inflections: Inflections) {
 
+  implicit object SIDHasKeyIndices extends HasKeyIndices[SID] {
+    override def getKeyIndices(id: SID): Set[Int] = PosTagger.posTag(id.tokens).collect {
+      case Word(index, pos, token) if PosTags.verbPosTags.contains(pos) =>
+        inflections.getInflectedForms(token.lowerCase).map(_ => index)
+    }.flatten.toSet
+  }
+
+  lazy val allPrompts: Vector[QASRLGenerationPrompt[SID]] = allIds.map { id =>
+    val verbIndices = PosTagger.posTag(id.tokens).collect {
+      case Word(index, pos, token) if PosTags.verbPosTags.contains(pos) =>
+        inflections.getInflectedForms(token.lowerCase).map(_ => index)
+    }.flatten.toList
+
+    QASRLGenerationPrompt(id, verbIndices)
+  }
+
   implicit val ads = annotationDataService
-  implicit val is = isStopword
   implicit val settings = QASRLSettings
 
   import settings._
@@ -132,6 +149,30 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     Comparator.GreaterThanOrEqualTo, 75,
     null, false)
 
+  lazy val (taskPageHeadLinks, taskPageBodyLinks) = {
+    import scalatags.Text.all._
+    val headLinks = List(
+      link(
+        rel := "stylesheet",
+        href := "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.min.css",
+        attr("integrity") := "sha384-rwoIResjU2yc3z8GV/NPeZWAv56rSmLldC3R/AZzGRnGxQQKnKkoFVhFQhNUwEyJ",
+        attr("crossorigin") := "anonymous"))
+    val bodyLinks = List(
+      script(
+        src := "https://code.jquery.com/jquery-3.1.1.slim.min.js",
+        attr("integrity") := "sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n",
+        attr("crossorigin") := "anonymous"),
+      script(
+        src := "https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js",
+        attr("integrity") := "sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb",
+        attr("crossorigin") := "anonymous"),
+      script(
+        src := "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/js/bootstrap.min.js",
+        attr("integrity") := "sha384-vBWWzlZJ8ea9aCX4pEW3rVHjgjt7zpkNpZk+02D9phzyeVkE+jo0ieGizqPLForn",
+        attr("crossorigin") := "anonymous"))
+    (headLinks, bodyLinks)
+  }
+
   val genHITType = HITType(
     title = s"Write question-answer pairs about a sentence's meaning",
     description = s"""
@@ -153,11 +194,13 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       QASRLGenerationApiResponse(tokens, templates)
   }
 
-  lazy val sampleGenPrompt = GenerationPrompt[SID](allIds.head, tokenSplits(allIds.head.tokens).head)
+  lazy val sampleGenPrompt = allPrompts.head
 
   lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], GenerationResponse, QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
     generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
-    frozenHITTypeId = frozenGenerationHITTypeID)
+    frozenHITTypeId = frozenGenerationHITTypeID,
+    taskPageHeadElements = taskPageHeadLinks,
+    taskPageBodyElements = taskPageBodyLinks)
 
   // validation task definition
 
@@ -192,12 +235,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     frozenHITTypeId = frozenValidationHITTypeID)
 
   // hit management --- circularly defined so they can communicate
-
-  lazy val allPrompts = allIds.flatMap { id =>
-    val tokens = id.tokens
-    val splits = tokenSplits(tokens)
-    splits.map(GenerationPrompt[SID](id, _))
-  }
 
   import config.actorSystem
 

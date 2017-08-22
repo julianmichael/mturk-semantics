@@ -21,12 +21,11 @@ case class ValidationFinished[SID](
   assignments: List[Assignment[List[ValidationAnswer]]]
 ) extends TrackingUpdate[SID]
 
-class SentenceTracker[SID : Reader : Writer : HasTokens](
+class SentenceTracker[SID : Reader : Writer : HasTokens : HasKeyIndices](
   genHITTypeId: String,
   valHITTypeId: String)(
   implicit config: TaskConfig,
   annotationDataService: AnnotationDataService,
-  isStopword: IsStopword,
   settings: PipelineSettings
 ) extends Actor with StrictLogging {
 

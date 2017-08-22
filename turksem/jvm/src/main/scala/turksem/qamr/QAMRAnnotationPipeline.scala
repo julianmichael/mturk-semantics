@@ -40,6 +40,14 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
   implicit val settings = QAMRSettings
   import settings._
 
+  implicit object SIDHasKeyIndices extends HasKeyIndices[SID] {
+    override def getKeyIndices(id: SID): Set[Int] = id.tokens
+      .zipWithIndex
+      .collect {
+      case (token, index) if !isStopword(token) => index
+    }.toSet
+  }
+
   import config.hitDataService
 
   val approvalRateRequirement = new QualificationRequirement(

@@ -328,37 +328,48 @@ class SciSRLClient[SID : Reader : Writer](instructions: VdomTag)(
       )
     }
 
-    def makeEventRelationsQuestion(
-      state: State,
-      groupIndex: Int,
-      relationWord: String,
-      relationLens: Int => Lens[State, Boolean]) = {
+    def makeEventRelationsForm(state: State, groupIndex: Int) = {
       val group = state.qaGroups(groupIndex)
       val prop = group.propositionGerund
-      <.div(
-        <.p("Please check the propositions below that are ", <.b(relationWord), " by ", prop, "."),
-        <.ul(
-          ^.classSet1("list-unstyled"),
-          state.qaGroups.zipWithIndex.filter(_._2 != groupIndex).toVdomArray {
-            case (relGroup, relGroupIndex) =>
-              <.li(
-                <.input(
-                  ^.`type` := "checkbox",
-                  ^.checked := relationLens(relGroupIndex).get(state),
-                  ^.onChange --> scope.modState(relationLens(relGroupIndex).modify(!_))
-                ),
-                " ",
-                relGroup.proposition
-              )
-          }
+        <.div(
+          <.p("Please check the propositions below that are enabled by ", prop, "."),
+          <.ul(
+            ^.classSet1("list-unstyled"),
+            state.qaGroups.zipWithIndex.filter(_._2 != groupIndex).toVdomArray {
+              case (relGroup, relGroupIndex) =>
+                val isPreventer = preventerLens(groupIndex, relGroupIndex).get(state)
+                <.li(
+                  <.input(
+                    ^.`type` := "checkbox",
+                    ^.disabled := isPreventer,
+                    ^.checked := enablerLens(groupIndex, relGroupIndex).get(state),
+                    ^.onChange --> scope.modState(enablerLens(groupIndex, relGroupIndex).modify(!_))
+                  ),
+                  " ",
+                  relGroup.proposition
+                )
+            }
+          ),
+          <.p("Please check the propositions below that are prevented by ", prop, "."),
+          <.ul(
+            ^.classSet1("list-unstyled"),
+            state.qaGroups.zipWithIndex.filter(_._2 != groupIndex).toVdomArray {
+              case (relGroup, relGroupIndex) =>
+                val isEnabler = enablerLens(groupIndex, relGroupIndex).get(state)
+                <.li(
+                  <.input(
+                    ^.`type` := "checkbox",
+                    ^.disabled := isEnabler,
+                    ^.checked := preventerLens(groupIndex, relGroupIndex).get(state),
+                    ^.onChange --> scope.modState(preventerLens(groupIndex, relGroupIndex).modify(!_))
+                  ),
+                  " ",
+                  relGroup.proposition
+                )
+            }
+          )
         )
-      )
     }
-
-    def makeEventRelationsForm(state: State, groupIndex: Int) = <.div(
-      makeEventRelationsQuestion(state, groupIndex, "enabled", enablerLens(groupIndex, _)),
-      makeEventRelationsQuestion(state, groupIndex, "prevented", preventerLens(groupIndex, _))
-    )
 
     def render(s: State) = {
       WebsocketLoadable(
