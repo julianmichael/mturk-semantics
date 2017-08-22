@@ -47,6 +47,21 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
   responseWriter: Writer[SciSRLResponse] // same as above
 ) extends TaskClient[SciSRLPrompt[SID], SciSRLResponse] {
 
+  val colorChoices = Vector(
+    "rgb(46, 151, 222)", // blue
+    "rgb(234, 75, 54)", // red
+    "rgb(29, 206, 108)", // foresty
+    "rgb(156, 85, 183)", // violet
+    "rgb(0, 189, 155)", // teal
+    "rgb(233, 126, 6)", // orange
+    "rgb(242, 197, 0)" // bright goldenrod
+      // "rgb(51, 73, 95)", // slate
+      // there is also off-white and gray
+  )
+
+  def colorTag(index: Int): TagMod =
+    ^.color := colorChoices((index + colorChoices.size) % colorChoices.size)
+
   // higher-order and utility React components all defined in turksem.util
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[SciSRLApiRequest[SID], SciSRLApiResponse]
@@ -73,6 +88,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
   // synthesizes all of the relevant natural language strings here in one place.
   // holds the sentence as a field just out of convenience for computing those strings.
   @Lenses case class QAGroup(
+    groupIndex: Int,
     posTaggedSentence: Vector[Word],
     verbIndex: Int,
     inflectedForms: InflectedForms,
@@ -91,7 +107,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
       loc  =  locSpan.toOptionalSpan,
       time = timeSpan.toOptionalSpan)
 
-    val originalVerb = Text.normalizeToken(sentence(verbIndex)).toLowerCase
+    val originalVerb = Text.normalizeToken(sentence(verbIndex)).lowerCase
     val verbStem = inflectedForms.stem
     val singularActive = inflectedForms.present
     val passiveVerb = inflectedForms.pastParticiple
@@ -109,6 +125,8 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
       }
     }
 
+    def verbSpan(text: String) = <.span(colorTag(groupIndex), text)
+
     val objTextOpt  = getSpanTextOpt(objSpan)
     val subjTextOpt = getSpanTextOpt(subjSpan)
     val locTextOpt  = getSpanTextOpt(locSpan)
@@ -123,43 +141,43 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
       else originalVerb.equalsIgnoreCase(inflectedForms.present)
 
     val proposition = (subjTextOpt, objTextOpt) match {
-      case (None, None) => s"something is $passiveVerb"
+      case (None, None) => <.span("something ", verbSpan(s"is $passiveVerb"))
       case (None, Some(obj)) =>
         val copula = if(isObjectSingular) "is" else "are"
-        s"$obj $copula $passiveVerb"
+        <.span(s"$obj ", verbSpan(s"$copula $passiveVerb"))
       case (Some(subj), objOpt) =>
         val verb = if(isSubjectSingular) singularActive else originalVerb
         objOpt match {
-          case None => s"$subj $verb"
-          case Some(obj) => s"$subj $verb $obj"
+          case None => <.span(s"$subj ", verbSpan(verb))
+          case Some(obj) => <.span(s"$subj ", verbSpan(verb), s" $obj")
         }
     }
 
     val propositionGerund = (subjTextOpt, objTextOpt) match {
-      case (None, None) => s"something being $passiveVerb"
-      case (None, Some(obj)) => s"$obj being $passiveVerb"
-      case (Some(subj), None) => s"$subj $presentParticipleVerb"
-      case (Some(subj), Some(obj)) => s"$subj $presentParticipleVerb $obj"
+      case (None, None) => <.span("something ", verbSpan(s"being $passiveVerb"))
+      case (None, Some(obj)) => <.span(s"$obj ", verbSpan(s"being $passiveVerb"))
+      case (Some(subj), None) => <.span(s"$subj ", verbSpan(presentParticipleVerb))
+      case (Some(subj), Some(obj)) => <.span(s"$subj ", verbSpan(presentParticipleVerb), s" $obj")
     }
 
     // maybe we should do singular agreement since it's agreeing with "what", but I think it sounds better to adjust for plurals in the passive case
     val objQuestion = subjTextOpt.fold(
-      if(isObjectSingular) s"What is $passiveVerb?" else s"What are $passiveVerb?")(subj =>
-      if(isSubjectSingular) s"What does $subj $verbStem?" else s"What do $subj $verbStem?"
+      if(isObjectSingular) <.span("What ", verbSpan(s"is $passiveVerb"), "?") else <.span("What ", verbSpan(s"are $passiveVerb"), "?"))(subj =>
+      if(isSubjectSingular) <.span(s"What does $subj ", verbSpan(verbStem), "?") else <.span(s"What do $subj ", verbSpan(verbStem), "?")
     )
-    val subjQuestion = objTextOpt.fold(s"What $singularActive?")(obj =>
-      s"What $singularActive $obj?" // singular agreement with "what" sounds a bit more natural here
+    val subjQuestion = objTextOpt.fold(<.span("What ", verbSpan(singularActive), "?"))(obj =>
+      <.span("What ", verbSpan(singularActive), s" $obj?") // singular agreement with "what" sounds a bit more natural here
     )
     private[this] def advQuestion(prefix: String) = (subjTextOpt, objTextOpt) match {
-      case (None, None) => s"$prefix is something $passiveVerb?"
+      case (None, None) => <.span(s"$prefix is something ", verbSpan(passiveVerb), "?")
       case (None, Some(obj)) =>
         val copula = if(isObjectSingular) "is" else "are"
-        s"$prefix $copula $obj $passiveVerb?"
+        <.span(s"$prefix $copula $obj ", verbSpan(passiveVerb), "?")
       case (Some(subj), objOpt) =>
         val aux = if(isSubjectSingular) "does" else "do"
         objOpt match {
-          case None => s"$prefix $aux $subj $verbStem?"
-          case Some(obj )=> s"$prefix $aux $subj $verbStem $obj?"
+          case None => <.span(s"$prefix $aux $subj ", verbSpan(verbStem), "?")
+          case Some(obj )=> <.span(s"$prefix $aux $subj ", verbSpan(verbStem), s" $obj?")
         }
     }
     val locQuestion = advQuestion("Where")
@@ -184,9 +202,9 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
     // ...and for after we receive it
     def initFromResponse(response: SciSRLApiResponse): State = response match {
       case SciSRLApiResponse(posTaggedSentence, verbInflectedForms) =>
-        val qaGroups = prompt.verbIndices.zip(verbInflectedForms).map {
-          case (verbIndex, inflectedForms) =>
-            QAGroup(posTaggedSentence, verbIndex, inflectedForms, List.fill(4)(AnswerSpan.empty))
+        val qaGroups = prompt.verbIndices.zip(verbInflectedForms).zipWithIndex.map {
+          case ((verbIndex, inflectedForms), groupIndex) =>
+            QAGroup(groupIndex, posTaggedSentence, verbIndex, inflectedForms, List.fill(4)(AnswerSpan.empty))
         }.toList
         State(qaGroups, Set.empty[(Int, Int)], Set.empty[(Int, Int)], (0, 0))
     }
@@ -280,7 +298,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
       setResponse(st.response)
     }
 
-    def qaField(state: State, groupIndex: Int, questionIndex: Int, sentence: Vector[String], question: String) = {
+    def qaField(state: State, groupIndex: Int, questionIndex: Int, sentence: Vector[String], question: ReactTag) = {
       val isFocused = state.curFocus == (groupIndex, questionIndex)
       val group = state.qaGroups(groupIndex)
       val answer = group.spans(questionIndex)
@@ -402,7 +420,12 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
                               HighlightableSentence(
                                 HighlightableSentenceProps(
                                   sentence = sentence,
-                                  specialWordIndices = prompt.verbIndices.toSet,
+                                  styleForIndex = ((i: Int) =>
+                                    prompt.verbIndices.indexOf(i) match {
+                                      case -1 => vdom.EmptyTag
+                                      case index => vdom.TagMod(Styles.bolded, colorTag(index))
+                                    }
+                                  ),
                                   highlightedIndices = curAnswer,
                                   startHighlight = startHighlight,
                                   startErase = startErase,

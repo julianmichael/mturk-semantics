@@ -18,7 +18,7 @@ object HighlightableSentenceComponent {
 
   case class HighlightableSentenceProps(
     sentence: Vector[String], // PTB tokens
-    specialWordIndices: Set[Int],
+    styleForIndex: Int => TagMod,
     highlightedIndices: Set[Int],
     startHighlight: Callback,
     startErase: Callback,
@@ -27,7 +27,7 @@ object HighlightableSentenceComponent {
 
   val HighlightableSentence = ReactComponentB[HighlightableSentenceProps]("Highlightable Sentence")
     .render_P {
-    case HighlightableSentenceProps(sentence, specialWordIndices, highlightedIndices, startHighlight, startErase, touchWord, render) =>
+    case HighlightableSentenceProps(sentence, styleForIndex, highlightedIndices, startHighlight, startErase, touchWord, render) =>
       val spans = Text.render(
         sentence.indices.toList,
         (index: Int) => sentence(index),
@@ -42,8 +42,7 @@ object HighlightableSentenceComponent {
             " ")),
         (index: Int) => List(
           <.span(
-            specialWordIndices.contains(index) ?= Styles.specialWord,
-            specialWordIndices.contains(index) ?= Styles.niceBlue,
+            styleForIndex(index),
             ^.backgroundColor := (
               if(highlightedIndices.contains(index)) {
                 "#FFFF00"

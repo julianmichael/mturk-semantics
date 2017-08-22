@@ -1,4 +1,4 @@
-import turksem.scisrl._
+import example.scisrl
 import turksem.util._
 import turkey._
 import turkey.tasks._
@@ -31,6 +31,6 @@ def exit = {
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
 
-val setup = new scisrlexample.SciSRLAnnotationSetup
+val setup = new scisrl.SciSRLAnnotationSetup
 val exp = setup.experiment
 exp.server
