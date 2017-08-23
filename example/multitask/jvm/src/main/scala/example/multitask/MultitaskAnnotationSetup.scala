@@ -5,8 +5,7 @@ import cats.implicits._
 
 import turksem.FileSystemAnnotationDataService
 import turksem.qamr._
-import turksem.qasrl.QASRLAnnotationPipeline
-import turksem.qasrl.QASRLGenerationPrompt
+import turksem.qasrl._
 import turksem.util._
 
 import turkey._
@@ -126,7 +125,7 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
     Wiktionary.getInflectionsForTokens(tokens)
   }
 
-  def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[SentenceId]) = 1
+  def numGenerationAssignmentsForPrompt(p: GenerationPrompt[SentenceId]) = 1
 
   lazy val experiment = new QASRLAnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,

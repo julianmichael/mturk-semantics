@@ -9,51 +9,40 @@ import cats.implicits._
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.datasets.wiktionary.InflectedForms
 
+import Slots.TemplateState
 
-case class QASRLTemplate(
-  verbChoices: NonEmptyList[String],
-  prepositionChoices: NonEmptyList[String]) {
+class QASRLTemplate(slots: Slots) {
 
   import QASRLTemplate._
 
-  val templateChoices = Vector[NonEmptyList[String]](
-    Slots.whChoices,
-    Slots.auxChoices,
-    Slots.subjChoices,
-    verbChoices,
-    Slots.objChoices,
-    prepositionChoices,
-    Slots.obj2Choices,
-    Slots.questionMark)
-
-  def getStatesFromTransition(textSoFarReversed: List[Char], newState: Int): NonEmptyList[ValidState] = {
-    if(newState == templateChoices.size) NonEmptyList.of(Complete(textSoFarReversed.reverse.mkString))
-    else templateChoices(newState).flatMap(token =>
-      NonEmptyList.fromList(token.toList) match {
-        case None => getStatesFromTransition(textSoFarReversed, newState + 1)
+  def getStatesFromTransition(textSoFarReversed: List[Char], newState: TemplateState): NonEmptyList[ValidState] = newState match {
+    case Slots.TemplateComplete => NonEmptyList.of(Complete(textSoFarReversed.reverse.mkString))
+    case Slots.TemplateProgress(transitions) => transitions.flatMap {
+      case (token, nextState) => NonEmptyList.fromList(token.toList) match {
+        case None => getStatesFromTransition(textSoFarReversed, nextState)
         case Some(chars) => NonEmptyList.of(
-          InProgressState(textSoFarReversed, chars, newState)
+          InProgressState(textSoFarReversed, chars, nextState)
         )
       }
-    )
+    }
   }
 
   def processCharacter(state: ValidState, observedChar: Char): ProcessingState = state match {
     case c @ Complete(str) => EitherT.left[NonEmptyList, InvalidState, ValidState](NonEmptyList.of(InvalidState(c, str.size)))
-    case ips @ InProgressState(textSoFarReversed, textRemainingInCurrentState, currentStateInProgress) =>
-      val expectedChar = textRemainingInCurrentState.head
+    case ips @ InProgressState(textSoFarReversed, textRemainingInCurrentTransition, targetState) =>
+      val expectedChar = textRemainingInCurrentTransition.head
       if(expectedChar.toLower != observedChar.toLower) {
         EitherT.left[NonEmptyList, InvalidState, ValidState](NonEmptyList.of(InvalidState(ips, textSoFarReversed.size)))
       } else {
         val newTextReversed = expectedChar :: textSoFarReversed
-        NonEmptyList.fromList(textRemainingInCurrentState.tail) match {
+        NonEmptyList.fromList(textRemainingInCurrentTransition.tail) match {
           case None => EitherT.right[NonEmptyList, InvalidState, ValidState](
-            getStatesFromTransition(newTextReversed, currentStateInProgress + 1)
+            getStatesFromTransition(newTextReversed, targetState)
           )
           case Some(remainingChars) =>
             EitherT.right[NonEmptyList, InvalidState, ValidState](
               NonEmptyList.of(
-                InProgressState(newTextReversed, remainingChars, currentStateInProgress)
+                InProgressState(newTextReversed, remainingChars, targetState)
               )
             )
         }
@@ -69,7 +58,7 @@ case class QASRLTemplate(
     // the equality I expected:
     // mz >>= (z => l.foldLeftM(z)(f)) == l.foldLeft(mz)((ma, x) => ma >>= (f(_, x)))
 
-    input.toList.foldLeft(EitherT.right[NonEmptyList, InvalidState, ValidState](getStatesFromTransition(Nil, 0))) {
+    input.toList.foldLeft(EitherT.right[NonEmptyList, InvalidState, ValidState](getStatesFromTransition(Nil, slots.start))) {
       case (acc, char) =>
         val firstNecessarilyInvalidCharOpt = acc.value.toList.collect {
           case Left(InvalidState(_, n)) => n
@@ -89,7 +78,6 @@ case class QASRLTemplate(
         // }
         // newAcc.flatMap(processCharacter(_, char))
     }
-
   }
 
   def processStringFully(input: String): Either[AggregatedInvalidState, NonEmptyList[ValidState]] = {
@@ -111,76 +99,9 @@ case class QASRLTemplate(
   def isValid(input: String): Boolean =
     processStringFully(input).toOption.exists(_.exists(_.isComplete))
 
+  // TODO move
   def isAlmostComplete(state: InProgressState) =
-    state.currentStateInProgress == templateChoices.size - 1
-
-  // def processStringAtState(prevString: String, remainingString: LowerCaseString, curState: Int): List[AccessibleTransition] = {
-  //   val template = templateChoices(curState)
-  //   val prefixes = template.tokens.map(token => longestCommonPrefix(token.toLowerCase, remainingString) -> token)
-  //   // 3 cases:
-  //   // 1. string contains whole token
-  //   // 2. string contains partial or no token
-  //   // there can only be one such
-  //   val fullyMatchedTokenOpt = prefixes.filter { case (prefix, token) => prefix == token.toLowerCase}
-  // }
-
-  // def advanceThroughToken(
-  //   nextIndex: Int,
-  //   token: LowerCaseString
-  // ): List[Int] = {
-  //   val choices = templateChoices(nextIndex)
-  //   val advanceCurrentOpt = choices.admits(token).ifTrue(Option(nextIndex + 1))
-  //   val skipAndAdvance = choices.canSkip.ifTrue(advanceThroughToken(nextIndex + 1, token))
-  //   advanceCurrentOpt.fold(skipAndAdvance)(_ :: skipAndAdvance)
-  // }
-
-  // def advanceStateThroughToken(
-  //   state: MatchingState,
-  //   nextToken: LowerCaseString,
-  //   nextTokenIndex: Int
-  // ): MatchingState = state match {
-  //   case Complete => Invalid(Nil, nextTokenIndex)
-  //   case invalid @ Invalid(_, _) => invalid
-  //   case InProgress(nextStates) =>
-  //     NonEmptyList
-  //       .fromList(nextStates.toList.flatMap(advanceThroughToken(_, nextToken)))
-  //       .fold(Invalid(nextStates.toList, nextTokenIndex): MatchingState)(InProgress(_))
-  // }
-
-  // sealed trait MatchingState
-  // case class InProgress(nextStates: NonEmptyList[Int]) extends MatchingState
-  // case object Complete extends MatchingState
-  // case class Invalid(nextStates: List[Int], firstInvalidTokenIndex: Int) extends MatchingState
-
-  // def processTokens[F[_]: Foldable](
-  //   tokens: F[LowerCaseString]
-  // ): MatchingState = tokens
-  //   .toList.zipWithIndex
-  //   .foldLeft(InProgress(NonEmptyList(0, Nil)): MatchingState) {
-  //   case (state, (nextToken, nextTokenIndex)) =>
-  //     advanceStateThroughToken(state, nextToken, nextTokenIndex)
-  // }
-
-  // // def getNextTokens(state: MatchingState): List[String] = state match {
-  // //   case Complete => Nil
-  // //   case Invalid(nextStates, _) => getNextTokens(nextStates)
-  // //   case InProgress(nextStates) => getNextTokens(nextStates)
-  // // }
-
-  // def getNextSlotChoices[F[_] : Foldable](states: F[Int]): Set[SlotChoices] = {
-  //   states.foldLeft(Set.empty[SlotChoices]) {
-  //     case (allSlots, stateIndex) => allSlots + templateChoices(stateIndex)
-  //   }
-  // }
-
-  // def getNextTokens[F[_] : Foldable](states: F[Int]): List[String] = {
-  //   states.foldLeft(Set.empty[String]) {
-  //     case (allWords, stateIndex) => allWords ++ templateChoices(stateIndex).tokens
-  //   }.toList.sortBy(_.toLowerCase)
-  // }
-
-  // def isValid[F[_] : Foldable](tokens: F[LowerCaseString]): Boolean =
-  //   processTokens(tokens) == Complete
+    state.targetState == Slots.TemplateComplete
 
 }
 
@@ -197,10 +118,10 @@ object QASRLTemplate {
   }
   case class InProgressState(
     textSoFarReversed: List[Char],
-    textRemainingInCurrentState: NonEmptyList[Char],
-    currentStateInProgress: Int
+    textRemainingInCurrentTransition: NonEmptyList[Char],
+    targetState: Slots.TemplateState
   ) extends ValidState {
-    def fullText = textSoFarReversed.reverse.mkString + textRemainingInCurrentState.toList.mkString
+    def fullText = textSoFarReversed.reverse.mkString + textRemainingInCurrentTransition.toList.mkString
     def isComplete = false
   }
 

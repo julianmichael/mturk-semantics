@@ -47,13 +47,13 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     }.flatten.toSet
   }
 
-  lazy val allPrompts: Vector[QASRLGenerationPrompt[SID]] = allIds.map { id =>
+  lazy val allPrompts: Vector[GenerationPrompt[SID]] = allIds.map { id =>
     val verbIndices = PosTagger.posTag(id.tokens).collect {
       case Word(index, pos, token) if PosTags.verbPosTags.contains(pos) =>
         inflections.getInflectedForms(token.lowerCase).map(_ => index)
     }.flatten.toList
 
-    QASRLGenerationPrompt(id, verbIndices)
+    GenerationPrompt(id, verbIndices)
   }
 
   implicit val ads = annotationDataService
@@ -188,15 +188,17 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     ))
 
   lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {
-    case GenerationPrompt(id, keywords) =>
+    case QASRLGenerationApiRequest(GenerationPrompt(id, keywords)) =>
       val tokens = id.tokens
-      val templates = keywords.flatMap(kw => makeTemplateFromTokensWithVerb(tokens, kw).map(IndexWithTemplate(kw, _)))
-      QASRLGenerationApiResponse(tokens, templates)
+      val indicesWithInflectedForms = keywords.flatMap(kw =>
+        inflections.getInflectedForms(tokens(kw).lowerCase).map(forms => IndexWithInflectedForms(kw, forms))
+      )
+      QASRLGenerationApiResponse(tokens, indicesWithInflectedForms)
   }
 
   lazy val sampleGenPrompt = allPrompts.head
 
-  lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], GenerationResponse, QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
+  lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], List[WordedQAPair], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
     generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
     frozenHITTypeId = frozenGenerationHITTypeID,
     taskPageHeadElements = taskPageHeadLinks,

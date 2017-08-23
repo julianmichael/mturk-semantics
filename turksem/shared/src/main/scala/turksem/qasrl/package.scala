@@ -1,18 +1,26 @@
 package turksem
 
-package object qasrl extends PackagePlatformExtensions {
+import nlpdata.datasets.wiktionary.InflectedForms
 
-  type QASRLGenerationPrompt[SID] = qamr.GenerationPrompt[SID]
-  val QASRLGenerationPrompt = qamr.GenerationPrompt
+package object qasrl {
 
-  type QASRLGenerationApiRequest[SID] = qamr.GenerationPrompt[SID]
+  case class QASRLGenerationApiRequest[SID](prompt: qamr.GenerationPrompt[SID])
 
-  case class IndexWithTemplate(
+  case class IndexWithInflectedForms(
     wordIndex: Int,
-    template: QASRLTemplate)
+    inflectedForms: InflectedForms)
 
   case class QASRLGenerationApiResponse(
     tokens: Vector[String],
-    templates: List[IndexWithTemplate])
+    templates: List[IndexWithInflectedForms])
+
+  import nlpdata.util.LowerCaseStrings._
+
+  implicit val lowerCaseStringReader = upickle.default.Reader[LowerCaseString] {
+    case upickle.Js.Str(s) => s.lowerCase // just for typing. whatever
+  }
+  implicit val lowerCaseStringWriter = upickle.default.Writer[LowerCaseString] {
+    case s => upickle.Js.Str(s.toString)
+  }
 
 }

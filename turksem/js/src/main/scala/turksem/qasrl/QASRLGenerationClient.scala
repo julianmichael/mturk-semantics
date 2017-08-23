@@ -93,7 +93,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
     def initFromResponse(response: QASRLGenerationApiResponse): State = response match {
       case QASRLGenerationApiResponse(sentence, indicesWithTemplates) =>
         val qaGroups = indicesWithTemplates.map {
-          case IndexWithTemplate(verbIndex, template) =>
+          case IndexWithInflectedForms(verbIndex, forms) =>
+            val slots = new Slots(sentence, forms)
+            val template = new QASRLTemplate(slots)
             QAGroup(verbIndex, template, List(QAPair.empty))
         }
         State(qaGroups, None)
@@ -391,7 +393,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
       WebsocketLoadable(
         WebsocketLoadableProps(
           websocketURI = websocketUri,
-          request = prompt,
+          request = QASRLGenerationApiRequest(prompt),
           onLoad = ((response: QASRLGenerationApiResponse) => scope.setState(State.initFromResponse(response))),
           render = {
             case Connecting => <.div("Connecting to server...")
@@ -420,9 +422,6 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
                       <.div(
                         ^.classSet1("container-fluid"),
-                        ^.onMouseEnter --> setBlurEnabled(false), // TODO might not need..?
-                        ^.onMouseMove --> setBlurEnabled(false),
-                        ^.onMouseLeave --> setBlurEnabled(true),
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
                         Styles.mainContent,
@@ -446,6 +445,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
                             touchWord = touchWord,
                             render = (elements =>
                               <.blockquote(
+                                ^.onMouseEnter --> setBlurEnabled(false), // TODO might not need..?
+                                ^.onMouseMove --> setBlurEnabled(false),
+                                ^.onMouseLeave --> setBlurEnabled(true),
                                 ^.classSet1("blockquote"),
                                 Styles.unselectable,
                                 elements.toVdomArray)
@@ -454,7 +456,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         <.div(
                           (0 until s.qaGroups.size).toVdomArray(groupIndex =>
                             <.div(
-                              <.p(
+                              <.h6(
+                                ^.marginTop := "15px",
                                 Styles.bolded,
                                 Text.normalizeToken(sentence(prompt.keywords(groupIndex)))
                               ),
@@ -471,6 +474,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                           )
                         ),
                         <.p(
+                          ^.marginTop := "20px",
                           "Potential bonus so far: ",
                           <.span(
                             Styles.goodGreen.when(curPotentialBonus > 0),
