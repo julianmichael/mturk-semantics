@@ -298,7 +298,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: VdomTag)(
       setResponse(st.response)
     }
 
-    def qaField(state: State, groupIndex: Int, questionIndex: Int, sentence: Vector[String], question: ReactTag) = {
+    def qaField(state: State, groupIndex: Int, questionIndex: Int, sentence: Vector[String], question: VdomTag) = {
       val isFocused = state.curFocus == (groupIndex, questionIndex)
       val group = state.qaGroups(groupIndex)
       val answer = group.spans(questionIndex)
@@ -432,10 +432,9 @@ class SciSRLClient[SID : Reader : Writer](instructions: VdomTag)(
                                 HighlightableSentenceProps(
                                   sentence = sentence,
                                   styleForIndex = ((i: Int) =>
-                                    prompt.verbIndices.indexOf(i) match {
-                                      case -1 => vdom.EmptyTag
-                                      case index => vdom.TagMod(Styles.bolded, colorTag(index))
-                                    }
+                                    prompt.verbIndices.indexOf(i).onlyIf(_ != -1).map(index =>
+                                      TagMod(Styles.bolded, colorTag(index))
+                                    ).whenDefined
                                   ),
                                   highlightedIndices = curAnswer,
                                   startHighlight = startHighlight,

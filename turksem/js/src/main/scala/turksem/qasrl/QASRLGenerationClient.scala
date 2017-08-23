@@ -64,21 +64,24 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   import HighlightableSentenceComponent._
 
-  def emptyQA(keyword: Int) = WordedQAPair(keyword, "", Set.empty[Int])
+  sealed trait QAState
+  case object Complete extends QAState
+  case object InProgress extends QAState
+  case object Invalid extends QAState
 
-  // TODO store QAState for efficiency so we only need to template-analyze one question at once
-
-  // sealed trait QAState
-  // case object Complete extends QAState
-  // case object InProgress extends QAState
-  // case class Invalid(numGoodCharacters: Int) extends QAState
+  @Lenses case class QAPair(
+    question: String,
+    answer: Set[Int],
+    state: QAState)
+  object QAPair {
+    val empty = QAPair("", Set.empty[Int], InProgress)
+  }
 
   @Lenses case class QAGroup(
     verbIndex: Int,
     template: QASRLTemplate,
-    qas: List[WordedQAPair],
-    inputRefOpts: List[Option[html.Element]]) {
-    def withNewEmptyQA: QAGroup = copy(qas = this.qas :+ (emptyQA(verbIndex)), inputRefOpts = this.inputRefOpts :+ None)
+    qas: List[QAPair]) {
+    def withNewEmptyQA: QAGroup = copy(qas = this.qas :+ (QAPair.empty))
   }
 
   @Lenses case class State(
@@ -91,7 +94,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
       case QASRLGenerationApiResponse(sentence, indicesWithTemplates) =>
         val qaGroups = indicesWithTemplates.map {
           case IndexWithTemplate(verbIndex, template) =>
-            QAGroup(verbIndex, template, Nil, Nil)
+            QAGroup(verbIndex, template, List(QAPair.empty))
         }
         State(qaGroups, None)
     }
@@ -103,29 +106,23 @@ class QASRLGenerationClient[SID : Reader : Writer](
     .composeOptional(index(qaIndex))
 
   def questionLens(groupIndex: Int, qaIndex: Int) = qaLens(groupIndex, qaIndex)
-    // .composeLens(first)
-    .composeLens(WordedQAPair.question)
+    .composeLens(QAPair.question)
 
-  // def qaStateLens(groupIndex: Int, qaIndex: Int) = qaLens(groupIndex, qaIndex)
-  //   .composeLens(second)
+  def qaStateLens(groupIndex: Int, qaIndex: Int) = qaLens(groupIndex, qaIndex)
+    .composeLens(QAPair.state)
 
-  // def getQAState(template: QASRLTemplate, wqa: WordedQAPair): QAState =
-  //   template.processStringFully(wqa) match {
-  //     case Left(AggregatedInvalidState(_, numGoodCharacters)) => Invalid(numGoodCharacters)
-  //     case Right(validStates) => if(validStates.exists(_.isComplete)) Complete else InProgress
-  //   }
+  def getQAState(template: QASRLTemplate, qa: QAPair): QAState =
+    template.processStringFully(qa.question) match {
+      case Left(QASRLTemplate.AggregatedInvalidState(_, numGoodCharacters)) => Invalid
+      case Right(validStates) => if(validStates.exists(_.isComplete)) Complete else InProgress
+    }
 
-  def isComplete(
-    template: QASRLTemplate,
-    wqa: WordedQAPair
-  ): Boolean = {
-    !wqa.question.isEmpty && !wqa.answer.isEmpty && template.isValid(wqa.question)
-  }
+  def isComplete(qa: QAPair): Boolean = qa.state == Complete && qa.answer.nonEmpty
 
   def getCompleteQAPairs(group: QAGroup): List[WordedQAPair] = for {
     qa <- group.qas
-    if isComplete(group.template, qa)
-  } yield qa
+    if isComplete(qa)
+  } yield WordedQAPair(group.verbIndex, qa.question, qa.answer)
 
   def getAllCompleteQAPairs(groups: List[QAGroup]): List[WordedQAPair] =
     groups.flatMap(getCompleteQAPairs)
@@ -136,29 +133,32 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
 
+    // mutable backend stuff
     val allInputRefs = mutable.Map.empty[(Int, Int), html.Element]
-
-    var isBlurEnabled: Boolean = false
+    var isBlurEnabled: Boolean = true
 
     def setBlurEnabled(b: Boolean) = Callback(isBlurEnabled = b)
 
     def setInputRef(groupIndex: Int, qaIndex: Int): html.Element => Unit =
       (element: html.Element) => allInputRefs.put((groupIndex, qaIndex), element)
 
-    def updateInputRefs: Callback = scope.modState(
-      State.qaGroups.composeTraversal(eachIndexed).modify {
-        case (group, groupIndex) => QAGroup.inputRefOpts.composeTraversal(eachIndexed).modify {
-          case (_, qaIndex) => allInputRefs.get((groupIndex, qaIndex)) -> qaIndex
-        }(group) -> groupIndex
-      }
-    )
+    def updateQAState(groupIndex: Int, qaIndex: Int)(s: State): State = {
+      val group = s.qaGroups(groupIndex)
+      val template = group.template
+      val question = group.qas(qaIndex).question
 
-    val canvas = scala.scalajs.js.Dynamic.global.document.createElement("canvas")
-    val context = canvas.getContext("2d")
+      template.processStringFully(question) match {
+        case Left(QASRLTemplate.AggregatedInvalidState(_, _)) =>
+          qaStateLens(groupIndex, qaIndex).set(Invalid)(s)
+        case Right(goodStates) =>
+          if(goodStates.exists(_.isComplete)) qaStateLens(groupIndex, qaIndex).set(Complete)(s)
+          else qaStateLens(groupIndex, qaIndex).set(InProgress)(s)
+      }
+    }
 
     def addQAFields: (State => State) = State.qaGroups.modify(groups =>
       groups.map { group =>
-        if(group.qas.forall(isComplete(group.template, _))) group.withNewEmptyQA
+        if(group.qas.forall(isComplete)) group.withNewEmptyQA
         else group
       }
     )
@@ -174,21 +174,17 @@ class QASRLGenerationClient[SID : Reader : Writer](
         val newIndex = (curIndex + 1) % allFocusablePairs.size
 
         Callback(allInputRefs(allFocusablePairs(newIndex)).focus)
-        // s.copy(curFocus = Some(allFocusablePairs(newIndex)))
       }
     }
-
-    // def resolveQACompletionState(groupIndex: Int, qaIndex: Int, qaState: QAState): Callback =
-    //   scope.modState(qaStateLens(groupIndex, qaIndex).set(qaState))
 
     def updateHighlights(hs: HighlightingState) =
       scope.modState(
         State.qaGroups.composeTraversal(eachIndexed).modify {
           case (group, groupIndex) => QAGroup.qas.composeTraversal(eachIndexed).modify {
-            case (wqa, qaIndex) => WordedQAPair.answer.set(
+            case (qa, qaIndex) => QAPair.answer.set(
               hs.span.collect {
                 case (`groupIndex`, `qaIndex`, aIndex) => aIndex
-              }.toSet)(wqa) -> qaIndex
+              }.toSet)(qa) -> qaIndex
           }(group) -> groupIndex
         } andThen addQAFields
       )
@@ -208,7 +204,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
         val template = qaGroup.template
         val isFocused = curFocus == Some(groupIndex, qaIndex)
         val numQAsInGroup = qaGroup.qas.size
-        val WordedQAPair(_, question, answer) = qaGroup.qas(qaIndex)
+        val QAPair(question, answer, qaState) = qaGroup.qas(qaIndex)
+
         val isAnswerEmpty = answer.isEmpty
         val nextBonus = bonusFor(getAllCompleteQAPairs(qaGroups).size + 1)
 
@@ -217,7 +214,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
         case class AutocompleteState(suggestions: NonEmptyList[Suggestion], badStartIndexOpt: Option[Int])
 
         // NOTE this is empty iff question is complete/valid
-        val autocompleteStateOpt = {
+        val autocompleteStateOpt = if(!isFocused) None else {
           import QASRLTemplate._
           def createSuggestion(ips: InProgressState): Suggestion =
             Suggestion(ips.fullText, template.isAlmostComplete(ips))
@@ -237,8 +234,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
           }
         }
 
-        val isFieldComplete = autocompleteStateOpt.isEmpty
-        val isFieldInProgress = !isFieldComplete && question.nonEmpty
+        def handleQuestionChange(newQuestion: String) = {
+          scope.modState(questionLens(groupIndex, qaIndex).set(newQuestion) andThen updateQAState(groupIndex, qaIndex) andThen addQAFields)
+        }
 
         <.div(
           ^.overflow := "hidden",
@@ -246,46 +244,50 @@ class QASRLGenerationClient[SID : Reader : Writer](
             IntState.LocalStateProps(
               initialValue = 0,
               render = (highlightedIndex: Int, setHighlightedIndex: Int => Callback) => {
-                def selectItem(suggestion: Suggestion): Callback = suggestion match {
-                  case Suggestion(string, _) =>
-                    scope.modState(questionLens(groupIndex, qaIndex).set(string)) >>
-                      (if(isFieldComplete) setBlurEnabled(true) >> moveToNextQuestion else Callback.empty)
-                }
-                def handleKey(autocompleteStateOpt: Option[AutocompleteState])(e: ReactKeyboardEvent): Callback = {
+
+                def selectItem(suggestion: Suggestion): Callback = handleQuestionChange(suggestion.fullText)
+
+                def handleKey(e: ReactKeyboardEvent): Callback = {
                   val genHandlers = CallbackOption.keyCodeSwitch(e) {
                     case KeyCode.Tab => setBlurEnabled(true)
                     case KeyCode.Escape => setBlurEnabled(true)
                   } orElse CallbackOption.keyCodeSwitch(e, shiftKey = true) {
                     case KeyCode.Tab => setBlurEnabled(true)
                   }
-                  val menuHandlers = autocompleteStateOpt.fold(
-                    CallbackOption.keyCodeSwitch(e) {
-                      case KeyCode.Enter => setBlurEnabled(true) >> moveToNextQuestion >> e.preventDefaultCB
-                    } orElse genHandlers
-                  ) { acs =>
-                    val menuItems = acs.suggestions
-                    def next = setHighlightedIndex((highlightedIndex + 1) % menuItems.size.toInt)
-                    def prev = setHighlightedIndex((highlightedIndex - 1 + menuItems.size.toInt) % menuItems.size.toInt)
-                    CallbackOption.keyCodeSwitch(e) {
-                      case KeyCode.Down => next >> e.preventDefaultCB
-                      case KeyCode.Up => prev >> e.preventDefaultCB
-                      case KeyCode.Enter => selectItem(menuItems.toList(highlightedIndex)) >> e.preventDefaultCB
-                    } orElse genHandlers
+                  val menuHandlers =
+                    if(qaState == Complete) {
+                      CallbackOption.keyCodeSwitch(e) {
+                        case KeyCode.Enter => setBlurEnabled(true) >> moveToNextQuestion >> e.preventDefaultCB
+                      }
+                    } else {
+                      autocompleteStateOpt.fold(CallbackOption.pass) { acs =>
+                        val menuItems = acs.suggestions
+                        def next = setHighlightedIndex((highlightedIndex + 1) % menuItems.size.toInt)
+                        def prev = setHighlightedIndex((highlightedIndex - 1 + menuItems.size.toInt) % menuItems.size.toInt)
+                        CallbackOption.keyCodeSwitch(e) {
+                          case KeyCode.Down => next >> e.preventDefaultCB
+                          case KeyCode.Up => prev >> e.preventDefaultCB
+                          case KeyCode.Enter => selectItem(menuItems.toList(highlightedIndex)) >> e.preventDefaultCB
+                        }
+                      }
                   }
 
                   genHandlers orElse menuHandlers
                 }
-                val bgStyleOpt = if(isFieldComplete) {
-                  Some(^.backgroundColor := "rgba(0, 255, 0, 0.3)")
-                } else if(isFieldInProgress && !isFocused) {
-                  Some(^.backgroundColor := "rgba(255, 255, 0, 0.3)")
-                } else None
+
+                val bgStyle = qaState match {
+                  case Complete => ^.backgroundColor := "rgba(0, 255, 0, 0.3)"
+                  case InProgress if !isFocused && question.nonEmpty => ^.backgroundColor := "rgba(255, 255, 0, 0.3)"
+                  case Invalid if !isFocused => ^.backgroundColor := "rgba(255, 0, 0, 0.3)"
+                  case _ => EmptyVdom
+                }
+
                 <.div(
                   Reference(
                     ReferenceProps(
                       referencedTag = <.input(
                         (^.disabled := true).when(isNotAssigned),
-                        bgStyleOpt.whenDefined,
+                        bgStyle,
                         ^.float := "left",
                         ^.`type` := "text",
                         ^.placeholder := (
@@ -295,12 +297,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         ^.margin := s"1px",
                         ^.padding := s"1px",
                         ^.width := "480px",
-                        ^.onKeyDown ==> handleKey(autocompleteStateOpt),
-                        ^.onChange ==> (
-                          (e: ReactEventFromInput) => {
-                            val newValue = e.target.value
-                            scope.modState(questionLens(groupIndex, qaIndex).set(newValue) andThen addQAFields)
-                          }),
+                        ^.onKeyDown ==> handleKey,
+                        ^.onChange ==> ((e: ReactEventFromInput) => handleQuestionChange(e.target.value)),
                         ^.onFocus --> scope.modState(State.curFocus.set(Some((groupIndex, qaIndex)))),
                         ^.onBlur --> (if(isBlurEnabled) scope.modState(State.curFocus.set(None)) else Callback(allInputRefs((groupIndex, qaIndex)).focus)),
                         ^.value := question
@@ -325,6 +323,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                  else None
 
                                <.div(
+                                 ^.zIndex := "10",
                                  ^.position := "absolute",
                                  ^.top := s"${bottom}px",
                                  ^.left := s"${left}px",
@@ -436,7 +435,11 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         HighlightableSentence(
                           HighlightableSentenceProps(
                             sentence = sentence,
-                            specialWordIndices = prompt.keywords.toSet,
+                            styleForIndex = ((i: Int) =>
+                              prompt.keywords.indexOf(i).onlyIf(_ != -1).map(index =>
+                                TagMod(Styles.specialWord, Styles.niceBlue)
+                              ).whenDefined
+                            ),
                             highlightedIndices = curAnswer,
                             startHighlight = startHighlight,
                             startErase = startErase,
@@ -486,6 +489,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                           )
                         ),
                         <.input(
+                          ^.classSet1("btn btn-primary"),
                           ^.`type` := "submit",
                           ^.disabled := !s.qaGroups.forall(getCompleteQAPairs(_).size > 0),
                           ^.id := FieldLabels.submitButtonLabel,
