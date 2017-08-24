@@ -25,7 +25,9 @@ lazy val commonSettings = Seq(
 )
 
 lazy val commonJVMSettings = Seq(
-  fork in console := true
+  fork in console := true,
+  libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
+  libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0" classifier "models" // for automatically downloading pos-tagging model
 )
 
 // TODO: update this to the new hotness with newer scala.js version!
@@ -94,8 +96,6 @@ lazy val exampleProjectJVMSettings = commonJVMSettings ++ Seq(
     "com.lihaoyi" %% "scalatags" % "0.6.5",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
     // java deps:
-    "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
-    "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0" classifier "models", // for automatically downloading pos-tagging model
     "org.slf4j" % "slf4j-api" % "1.7.21", // decided to match scala-logging transitive dep
     "ch.qos.logback" % "logback-classic" % "1.2.3",
     "log4j" % "log4j" % "1.2.17", // runtime error if not included?

@@ -14,8 +14,10 @@ object Slots {
 
   type TemplateTransition = (String, TemplateState)
 
+  // neither of these should contain "to", which is handled specially
+
   val mostCommonPrepositions = Set(
-    "by", "to", "for", "with", "about",
+    "by", "for", "with", "about",
     "from" // added my own on this line
   ).map(_.lowerCase)
 
@@ -25,7 +27,7 @@ object Slots {
 		"behind", "below", "beneath", "beside", "besides", "between", "beyond", "by", "despite", "down",
 		"during", "except", "for", "from", "given", "in", "inside", "into", "near", "next",
 		"of", "off", "on", "onto", "opposite", "out", "outside", "over", "pace", "per",
-		"round", "since", "than", "through", "throughout", "till", "times", "to", "toward", "towards",
+		"round", "since", "than", "through", "throughout", "till", "times", "toward", "towards",
 		"under", "underneath", "until", "unto", "up", "upon", "versus", "via", "with ", "within",
 		"without"
   ).map(_.lowerCase)
@@ -77,14 +79,39 @@ class Slots(
 
   val qMark = reqState("?" -> TemplateComplete)
 
-  val obj2 = optStateWithSpace(
+  val prepObj = optStateWithSpace(
     qMark,
     "someone", "something", "somewhere",
-    "do", "doing", "do something", "doing something")
+    "doing", "doing something"
+  )
 
-  val prep = optStateWithSpace(
-    obj2,
+  val postToObj = optStateWithSpace(
+    qMark,
+    "someone", "something", "somewhere",
+    "do", "do something",
+    "doing", "doing something"
+    // "be doing", "be doing something",
+    // "have done", "have done something",
+    // "have been doing", "have been doing something"
+  )
+  // the last ones seem like overkill
+
+  val nonToPrep = optStateWithSpace(
+    prepObj,
     chosenPrepositions.map(_.toString).toSeq: _*
+  )
+
+  val to = TemplateProgress(
+    NonEmptyList.of(
+      " to" -> postToObj
+    )
+  )
+
+  val prep = TemplateProgress(
+    NonEmptyList.of(
+      "" -> to,
+      "" -> nonToPrep
+    )
   )
 
   val obj = optStateWithSpace(prep, "someone", "something")

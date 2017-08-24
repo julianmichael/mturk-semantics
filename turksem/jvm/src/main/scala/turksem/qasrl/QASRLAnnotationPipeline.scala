@@ -21,6 +21,7 @@ import turkey.tasks._
 import turksem._
 import turksem.util._
 import turksem.qamr._
+import turksem.HasKeyIndices.ops._
 
 import upickle.default._
 
@@ -41,20 +42,26 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   inflections: Inflections) {
 
   implicit object SIDHasKeyIndices extends HasKeyIndices[SID] {
-    override def getKeyIndices(id: SID): Set[Int] = PosTagger.posTag(id.tokens).collect {
-      case Word(index, pos, token) if PosTags.verbPosTags.contains(pos) =>
-        inflections.getInflectedForms(token.lowerCase).map(_ => index)
-    }.flatten.toSet
+    override def getKeyIndices(id: SID): Set[Int] = {
+      val posTaggedTokens = PosTagger.posTag(id.tokens)
+      posTaggedTokens.collect {
+        case Word(index, pos, token) if PosTags.verbPosTags.contains(pos) =>
+          // detect if "have"-verb is an auxiliary
+          if(Set("has", "have", "had").contains(token) &&
+               posTaggedTokens
+               .drop(index + 1) // after the "have" verb,
+               .takeWhile(_.pos != "VBN") // until the next past-participle form verb,
+               .forall(w => PosTags.adverbPosTags.contains(w.pos)) // everything is an adverb
+          ) None else inflections.getInflectedForms(token.lowerCase).map(_ => index)
+      }.flatten.toSet
+    }
   }
 
-  lazy val allPrompts: Vector[GenerationPrompt[SID]] = allIds.map { id =>
-    val verbIndices = PosTagger.posTag(id.tokens).collect {
-      case Word(index, pos, token) if PosTags.verbPosTags.contains(pos) =>
-        inflections.getInflectedForms(token.lowerCase).map(_ => index)
-    }.flatten.toList
-
-    GenerationPrompt(id, verbIndices)
-  }
+  lazy val allPrompts: Vector[GenerationPrompt[SID]] = for {
+    id <- allIds
+    verbIndices = id.keyIndices.toList.sorted
+    if verbIndices.nonEmpty
+  } yield GenerationPrompt(id, verbIndices)
 
   implicit val ads = annotationDataService
   implicit val settings = QASRLSettings
