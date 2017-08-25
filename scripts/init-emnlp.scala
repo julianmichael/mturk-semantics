@@ -1,4 +1,4 @@
-// XXX this init script is outdated
+import example.emnlp2017
 import turksem.qamr._
 import turksem.util._
 import turkey._
@@ -13,7 +13,7 @@ implicit val config: TaskConfig = {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("production"))
     ProductionTaskConfig("turksem-emnlp2017", "localhost", hitDataService)
   } else {
-    val hitDataService = new FileSystemHITDataService(annotationPath.resolve("sandbox"))
+    val hitDataService = new FileSystemHITDataService(annotationPath.resolve("sandbox-emnlp2017"))
     SandboxTaskConfig("turksem-emnlp2017", "localhost", hitDataService)
   }
 }
@@ -27,6 +27,8 @@ def exit = {
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
 
-val setup = new emnlp2017.AnnotationSetup
-val exp = setup.experiment
-exp.server
+val data = new emnlp2017.DataExporter
+
+// val setup = new emnlp2017.AnnotationSetup
+// val exp = setup.experiment
+// exp.server

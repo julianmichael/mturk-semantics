@@ -54,6 +54,7 @@ package object analysis {
     lazy val ptbDev = ptbDevUnfiltered.filterByQA(isQAGood)
     lazy val ptbTest = ptbTestUnfiltered.filterByQA(isQAGood)
     lazy val ptbAMR = ptbAMRUnfiltered.filterByQA(isQAGood)
+    lazy val ptbAll = new QAData(ptbTrain.all ++ ptbDev.all ++ ptbTest.all ++ ptbAMR.all)
   }
 
   import Datasets._
@@ -254,8 +255,11 @@ package object analysis {
 
     val templatesByFrequencyDecreasing = templates.toVector.sortBy(-_._2.size)
     println("Most common templates:")
-    templatesByFrequencyDecreasing.take(100).foreach { case (template, alignments) =>
-      println(s"${template.show} \t ${alignments.size} \t ${alignments.head.question} \t ${Text.render(alignments.head.sourcedQA.id.sentenceId.tokens)}")
+    templatesByFrequencyDecreasing.zipWithIndex.take(100).foreach { case ((template, alignments), index) =>
+      val questionsWithSentences = alignments.take(10).map(alignment =>
+        f"${alignment.question}%-50s  ${Text.render(alignment.sourcedQA.id.sentenceId)}%s"
+      ).mkString("\n")
+      println(f"\n$index%2d: ${template.show}%s \t ${alignments.size}%d \n$questionsWithSentences%s")
     }
 
     println
