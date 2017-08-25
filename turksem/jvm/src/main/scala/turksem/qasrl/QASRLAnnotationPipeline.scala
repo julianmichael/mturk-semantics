@@ -63,6 +63,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     if verbIndices.nonEmpty
   } yield GenerationPrompt(id, verbIndices)
 
+  lazy val (smallPrompts, largePrompts) = allPrompts.partition(_.keywords.size < 3)
+
   implicit val ads = annotationDataService
   implicit val settings = QASRLSettings
 
@@ -180,19 +182,25 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     (headLinks, bodyLinks)
   }
 
-  val genHITType = HITType(
-    title = s"Write question-answer pairs about a sentence's meaning",
+  val smallGenHITType = HITType(
+    title = s"Write question-answer pairs about verbs (1-2 verbs)",
     description = s"""
-      Given a sentence and some words from that sentence,
-      write questions and answers involving each word.
-      Write more question-answer pairs for increasing bonuses, and
-      maintain high accuracy to stay qualified.
+      Given a sentence and some verbs from that sentence,
+      write questions about each verb and their answers.
+      Questions must adhere to a certain template,
+      provided by autocomplete functionality.
+      Maintain high accuracy to stay qualified.
     """.trim.replace("\\s+", " "),
-    reward = generationReward,
+    reward = 0.05,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
       approvalRateRequirement, locationRequirement, genAccuracyRequirement
     ))
+
+  val largeGenHITType = smallGenHITType.copy(
+    title = s"Write question-answer pairs about verbs (3 or more verbs)",
+    reward = 0.15
+  )
 
   lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {
     case QASRLGenerationApiRequest(GenerationPrompt(id, keywords)) =>
@@ -204,12 +212,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   lazy val sampleGenPrompt = allPrompts.head
-
-  lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], List[WordedQAPair], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
-    generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
-    frozenHITTypeId = frozenGenerationHITTypeID,
-    taskPageHeadElements = taskPageHeadLinks,
-    taskPageBodyElements = taskPageBodyLinks)
 
   // validation task definition
 
@@ -232,129 +234,160 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       ValidationApiResponse(id.tokens)
   }
 
-  lazy val sampleValPrompt = ValidationPrompt[SID](
-    sampleGenPrompt, "", "",
+  lazy val sampleValPrompt = QASRLValidationPrompt[SID](
+    sampleGenPrompt, "", "", "",
     List(WordedQAPair(0, "Who is awesome?", Set(1, 2, 3, 4)),
-         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
-         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
-         WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
+         WordedQAPair(1, "What is Julian?", Set(5, 6, 8, 9)),
+         WordedQAPair(1, "Whih one is best?", Set(5, 6, 8, 9)),
+         WordedQAPair(1, "Herp derp?", Set(5, 6, 8, 9))))
 
-  lazy val valTaskSpec = TaskSpecification[ValidationPrompt[SID], List[ValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
+  lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[ValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
     validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
     frozenHITTypeId = frozenValidationHITTypeID)
+
+  // val dashboardApiFlow = Flow[Unit]
+  //   .merge(Source.tick(initialDelay = 0.seconds, interval = 1.minute, ()))
+  //   .filter(_ => smallGenManagerPeek != null &&
+  //             largeGenManagerPeek != null &&
+  //             valManagerPeek != null &&
+  //             sentenceTrackerPeek != null)
+  //   .map { _ =>
+  //   val last5Sentences = sentenceTrackerPeek.finishedSentenceStats.take(5).flatMap { stats =>
+  //     val sentence = stats.id.tokens
+  //     scala.util.Try(
+  //       stats -> SentenceHITInfo(
+  //         sentence,
+  //         stats.genHITIds.toList
+  //           .map(hitDataService.getHITInfo[GenerationPrompt[SID], List[WordedQAPair]](genTaskSpec.hitTypeId, _))
+  //           .map(_.get),
+  //         stats.valHITIds.toList
+  //           .map(hitDataService.getHITInfo[QASRLValidationPrompt[SID], List[ValidationAnswer]](valTaskSpec.hitTypeId, _))
+  //           .map(_.get))
+  //     ).toOption
+  //   }.toMap
+  //   SummaryInfo(
+  //     // generation
+  //     numGenActive = smallGenHelper.numActiveHITs + largeGenHelper.numActiveHITs,
+  //     genWorkerStats = genManagerPeek.allWorkerStats,
+  //     genFeedback = (smallGenManagerPeek.feedbacks.take(10) ++ largeGenManagerPeek.feedbacks.take(10)),
+  //     // validation
+  //     numValPromptsWaiting = valManagerPeek.queuedPrompts.numManuallyEnqueued,
+  //     numValActive = valHelper.numActiveHITs,
+  //     valWorkerInfo = valManagerPeek.allWorkerInfo,
+  //     valFeedback = valManagerPeek.feedbacks.take(20),
+  //     // final results
+  //     lastFewSentences = last5Sentences,
+  //     aggSentenceStats = sentenceTrackerPeek.aggregateSentenceStats)
+  // }
+
+  // lazy val dashboardTaskSpec = TaskSpecification[Unit, Unit, Unit, SummaryInfo[SID]](
+  //   dashboardTaskKey, null, dashboardApiFlow, (),
+  //   frozenHITTypeId = null)
 
   // hit management --- circularly defined so they can communicate
 
   import config.actorSystem
 
-  var sentenceTrackerPeek: SentenceTracker[SID] = null
+  var accuracyTrackerPeek: QASRLGenerationAccuracyManager[SID] = null
 
-  lazy val sentenceTracker: ActorRef = actorSystem.actorOf(
+  lazy val accuracyTracker: ActorRef = actorSystem.actorOf(
     Props {
-      sentenceTrackerPeek = new SentenceTracker[SID](genTaskSpec.hitTypeId, valTaskSpec.hitTypeId)
-      sentenceTrackerPeek
-    })
+      accuracyTrackerPeek = new QASRLGenerationAccuracyManager[SID](genAccQualTypeId)
+      accuracyTrackerPeek
+    }
+  )
 
-  var genManagerPeek: GenerationHITManager[SID] = null
-  var valManagerPeek: ValidationHITManager[SID] = null
+  // var sentenceTrackerPeek: QASRLSentenceTracker[SID] = null
 
-  lazy val genHelper = new HITManager.Helper(genTaskSpec)
-  lazy val genManager: ActorRef = if(config.isProduction) {
-    actorSystem.actorOf(
-      Props {
-        genManagerPeek = new GenerationHITManager(
-          genHelper,
-          genAccQualTypeId,
-          valHelper,
-          valManager,
-          sentenceTracker,
-          numGenerationAssignmentsForPrompt, 30, allPrompts.iterator)
-        genManagerPeek
-      })
-  } else {
-    actorSystem.actorOf(
-      Props {
-        genManagerPeek = new GenerationHITManager(
-          genHelper,
-          genAccQualTypeId,
-          valHelper,
-          valManager,
-          sentenceTracker,
-          _ => 1, 3, allPrompts.iterator)
-        genManagerPeek
-      })
-  }
+  // lazy val sentenceTracker: ActorRef = actorSystem.actorOf(
+  //   Props {
+  //     sentenceTrackerPeek = new QASRLSentenceTracker[SID](valTaskSpec.hitTypeId)
+  //     sentenceTrackerPeek
+  //   })
+
+  var valManagerPeek: QASRLValidationHITManager[SID] = null
 
   lazy val valHelper = new HITManager.Helper(valTaskSpec)
   lazy val valManager: ActorRef = if(config.isProduction) {
     actorSystem.actorOf(
       Props {
-        valManagerPeek = ValidationHITManager(
+        valManagerPeek = QASRLValidationHITManager(
           valHelper,
           valAgrQualTypeId,
-          genManager,
-          sentenceTracker,
+          accuracyTracker,
+          // sentenceTracker,
           _ => 2, 50)
         valManagerPeek
       })
   } else {
     actorSystem.actorOf(
       Props {
-        valManagerPeek = ValidationHITManager(
+        valManagerPeek = QASRLValidationHITManager(
           valHelper,
           valAgrQualTypeId,
-          genManager,
-          sentenceTracker,
+          accuracyTracker,
+          // sentenceTracker,
           _ => 1, 3)
         valManagerPeek
       })
   }
 
-  val dashboardApiFlow = Flow[Unit]
-    .merge(Source.tick(initialDelay = 0.seconds, interval = 1.minute, ()))
-    .filter(_ => genManagerPeek != null && valManagerPeek != null && sentenceTrackerPeek != null)
-    .map { _ =>
-    val last5Sentences = sentenceTrackerPeek.finishedSentenceStats.take(5).flatMap { stats =>
-      val sentence = stats.id.tokens
-      scala.util.Try(
-        stats -> SentenceHITInfo(
-          sentence,
-          stats.genHITIds.toList
-            .map(hitDataService.getHITInfo[GenerationPrompt[SID], List[WordedQAPair]](genTaskSpec.hitTypeId, _))
-            .map(_.get),
-          stats.valHITIds.toList
-            .map(hitDataService.getHITInfo[ValidationPrompt[SID], List[ValidationAnswer]](valTaskSpec.hitTypeId, _))
-            .map(_.get))
-      ).toOption
-    }.toMap
-    SummaryInfo(
-      // generation
-      numGenActive = genHelper.numActiveHITs,
-      genWorkerStats = genManagerPeek.allWorkerStats,
-      genFeedback = genManagerPeek.feedbacks.take(20),
-      // validation
-      numValPromptsWaiting = valManagerPeek.queuedPrompts.numManuallyEnqueued,
-      numValActive = valHelper.numActiveHITs,
-      valWorkerInfo = valManagerPeek.allWorkerInfo,
-      valFeedback = valManagerPeek.feedbacks.take(20),
-      // final results
-      lastFewSentences = last5Sentences,
-      aggSentenceStats = sentenceTrackerPeek.aggregateSentenceStats)
+  lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
+
+  var smallGenManagerPeek: QASRLGenerationHITManager[SID] = null
+  var largeGenManagerPeek: QASRLGenerationHITManager[SID] = null
+
+  def makeGenHITManagement(hitType: HITType, prompts: Vector[GenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit)) = {
+    val taskSpec = TaskSpecification[GenerationPrompt[SID], List[WordedQAPair], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
+      generationTaskKey, hitType, genApiFlow, sampleGenPrompt,
+      frozenHITTypeId = frozenGenerationHITTypeID,
+      taskPageHeadElements = taskPageHeadLinks,
+      taskPageBodyElements = taskPageBodyLinks)
+    val helper = new HITManager.Helper(taskSpec)
+    val hitManager: ActorRef = if(config.isProduction) {
+      actorSystem.actorOf(
+        Props {
+          val manager = new QASRLGenerationHITManager(
+            helper,
+            valHelper,
+            valManager,
+            // sentenceTracker,
+            numGenerationAssignmentsForPrompt, 30, prompts.iterator)
+          setPeek(manager)
+          manager
+        }
+      )
+    } else {
+      actorSystem.actorOf(
+        Props {
+          val manager = new QASRLGenerationHITManager(
+            helper,
+            valHelper,
+            valManager,
+            // sentenceTracker,
+            (_: GenerationPrompt[SID]) => 2, 3, prompts.iterator)
+          setPeek(manager)
+          manager
+        }
+      )
+    }
+    val actor = actorSystem.actorOf(Props(new TaskManager(helper, hitManager)))
+    (taskSpec, helper, hitManager, actor)
   }
 
-  lazy val dashboardTaskSpec = TaskSpecification[Unit, Unit, Unit, SummaryInfo[SID]](
-    dashboardTaskKey, null, dashboardApiFlow, (),
-    frozenHITTypeId = null)
+  lazy val (smallGenTaskSpec, smallGenHelper, smallGenManager, smallGenActor) = makeGenHITManagement(
+    smallGenHITType, smallPrompts, smallGenManagerPeek = _)
 
-  lazy val server = new Server(List(genTaskSpec, valTaskSpec, dashboardTaskSpec))
-  lazy val genActor = actorSystem.actorOf(Props(new TaskManager(genHelper, genManager)))
-  lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
+  lazy val (largeGenTaskSpec, largeGenHelper, largeGenManager, largeGenActor) = makeGenHITManagement(
+    largeGenHITType, largePrompts, largeGenManagerPeek = _)
+
+  lazy val server = new Server(List(smallGenTaskSpec, largeGenTaskSpec, valTaskSpec))
 
   // used to schedule data-saves
   private[this] var schedule: List[Cancellable] = Nil
   def startSaves(interval: FiniteDuration = 5 minutes): Unit = {
     if(schedule.exists(_.isCancelled) || schedule.isEmpty) {
-      schedule = List(genManager, valManager, sentenceTracker).map(actor =>
+      schedule = List(smallGenManager, largeGenManager).map(actor =>
         config.actorSystem.scheduler.schedule(
           2 seconds, interval, actor, SaveData)(
           config.actorSystem.dispatcher, actor)
@@ -363,52 +396,66 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
   def stopSaves = schedule.foreach(_.cancel())
   def saveData = {
-    genManager ! SaveData
+    accuracyTracker ! SaveData
+    // sentenceTracker ! SaveData
     valManager ! SaveData
-    sentenceTracker ! SaveData
+    smallGenManager ! SaveData
+    largeGenManager ! SaveData
   }
 
-  def setGenHITsActive(n: Int) =
-    genManager ! SetNumHITsActive(n)
-  def setValHITsActive(n: Int) =
+  def setGenHITsActiveEach(n: Int) = {
+    smallGenManager ! SetNumHITsActive(n)
+    largeGenManager ! SetNumHITsActive(n)
+  }
+  def setValHITsActive(n: Int) = {
     valManager ! SetNumHITsActive(n)
+  }
 
   import TaskManager.Message._
   def start(interval: FiniteDuration = 30 seconds) = {
     server
     startSaves()
-    genActor ! Start(interval, delay = 0 seconds)
+    smallGenActor ! Start(interval, delay = 0 seconds)
+    largeGenActor ! Start(interval, delay = 0 seconds)
     valActor ! Start(interval, delay = 3 seconds)
   }
   def stop() = {
-    genActor ! Stop
+    smallGenActor ! Stop
+    largeGenActor ! Stop
     valActor ! Stop
     stopSaves
   }
   def disable() = {
-    genActor ! Disable
+    smallGenActor ! Disable
+    largeGenActor ! Disable
     valActor ! Disable
   }
   def expire() = {
-    genActor ! Expire
+    smallGenActor ! Expire
+    largeGenActor ! Expire
     valActor ! Expire
   }
   def update() = {
     server
-    genActor ! Update
+    smallGenActor ! Update
+    largeGenActor ! Update
     valActor ! Update
   }
   def save() = {
-    sentenceTracker ! SaveData
-    genManager ! SaveData
+    // sentenceTracker ! SaveData
+    smallGenManager ! SaveData
+    largeGenManager ! SaveData
     valManager ! SaveData
   }
 
   // for use while it's running. Ideally instead of having to futz around at the console calling these functions,
   // in the future you could have a nice dashboard UI that will help you examine common sources of issues
 
-  def allGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[WordedQAPair]](genTaskSpec.hitTypeId).get
-  def allValInfos = hitDataService.getAllHITInfo[ValidationPrompt[SID], List[ValidationAnswer]](valTaskSpec.hitTypeId).get
+  def allSmallGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[WordedQAPair]](smallGenTaskSpec.hitTypeId).get
+  def allLargeGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[WordedQAPair]](largeGenTaskSpec.hitTypeId).get
+  def allGenInfos = allSmallGenInfos ++ allLargeGenInfos
+
+  def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SID], List[ValidationAnswer]](valTaskSpec.hitTypeId).get
 
   def workerGenInfos(workerId: String) = for {
     hi <- allGenInfos
@@ -429,12 +476,12 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   def currentGenSentences: List[(SID, String)] = {
-    genHelper.activeHITInfosByPromptIterator.map(_._1.id).map(id =>
+    (smallGenHelper.activeHITInfosByPromptIterator ++ largeGenHelper.activeHITInfosByPromptIterator).map(_._1.id).map(id =>
       id -> Text.render(id.tokens)
     ).toList
   }
 
-  def renderValidation(info: HITInfo[ValidationPrompt[SID], List[ValidationAnswer]]) = {
+  def renderValidation(info: HITInfo[QASRLValidationPrompt[SID], List[ValidationAnswer]]) = {
     val sentence = info.hit.prompt.genPrompt.id.tokens
     info.assignments.map { assignment =>
       Text.render(sentence) + "\n" +
@@ -447,25 +494,25 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     }.mkString("\n") + "\n"
   }
 
-  def allSentenceStats: Map[SID, SentenceStats[SID]] = {
-    val genInfosById = allGenInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
-    val valInfosById = allValInfos.groupBy(_.hit.prompt.genPrompt.id).withDefaultValue(Nil)
-    allIds.map { id =>
-      val afterGen = genInfosById(id)
-        .map(_.hit.prompt.keywords.toSet)
-        .foldLeft(emptyStatus(id))(_ withKeywords _)
-      val valStart = valInfosById(id)
-        .map(_.hit.prompt)
-        .foldLeft(afterGen)(_ beginValidation _)
-      val valFinish = valInfosById(id)
-        .foldLeft(valStart) {
-        case (status, hitInfo) => status.finishValidation(hitInfo.hit.prompt, hitInfo.assignments)
-      }
-      id -> makeStats(valFinish, genTaskSpec.hitTypeId, valTaskSpec.hitTypeId)
-    }.toMap
-  }
+  // def allSentenceStats: Map[SID, SentenceStats[SID]] = {
+  //   val genInfosById = allGenInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
+  //   val valInfosById = allValInfos.groupBy(_.hit.prompt.genPrompt.id).withDefaultValue(Nil)
+  //   allIds.map { id =>
+  //     val afterGen = genInfosById(id)
+  //       .map(_.hit.prompt.keywords.toSet)
+  //       .foldLeft(emptyStatus(id))(_ withKeywords _)
+  //     val valStart = valInfosById(id)
+  //       .map(_.hit.prompt)
+  //       .foldLeft(afterGen)(_ beginValidation _)
+  //     val valFinish = valInfosById(id)
+  //       .foldLeft(valStart) {
+  //       case (status, hitInfo) => status.finishValidation(hitInfo.hit.prompt, hitInfo.assignments)
+  //     }
+  //     id -> QASRLSentenceTracker.makeStats(valFinish, genTaskSpec.hitTypeId, valTaskSpec.hitTypeId)
+  //   }.toMap
+  // }
 
-  def aggSentenceStats: AggregateSentenceStats = AggregateSentenceStats.aggregate(
-    allSentenceStats.values.toList
-  )
+  // def aggSentenceStats: AggregateSentenceStats = AggregateSentenceStats.aggregate(
+  //   allSentenceStats.values.toList
+  // )
 }

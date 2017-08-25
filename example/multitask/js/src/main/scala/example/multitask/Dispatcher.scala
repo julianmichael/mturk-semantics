@@ -159,9 +159,8 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.h2("""Conditions & Bonuses"""),
     <.p(s"""For each HIT, you will be shown up to four special words from the sentence.
           You are required to write at least one question-answer pair for each special word.
-          However, you will receive bonuses if you come up with more.
+          However, you will receive a bonus of ${dollarsToCents(bonusPerQuestion)}c per question if you come up with more.
           (As you complete each one, new fields will appear for you to write more.)
-          The bonus per question increases by ${dollarsToCents(bonusIncrement)}c for each one you write;
           your reward will be greatest if you can present """,
           <.b("the complete set of possible questions and answers "),
           """that relate the special words to each other and the rest of the sentence.
@@ -187,7 +186,6 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)"""),
     <.h2("""Tips"""),
     <.p(s"""To make the task go quickly, make your questions as short and simple as possible.
-            (There is a ${questionCharLimit}-character limit, which will be indicated in red when you approach it.)
             Feel free to use generic words like "someone" and "something" to do so."""),
     <.p(""" You will find that the vast majority of your questions begin with """,
         <.b("Who, what, when, where, why, whose, which, "),

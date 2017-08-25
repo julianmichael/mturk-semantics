@@ -1,9 +1,10 @@
-package turksem.qamr
+package turksem.qasrl
 
 import turkey.tasks._
 import cats.implicits._
 
 import turksem._
+import turksem.qamr._
 import turksem.util._
 
 import nlpdata.util.Text
@@ -28,13 +29,13 @@ import monocle._
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
-class ValidationClient[SID : Writer : Reader](
+class QASRLValidationClient[SID : Writer : Reader](
   instructions: VdomTag)(
   implicit promptReader: Reader[ValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[ValidationAnswer]] // same as above
 ) extends TaskClient[ValidationPrompt[SID], List[ValidationAnswer]] {
 
-  import QAMRSettings._
+  import QASRLSettings._
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()

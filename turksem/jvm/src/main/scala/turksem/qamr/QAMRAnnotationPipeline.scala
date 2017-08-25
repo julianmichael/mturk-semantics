@@ -37,8 +37,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   implicit val ads = annotationDataService
   implicit val is = isStopword
-  implicit val settings = QAMRSettings
-  import settings._
+  import QAMRSettings._
 
   implicit object SIDHasKeyIndices extends HasKeyIndices[SID] {
     override def getKeyIndices(id: SID): Set[Int] = id.tokens
@@ -417,7 +416,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
         .foldLeft(valStart) {
         case (status, hitInfo) => status.finishValidation(hitInfo.hit.prompt, hitInfo.assignments)
       }
-      id -> makeStats(valFinish, genTaskSpec.hitTypeId, valTaskSpec.hitTypeId)
+      id -> SentenceTracker.makeStats(valFinish, genTaskSpec.hitTypeId, valTaskSpec.hitTypeId)
     }.toMap
   }
 

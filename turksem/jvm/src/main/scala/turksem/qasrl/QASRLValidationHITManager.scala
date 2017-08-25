@@ -1,7 +1,12 @@
-package turksem.qamr
+package turksem.qasrl
 
 import turksem._
 import turksem.util._
+import turksem.qamr.GenerationPrompt
+import turksem.qamr.ValidationAnswer
+import turksem.qamr.WorkerInfo
+import turksem.qamr.Pring
+import turksem.qamr.SaveData
 
 import turkey._
 import turkey.tasks._
@@ -20,19 +25,19 @@ import upickle.default._
 
 import com.typesafe.scalalogging.StrictLogging
 
-object ValidationHITManager {
+object QASRLValidationHITManager {
   def apply[SID : Reader : Writer](
-    helper: HITManager.Helper[ValidationPrompt[SID], List[ValidationAnswer]],
+    helper: HITManager.Helper[QASRLValidationPrompt[SID], List[ValidationAnswer]],
     valQualificationTypeId: String,
-    generationActor: ActorRef,
-    sentenceTrackingActor: ActorRef,
-    numAssignmentsForPrompt: ValidationPrompt[SID] => Int,
+    accuracyStatsActor: ActorRef,
+    // sentenceTrackingActor: ActorRef,
+    numAssignmentsForPrompt: QASRLValidationPrompt[SID] => Int,
     initNumHITsToKeepActive: Int)(
     implicit annotationDataService: AnnotationDataService
   ) = {
 
-    new ValidationHITManager[SID](
-      helper, valQualificationTypeId, generationActor, sentenceTrackingActor,
+    new QASRLValidationHITManager[SID](
+      helper, valQualificationTypeId, accuracyStatsActor, /*sentenceTrackingActor,*/
       numAssignmentsForPrompt, initNumHITsToKeepActive,
       loadPrompts[SID].iterator)
   }
@@ -43,10 +48,10 @@ object ValidationHITManager {
     implicit annotationDataService: AnnotationDataService
   ) = annotationDataService.loadLiveData(validationPromptsFilename)
     .toOption
-    .fold(List.empty[ValidationPrompt[SID]])(lines => read[List[ValidationPrompt[SID]]](lines.mkString))
+    .fold(List.empty[QASRLValidationPrompt[SID]])(lines => read[List[QASRLValidationPrompt[SID]]](lines.mkString))
 
   def notificationEmailText(curAgreement: Double): String = {
-    import QAMRSettings._
+    import QASRLSettings._
     val explanatoryText = if(curAgreement < validationAgreementBlockingThreshold) {
       s"""There will be a grace period of several more assignments (${validationBufferBeforeBlocking} more after this calculation was done), and after that, if your agreement rate remains below ${math.round(validationAgreementBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. Note that your qualification value may not accurately reflect your agreement rate: it will be prevented from going below ${math.round(validationAgreementBlockingThreshold * 100).toInt} until the grace period is over."""
     } else {
@@ -68,40 +73,40 @@ Finally, it is always possible that you got unlucky and were compared to low-qua
   }
 }
 
-class ValidationHITManager[SID : Reader : Writer] private (
-  helper: HITManager.Helper[ValidationPrompt[SID], List[ValidationAnswer]],
+class QASRLValidationHITManager[SID : Reader : Writer] private (
+  helper: HITManager.Helper[QASRLValidationPrompt[SID], List[ValidationAnswer]],
   valQualificationTypeId: String,
-  generationActor: ActorRef,
-  sentenceTrackingActor: ActorRef,
-  numAssignmentsForPrompt: ValidationPrompt[SID] => Int,
+  accuracyStatsActor: ActorRef,
+  // sentenceTrackingActor: ActorRef,
+  numAssignmentsForPrompt: QASRLValidationPrompt[SID] => Int,
   initNumHITsToKeepActive: Int,
-  _promptSource: Iterator[ValidationPrompt[SID]])(
+  _promptSource: Iterator[QASRLValidationPrompt[SID]])(
   implicit annotationDataService: AnnotationDataService
-) extends NumAssignmentsHITManager[ValidationPrompt[SID], List[ValidationAnswer]](
+) extends NumAssignmentsHITManager[QASRLValidationPrompt[SID], List[ValidationAnswer]](
   helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource) {
 
-  import ValidationHITManager._
+  import QASRLValidationHITManager._
   import helper._
   import config._
   import taskSpec.hitTypeId
-  import QAMRSettings._
+  import QASRLSettings._
 
   override lazy val receiveAux2: PartialFunction[Any, Unit] = {
     case SaveData => save
     case Pring => println("Validation manager pringed.")
   }
 
-  override def promptFinished(prompt: ValidationPrompt[SID]): Unit = {
+  override def promptFinished(prompt: QASRLValidationPrompt[SID]): Unit = {
     val assignments = promptToAssignments(prompt)
-    sentenceTrackingActor ! ValidationFinished(prompt, assignments)
+    // sentenceTrackingActor ! ValidationFinished(prompt, assignments)
     val numValid = ValidationAnswer.numValidQuestions(assignments.map(_.response))
-    generationActor ! ValidationResult(prompt.genPrompt, prompt.sourceHITId, prompt.sourceAssignmentId, numValid)
+    accuracyStatsActor ! QASRLValidationResult(prompt.genPrompt, prompt.sourceHITTypeId, prompt.sourceHITId, prompt.sourceAssignmentId, numValid)
     promptToAssignments = promptToAssignments - prompt
   }
 
   private[this] var allPrompts = loadPrompts[SID]
 
-  override def addPrompt(prompt: ValidationPrompt[SID]): Unit = {
+  override def addPrompt(prompt: QASRLValidationPrompt[SID]): Unit = {
     super.addPrompt(prompt)
     allPrompts = prompt :: allPrompts
   }
@@ -115,10 +120,10 @@ class ValidationHITManager[SID : Reader : Writer] private (
       write[Map[String, WorkerInfo]](allWorkerInfo))
     annotationDataService.saveLiveData(
       promptToAssignmentsFilename,
-      write[Map[ValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]](promptToAssignments))
+      write[Map[QASRLValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]](promptToAssignments))
     annotationDataService.saveLiveData(
       validationPromptsFilename,
-      write[List[ValidationPrompt[SID]]](allPrompts))
+      write[List[QASRLValidationPrompt[SID]]](allPrompts))
     annotationDataService.saveLiveData(
       feedbackFilename,
       write[List[Assignment[List[ValidationAnswer]]]](feedbacks))
@@ -138,9 +143,9 @@ class ValidationHITManager[SID : Reader : Writer] private (
   private[this] var promptToAssignments = {
     annotationDataService.loadLiveData(promptToAssignmentsFilename)
       .map(_.mkString)
-      .map(read[Map[ValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]])
+      .map(read[Map[QASRLValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]])
       .toOption.getOrElse {
-      Map.empty[ValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]
+      Map.empty[QASRLValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]
     }
   }
 
@@ -198,7 +203,7 @@ class ValidationHITManager[SID : Reader : Writer] private (
   }
 
   // override for more interesting review policy
-  override def reviewAssignment(hit: HIT[ValidationPrompt[SID]], assignment: Assignment[List[ValidationAnswer]]): Unit = {
+  override def reviewAssignment(hit: HIT[QASRLValidationPrompt[SID]], assignment: Assignment[List[ValidationAnswer]]): Unit = {
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
       feedbacks = assignment :: feedbacks

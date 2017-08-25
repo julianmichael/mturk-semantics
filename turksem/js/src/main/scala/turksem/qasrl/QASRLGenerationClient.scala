@@ -39,13 +39,12 @@ import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
 class QASRLGenerationClient[SID : Reader : Writer](
-  instructions: VdomTag,
-  settings: PipelineSettings)(
+  instructions: VdomTag)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[WordedQAPair]] // same as above
 ) extends TaskClient[GenerationPrompt[SID], List[WordedQAPair]] {
 
-  import settings._
+  import QASRLSettings._
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
@@ -209,7 +208,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
         val QAPair(question, answer, qaState) = qaGroup.qas(qaIndex)
 
         val isAnswerEmpty = answer.isEmpty
-        val nextBonus = bonusFor(getAllCompleteQAPairs(qaGroups).size + 1)
+        val nextBonus = bonusPerQuestion
 
         case class Suggestion(fullText: String, isComplete: Boolean)
 
@@ -407,8 +406,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
                       val curCompleteQAPairs = getAllCompleteQAPairs(s.qaGroups)
 
-                      val curPotentialBonus = (1 to (curCompleteQAPairs.size - s.qaGroups.size))
-                        .map(bonusFor).sum
+                      val curPotentialBonus = generationBonus(s.qaGroups.size, curCompleteQAPairs.size)
 
                       val curAnswer = s.curFocus.fold(Set.empty[Int]) {
                         case (groupIndex, qaIndex) => spans.collect {

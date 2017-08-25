@@ -18,14 +18,12 @@ abstract class QAMRDispatcher[SID : Reader : Writer] extends TaskDispatcher {
 
   lazy val genClient = new GenerationClient[SID](
     generationInstructions,
-    requireWhAtQuestionBeginning,
-    QAMRSettings)
+    requireWhAtQuestionBeginning)
 
   lazy val valClient = new ValidationClient[SID](
-    validationInstructions,
-    QAMRSettings)
+    validationInstructions)
 
-  val dashClient: DashboardClient[SID] = new DashboardClient[SID](QAMRSettings)
+  val dashClient: DashboardClient[SID] = new DashboardClient[SID]()
 
   final override lazy val taskMapping = Map[String, () => Unit](
     QAMRSettings.expHGenerationTaskKey -> genClient.main,

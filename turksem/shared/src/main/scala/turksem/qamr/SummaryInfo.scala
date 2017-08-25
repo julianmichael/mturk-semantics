@@ -11,11 +11,11 @@ case class ValidatedAssignment[SID](
   genHIT: HIT[GenerationPrompt[SID]],
   genAssignment: Assignment[List[WordedQAPair]],
   valAssignments: List[Assignment[List[ValidationAnswer]]]) {
-  def genCost(implicit settings: PipelineSettings): Double = {
+  def genCost: Double = {
     val numValidQs = ValidationAnswer.numValidQuestions(valAssignments.map(_.response))
-    settings.generationReward + settings.generationBonus(genHIT.prompt.keywords.size, numValidQs)
+    QAMRSettings.generationReward + QAMRSettings.generationBonus(genHIT.prompt.keywords.size, numValidQs)
   }
-  def valCost(implicit settings: PipelineSettings): Double = valAssignments.size * (settings.validationReward + settings.validationBonus(genAssignment.response.size))
+  def valCost: Double = valAssignments.size * (QAMRSettings.validationReward + QAMRSettings.validationBonus(genAssignment.response.size))
 }
 
 /** Stores all data relevant to a sentence

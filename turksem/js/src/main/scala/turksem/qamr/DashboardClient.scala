@@ -29,9 +29,9 @@ import monocle._
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
-class DashboardClient[SID : Reader : Writer](settings: PipelineSettings) extends TaskClient[Unit, Unit] {
+class DashboardClient[SID : Reader : Writer] extends TaskClient[Unit, Unit] {
 
-  import settings._
+  import QAMRSettings._
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()

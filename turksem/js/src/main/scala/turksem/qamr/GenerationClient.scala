@@ -30,13 +30,12 @@ import japgolly.scalajs.react.MonocleReact._
 
 class GenerationClient[SID : Reader : Writer](
   instructions: VdomTag,
-  requireWhAtQuestionBeginning: Boolean,
-  settings: PipelineSettings)(
+  requireWhAtQuestionBeginning: Boolean)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[WordedQAPair]] // same as above
 ) extends TaskClient[GenerationPrompt[SID], List[WordedQAPair]] {
 
-  import settings._
+  import QAMRSettings._
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()

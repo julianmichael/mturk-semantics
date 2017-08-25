@@ -1,11 +1,17 @@
 package turksem
 
+import nlpdata.util.LowerCaseStrings._
 import scala.util.{Try, Success, Failure}
 
 import scala.language.implicitConversions
 
 /** Provides miscellaneous utility classes and methods, primarily for data analysis. */
 package object util extends PackagePlatformExtensions {
+
+  /** We require questions to begin with one of these words. */
+  val whWords = Set("who", "what", "when", "where", "why", "how", "which", "whose").map(_.lowerCase)
+
+  def beginsWithWh(s: String): Boolean = whWords.exists(w => s.toLowerCase.startsWith(w))
 
   def majorities[A](sets: Iterable[Set[A]]): Set[A] = {
     sets.flatten.toSet

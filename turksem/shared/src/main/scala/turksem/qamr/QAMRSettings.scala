@@ -1,12 +1,12 @@
 package turksem.qamr
 
-import nlpdata.util.Text
+object QAMRSettings {
 
-import turksem.util._
-import turksem._
-import turkey._
+  final def generationBonus(nKeywords: Int, nValidQAs: Int) =
+    math.max(0.0, (1 to (nValidQAs - nKeywords)).map(bonusFor).sum)
 
-object QAMRSettings extends PipelineSettings {
+  final def validationBonus(numQuestions: Int) =
+    math.max(0.0, validationBonusPerQuestion * (numQuestions - validationBonusThreshold))
 
   // used as URL parameters that indicate to the client which interface to use
   val expHGenerationTaskKey = "expHGeneration"
@@ -14,24 +14,24 @@ object QAMRSettings extends PipelineSettings {
   val expHDashboardTaskKey = "expHDashboard"
 
   // annotation pipeline hyperparameters
-  override val generationReward = 0.20
-  override val bonusIncrement = 0.03
-  override def bonusFor(i: Int): Double = bonusIncrement * i + 0.03
+  val generationReward = 0.20
+  val bonusIncrement = 0.03
+  def bonusFor(i: Int): Double = bonusIncrement * i + 0.03
 
-  override val numKeywords = 4
-  override val questionCharLimit = 50
+  val numKeywords = 4
+  val questionCharLimit = 50
 
-  override val validationReward = 0.10
-  override val validationBonusPerQuestion = 0.02
-  override val validationBonusThreshold = numKeywords
+  val validationReward = 0.10
+  val validationBonusPerQuestion = 0.02
+  val validationBonusThreshold = numKeywords
 
-  override val generationAccuracyWarningThreshold = 0.8
-  override val generationAccuracyBlockingThreshold = 0.75
-  override val generationBufferBeforeWarning = 10
-  override val generationBufferBeforeBlocking = 10
+  val generationAccuracyWarningThreshold = 0.8
+  val generationAccuracyBlockingThreshold = 0.75
+  val generationBufferBeforeWarning = 10
+  val generationBufferBeforeBlocking = 10
 
-  override val validationAgreementWarningThreshold = 0.75
-  override val validationAgreementBlockingThreshold = 0.70
-  override val validationBufferBeforeWarning = 10
-  override val validationBufferBeforeBlocking = 10
+  val validationAgreementWarningThreshold = 0.75
+  val validationAgreementBlockingThreshold = 0.70
+  val validationBufferBeforeWarning = 10
+  val validationBufferBeforeBlocking = 10
 }
