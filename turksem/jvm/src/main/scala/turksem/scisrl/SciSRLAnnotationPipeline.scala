@@ -55,21 +55,6 @@ class SciSRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     keywords = "language,english,question answering",
     qualRequirements = Array.empty[QualificationRequirement])
 
-  // channel defining how the server responds to requests through the websocket connection.
-  // Here, I use it to go from a prompt (which only contains the sentence ID) to the pos-tagged sentence and relevant verb inflections.
-  // the reason I don't embed that information in the client task page in the first place is because
-  // when the data is stored for all of the HITs and responses, the prompt and response data types in the TaskSpecification
-  // (here, SciSRLPrompt and SciSRLResponse) are written to disk.
-  // So I try to make the prompt and response data types as trimmed-down as possible so the saved data is robust to future changes
-  // in how the task works, while still holding enough to recover all of the task-specific data.
-  lazy val genApiFlow = Flow[SciSRLApiRequest[SID]].map {
-    case SciSRLApiRequest(prompt) =>
-      val tokens = prompt.sentenceId.tokens
-      val posTaggedTokens = PosTagger.posTag(tokens)
-      val inflectedForms = prompt.verbIndices.map(i => inflections.getInflectedForms(tokens(i).lowerCase).get)
-      SciSRLApiResponse(posTaggedTokens, inflectedForms)
-  }
-
   // this is the prompt shown when you preview the task at, e.g., localhost:8888?taskKey=generation
   lazy val sampleGenPrompt = allPrompts.head
 
@@ -100,8 +85,8 @@ class SciSRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   // this object holds the necessary information to start uploading tasks to Turk.
   // TaskSpecifications in an annotation run should be in 1-to-1 correspondence with HIT Type IDs.
-  lazy val genTaskSpec = TaskSpecification[SciSRLPrompt[SID], SciSRLResponse, SciSRLApiRequest[SID], SciSRLApiResponse](
-    SciSRLSettings.generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+  lazy val genTaskSpec = TaskSpecification[SciSRLPrompt[SID], SciSRLResponse, Unit, Unit](
+    SciSRLSettings.generationTaskKey, genHITType, Flow[Unit], sampleGenPrompt,
     frozenHITTypeId = frozenGenerationHITTypeID,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks)

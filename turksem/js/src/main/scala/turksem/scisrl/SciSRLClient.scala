@@ -59,13 +59,12 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
       // there is also off-white and gray
   )
 
+  lazy val sentence = prompt.posTaggedTokens.map(_.token)
+
   def colorTag(index: Int): TagMod =
     ^.color := colorChoices((index + colorChoices.size) % colorChoices.size)
 
   // higher-order and utility React components all defined in turksem.util
-
-  val WebsocketLoadableComponent = new WebsocketLoadableComponent[SciSRLApiRequest[SID], SciSRLApiResponse]
-  import WebsocketLoadableComponent._
 
   val HighlightingComponent = new HighlightingComponent[(Int, Int, Int)] // keyword index AMONG KEYWORDS, qa index, answer word index
   import HighlightingComponent._
@@ -89,12 +88,9 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
   // holds the sentence as a field just out of convenience for computing those strings.
   @Lenses case class QAGroup(
     groupIndex: Int,
-    posTaggedSentence: Vector[Word],
     verbIndex: Int,
     inflectedForms: InflectedForms,
     spans: List[AnswerSpan]) { // always length 4
-
-    val sentence = posTaggedSentence.map(_.token)
 
     def objSpan  = spans(0)
     def subjSpan = spans(1)
@@ -133,7 +129,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
     val timeTextOpt = getSpanTextOpt(timeSpan)
 
     val isObjectSingular = !objSpan.indices
-      .map(i => posTaggedSentence(i).pos)
+      .map(i => prompt.posTaggedTokens(i).pos)
       .exists(PosTags.pluralPosTags.contains)
 
     val isSubjectSingular =
@@ -197,16 +193,12 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
   }
 
   object State {
-    // for before we have the response from the server
-    val empty: State = State(Nil, Set.empty[(Int, Int)], Set.empty[(Int, Int)], (0, 0))
-    // ...and for after we receive it
-    def initFromResponse(response: SciSRLApiResponse): State = response match {
-      case SciSRLApiResponse(posTaggedSentence, verbInflectedForms) =>
-        val qaGroups = prompt.verbIndices.zip(verbInflectedForms).zipWithIndex.map {
-          case ((verbIndex, inflectedForms), groupIndex) =>
-            QAGroup(groupIndex, posTaggedSentence, verbIndex, inflectedForms, List.fill(4)(AnswerSpan.empty))
-        }.toList
-        State(qaGroups, Set.empty[(Int, Int)], Set.empty[(Int, Int)], (0, 0))
+    def init: State = {
+      val qaGroups = prompt.verbIndices.zip(prompt.verbInflectedForms).zipWithIndex.map {
+        case ((verbIndex, inflectedForms), groupIndex) =>
+          QAGroup(groupIndex, verbIndex, inflectedForms, List.fill(4)(AnswerSpan.empty))
+      }.toList
+      State(qaGroups, Set.empty[(Int, Int)], Set.empty[(Int, Int)], (0, 0))
     }
   }
 
@@ -379,111 +371,100 @@ class SciSRLClient[SID : Reader : Writer](instructions: ReactTag)(
     )
 
     def render(s: State) = {
-      WebsocketLoadable(
-        WebsocketLoadableProps(
-          websocketURI = websocketUri,
-          request = SciSRLApiRequest(prompt),
-          onLoad = ((response: SciSRLApiResponse) => scope.setState(State.initFromResponse(response))),
-          render = {
-            case Connecting => <.div("Connecting to server...")
-            case Loading => <.div("Retrieving data...")
-            case Loaded(SciSRLApiResponse(posTaggedSentence, _), _) =>
-              val sentence = posTaggedSentence.map(_.token)
-              Highlighting(
-                HighlightingProps(
-                  isEnabled = !isNotAssigned, update = updateHighlights, render = {
-                    case (HighlightingState(spans, status),
-                          HighlightingContext(_, startHighlight, startErase, stopHighlight, touchElement)) =>
+      Highlighting(
+        HighlightingProps(
+          isEnabled = !isNotAssigned, update = updateHighlights, render = {
+            case (HighlightingState(spans, status),
+                  HighlightingContext(_, startHighlight, startErase, stopHighlight, touchElement)) =>
 
-                      val (curGroupIndex, curQuestionIndex) = s.curFocus
+              val (curGroupIndex, curQuestionIndex) = s.curFocus
 
-                      val curAnswer = spans.collect {
-                        case (`curGroupIndex`, `curQuestionIndex`, ansIndex) => ansIndex
-                      }
+              val curAnswer = spans.collect {
+                case (`curGroupIndex`, `curQuestionIndex`, ansIndex) => ansIndex
+              }
 
-                      def touchWord(i: Int) = touchElement((curGroupIndex, curQuestionIndex, i))
+              def touchWord(i: Int) = touchElement((curGroupIndex, curQuestionIndex, i))
 
+              <.div(
+                // to make room for fixed position sentence at top.
+                // TODO could set dynamically to accommodate long sentences
+                ^.marginTop := "50px",
+                ^.classSet1("container-fluid"),
+                // sentence and QA pairs
+                KeyboardControl(
+                  KeyboardControlProps(
+                    handleKey = handleKey,
+                    message = (if(isNotAssigned) "Accept assignment to start" else "Click here for keyboard controls"),
+                    render = <.div(
+                      ^.onMouseUp --> stopHighlight,
+                      ^.onMouseDown --> startHighlight,
+                      Styles.mainContent,
+                      HighlightableSentence(
+                        HighlightableSentenceProps(
+                          sentence = sentence,
+                          styleForIndex = ((i: Int) =>
+                            prompt.verbIndices.indexOf(i) match {
+                              case -1 => vdom.EmptyTag
+                              case index => vdom.TagMod(Styles.bolded, colorTag(index))
+                            }
+                          ),
+                          highlightedIndices = curAnswer,
+                          startHighlight = startHighlight,
+                          startErase = startErase,
+                          touchWord = touchWord,
+                          render = (elements =>
+                            <.blockquote(
+                              ^.position := "fixed",
+                              ^.top := "0px",
+                              ^.backgroundColor := "white",
+                              ^.classSet1("blockquote"),
+                              Styles.unselectable,
+                              elements)
+                          ))
+                      ),
                       <.div(
-                        // to make room for fixed position sentence at top.
-                        // TODO could set dynamically to accommodate long sentences
-                        ^.marginTop := "50px",
-                        ^.classSet1("container-fluid"),
-                        // sentence and QA pairs
-                        KeyboardControl(
-                          KeyboardControlProps(
-                            handleKey = handleKey,
-                            message = (if(isNotAssigned) "Accept assignment to start" else "Click here for keyboard controls"),
-                            render = <.div(
-                              ^.onMouseUp --> stopHighlight,
-                              ^.onMouseDown --> startHighlight,
-                              Styles.mainContent,
-                              HighlightableSentence(
-                                HighlightableSentenceProps(
-                                  sentence = sentence,
-                                  styleForIndex = ((i: Int) =>
-                                    prompt.verbIndices.indexOf(i) match {
-                                      case -1 => vdom.EmptyTag
-                                      case index => vdom.TagMod(Styles.bolded, colorTag(index))
-                                    }
-                                  ),
-                                  highlightedIndices = curAnswer,
-                                  startHighlight = startHighlight,
-                                  startErase = startErase,
-                                  touchWord = touchWord,
-                                  render = (elements =>
-                                    <.blockquote(
-                                      ^.position := "fixed",
-                                      ^.top := "0px",
-                                      ^.backgroundColor := "white",
-                                      ^.classSet1("blockquote"),
-                                      Styles.unselectable,
-                                      elements)
-                                  ))
+                        s.qaGroups.zipWithIndex.map {
+                          case (group, groupIndex) =>
+                            <.div(
+                              <.h4(
+                                Styles.bolded,
+                                Text.normalizeToken(sentence(prompt.verbIndices(groupIndex)))
                               ),
-                              <.div(
-                                s.qaGroups.zipWithIndex.map {
-                                  case (group, groupIndex) =>
-                                    <.div(
-                                      <.h4(
-                                        Styles.bolded,
-                                        Text.normalizeToken(sentence(prompt.verbIndices(groupIndex)))
-                                      ),
-                                      qaField(s, groupIndex, 0, sentence, group.objQuestion),
-                                      qaField(s, groupIndex, 1, sentence, group.subjQuestion),
-                                      qaField(s, groupIndex, 2, sentence, group.locQuestion),
-                                      qaField(s, groupIndex, 3, sentence, group.timeQuestion))
-                                }
-                              )
-                            )
-                          )
-                        ),
-                        // relations between predicates
-                        <.div(s.qaGroups.indices.map(makeEventRelationsForm(s, _)).toList),
-                        <.p(
-                          <.input(
-                            ^.`type` := "text",
-                            ^.name := FieldLabels.feedbackLabel,
-                            ^.placeholder := "Feedback? (Optional)",
-                            ^.margin := "1px",
-                            ^.padding := "1px",
-                            ^.width := "484px"
-                          )
-                        ),
-                        <.input(
-                          ^.classSet1("btn btn-primary"),
-                          ^.`type` := "submit",
-                          ^.disabled := !allIsComplete(s),
-                          ^.id := FieldLabels.submitButtonLabel,
-                          ^.value := "submit"),
-                        instructions
+                              qaField(s, groupIndex, 0, sentence, group.objQuestion),
+                              qaField(s, groupIndex, 1, sentence, group.subjQuestion),
+                              qaField(s, groupIndex, 2, sentence, group.locQuestion),
+                              qaField(s, groupIndex, 3, sentence, group.timeQuestion))
+                        }
                       )
-                  }))
+                    )
+                  )
+                ),
+                // relations between predicates
+                <.div(s.qaGroups.indices.map(makeEventRelationsForm(s, _)).toList),
+                <.p(
+                  <.input(
+                    ^.`type` := "text",
+                    ^.name := FieldLabels.feedbackLabel,
+                    ^.placeholder := "Feedback? (Optional)",
+                    ^.margin := "1px",
+                    ^.padding := "1px",
+                    ^.width := "484px"
+                  )
+                ),
+                <.input(
+                  ^.classSet1("btn btn-primary"),
+                  ^.`type` := "submit",
+                  ^.disabled := !allIsComplete(s),
+                  ^.id := FieldLabels.submitButtonLabel,
+                  ^.value := "submit"),
+                instructions
+              )
           }))
     }
   }
 
   val FullUI = ReactComponentB[Unit]("Full UI")
-    .initialState(State.empty).renderBackend[FullUIBackend]
+    .initialState(State.init).renderBackend[FullUIBackend]
     .componentDidUpdate(context => context.$.backend.updateResponse)
     .build
 

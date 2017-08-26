@@ -54,12 +54,14 @@ class SciSRLAnnotationSetup(implicit config: TaskConfig) {
   }
 
   lazy val allPrompts: Vector[SciSRLPrompt[SentenceId]] = allIds.map { id =>
-    val verbIndices = PosTagger.posTag(id.tokens).collect {
+    val tokens = id.tokens
+    val posTaggedTokens = PosTagger.posTag(tokens)
+    val (verbIndices, verbInflectedForms) = posTaggedTokens.collect {
       case Word(index, pos, token) if PosTags.verbPosTags.contains(pos) =>
-        inflections.getInflectedForms(token.lowerCase).map(_ => index)
-    }.flatten.toList
+        inflections.getInflectedForms(token.lowerCase).map((index, _))
+    }.flatten.toList.unzip
 
-    SciSRLPrompt(id, verbIndices)
+    SciSRLPrompt(id, verbIndices, posTaggedTokens, verbInflectedForms)
   }
 
   lazy val experiment = new SciSRLAnnotationPipeline(allPrompts)

@@ -9,7 +9,11 @@ import nlpdata.structure.Word
 package object scisrl {
 
   // input to the task
-  case class SciSRLPrompt[SID](sentenceId: SID, verbIndices: List[Int])
+  case class SciSRLPrompt[SID](
+    sentenceId: SID,
+    verbIndices: List[Int],
+    posTaggedTokens: Vector[Word],
+    verbInflectedForms: List[InflectedForms])
 
   // represents each span as its set of indices in the sentence
   case class Proposition(
@@ -23,14 +27,6 @@ package object scisrl {
     propositions: List[Proposition],
     enablers: Set[(Int, Int)], // (i, j) -> propositions(i) enables propositions(j)
     preventers: Set[(Int, Int)]) // (i, j) -> propositions(i) prevents propositions(j)
-
-  // request type for the task client to send the server over websockets
-  case class SciSRLApiRequest[SID](prompt: SciSRLPrompt[SID])
-
-  // response that the serve can send the task client over websockets
-  case class SciSRLApiResponse(
-    posTaggedTokens: Vector[Word],
-    verbInflectedForms: List[InflectedForms])
 
   // We need custom picklers since LowerCaseString is an opaque-sealed type.
   // In the future we can get them from proper subst through String.
@@ -46,5 +42,4 @@ package object scisrl {
   implicit val lowerCaseStringWriter = upickle.default.Writer[LowerCaseString] {
     case s => upickle.Js.Str(s.toString)
   }
-
 }
