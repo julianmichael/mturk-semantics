@@ -21,7 +21,12 @@ object TemplateToken {
 // can use Slot to represent different kinds of things we abstract out
 
 case class QuestionTemplate[+Slot](templateTokens: List[TemplateToken[Slot]]) {
-  def getTokens(implicit ev: Slot <:< Vector[LowerCaseString]) = templateTokens.flatMap {
+  def getTokensLower(implicit ev: Slot <:< Vector[LowerCaseString]) = templateTokens.flatMap {
+    case TemplateSlot(ss) => ss
+    case TemplateString(s) => Vector(s)
+  }.toVector
+
+  def getTokens(implicit ev: Slot <:< Vector[String]) = templateTokens.flatMap {
     case TemplateSlot(ss) => ss
     case TemplateString(s) => Vector(s)
   }.toVector
@@ -29,7 +34,7 @@ case class QuestionTemplate[+Slot](templateTokens: List[TemplateToken[Slot]]) {
   def fillSpansA[F[_]: Applicative](
     renderSlot: Slot => F[Vector[LowerCaseString]]
   ): F[Vector[LowerCaseString]] =
-    this.traverse(renderSlot).map(_.getTokens)
+    this.traverse(renderSlot).map(_.getTokensLower)
 
   def fillSpans(
     renderSlot: Slot => Vector[LowerCaseString]
@@ -70,7 +75,7 @@ object QuestionTemplate {
   import TemplateToken._
 
   implicit def questionTemplateShow[A : Show] = Show.show((qt: QuestionTemplate[A]) =>
-    qt.map(a => Vector(a.show.lowerCase)).getTokens.mkString(" ")
+    qt.map(a => Vector(a.show)).getTokens.mkString(" ")
   )
 
   implicit val questionTemplateTraverse: Traverse[QuestionTemplate] = new Traverse[QuestionTemplate] {

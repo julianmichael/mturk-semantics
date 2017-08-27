@@ -7,6 +7,7 @@ import turkey._
 import turkey.tasks._
 
 import nlpdata.util.Text
+import nlpdata.util.HasTokens.ops._
 
 /** Exports the data specific to our actual run for the EMNLP 2017 submission.
   * Requires that this data is stored in the HIT Data Service with the exact metadata
@@ -17,10 +18,10 @@ import nlpdata.util.Text
   */
 class DataExporter(implicit config: TaskConfig) {
 
-  val pipeline = new AnnotationSetup
+  val setup = new AnnotationSetup
 
   import config._
-  import pipeline._
+  import setup._
 
   val oldGenHITTypeId = "3X8M0CO8US8JERH7QA0GGQIWAEHPVL"
   val oldValHITTypeId = "3OR5EJIUG2QY9PC04VUEYEGYR3Q9UL"
@@ -60,33 +61,63 @@ class DataExporter(implicit config: TaskConfig) {
     }.toMap
   }
 
-  def makeTSV(ids: List[SentenceId]): String =
+  lazy val allIds = allGenInfos.map(_.hit.prompt.id).collect {
+    case id @ WikiSentenceId(_) => id
+  }.toSet.toList
+  lazy val trainIds = allIds.filter(isTrain)
+  lazy val devIds = allIds.filter(isDev)
+  lazy val testIds = allIds.filter(isTest)
+
+  lazy val ptbTrainIds = ptbTrain.map(PTBSentenceId.apply).toList
+  lazy val ptbDevIds = ptbDev.map(PTBSentenceId.apply).toList
+  lazy val ptbTestIds = ptbTest.map(PTBSentenceId.apply).toList
+  lazy val ptbAMRIds = ptb100ForAMR.toList
+  lazy val allPTBIds = ptbTrainIds ++ ptbDevIds ++ ptbTestIds ++ ptbAMRIds
+
+  def isQAGood(sid: SentenceId, wqa: WordedQAPair, valAnswers: List[ValidationAnswer]) =
+    valAnswers.forall(_.isAnswer)
+
+  def makeCompleteTSV(ids: List[SentenceId]): String =
     makeQAPairTSV(ids, SentenceId.toString, workerAnonymizationMap, allGenInfos, allValInfos)
 
+  def makeReadableTSV(
+    ids: List[SentenceId],
+    includeQA: (SentenceId, WordedQAPair, List[ValidationAnswer]) => Boolean = isQAGood): String =
+    makeReadableQAPairTSV(ids, SentenceId.toString, workerAnonymizationMap, allGenInfos, allValInfos, includeQA)
+
   def writeTSVs = {
-    val allIds = allGenInfos.map(_.hit.prompt.id).collect {
-      case id @ WikiSentenceId(_) => id
-    }.toSet.toList
-    val trainIds = allIds.filter(isTrain)
-    val devIds = allIds.filter(isDev)
-    val testIds = allIds.filter(isTest)
     saveOutputFile("sentences.tsv", makeSentenceIndex(allIds: List[SentenceId], SentenceId.toString))
-    saveOutputFile("train.tsv", makeTSV(trainIds))
-    saveOutputFile("dev.tsv", makeTSV(devIds))
-    saveOutputFile("test.tsv", makeTSV(testIds))
+    saveOutputFile("train.tsv", makeCompleteTSV(trainIds))
+    saveOutputFile("dev.tsv", makeCompleteTSV(devIds))
+    saveOutputFile("test.tsv", makeCompleteTSV(testIds))
+    saveOutputFile("train-readable.tsv", makeReadableTSV(trainIds))
+    saveOutputFile("dev-readable.tsv", makeReadableTSV(devIds))
+    saveOutputFile("test-readable.tsv", makeReadableTSV(testIds))
   }
 
   def writePTBTSVs = {
-    val trainIds = ptbTrain.map(PTBSentenceId.apply).toList
-    val devIds = ptbDev.map(PTBSentenceId.apply).toList
-    val testIds = ptbTest.map(PTBSentenceId.apply).toList
-    val amrIds = ptb100ForAMR.toList
-    val allPTBIds = trainIds ++ devIds ++ testIds ++ amrIds
     saveOutputFile("ptb-sentences.tsv", makeSentenceIndex(allPTBIds, SentenceId.toString))
-    saveOutputFile("ptb-train.tsv", makeTSV(trainIds))
-    saveOutputFile("ptb-dev.tsv", makeTSV(devIds))
-    saveOutputFile("ptb-test.tsv", makeTSV(testIds))
-    saveOutputFile("ptb-amr.tsv", makeTSV(amrIds))
+    saveOutputFile("ptb-train.tsv", makeCompleteTSV(ptbTrainIds))
+    saveOutputFile("ptb-dev.tsv", makeCompleteTSV(ptbDevIds))
+    saveOutputFile("ptb-test.tsv", makeCompleteTSV(ptbTestIds))
+    saveOutputFile("ptb-amr.tsv", makeCompleteTSV(ptbAMRIds))
+    saveOutputFile("ptb-readable.tsv", makeReadableTSV(allPTBIds))
+  }
+
+  def goodQAContainsOneSentenceWord(sid: SentenceId, wqa: WordedQAPair, valAnswers: List[ValidationAnswer]) = {
+    val questionTokens = Tokenizer.tokenize(wqa.question)
+    isQAGood(sid, wqa, valAnswers) && getWordsInQuestion(sid.tokens, questionTokens).size == 1
+  }
+
+  // TODO write TSVs for more subsets of questions, as well as interesting templates.
+  // in particular:
+  // 2. templates for questions using only a single word from the sentence.
+  // 3. templates for such questions, split by POS of the word, and then listed for each POS grouped together.
+  // 4. the particular case of questions about nouns where the answer is also a single noun
+  def writeFilteredTSVs = {
+    // only one word:
+    // TODO how many questions fit this criterion?
+    saveOutputFile("train-1word.tsv", makeReadableTSV(trainIds, goodQAContainsOneSentenceWord))
   }
 
   // TODO maybe move to annotation package in orig qamr project

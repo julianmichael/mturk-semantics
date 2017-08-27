@@ -134,12 +134,29 @@ package object emnlp2017 {
       (lowerQToken, qIndex) <- lowerQuestion.zipWithIndex
       if !isStopword(lowerQToken)
       res <- {
-        if(lowerSToken == lowerQToken) {
-          List(qIndex -> InflectedAlignment(sIndex, None)) // no reinflection necessary
-        } else if(!allForms.contains(lowerQToken)) {
+        if(!allForms.contains(lowerQToken)) {
           Nil // no alignment
-        } else {
-          List(qIndex -> InflectedAlignment(sIndex, inflectedFormsOpt.flatMap(_.allForms.indexOpt(lowerQToken))))
+        } else inflectedFormsOpt match {
+          case None =>
+            if(lowerSToken == lowerQToken) {
+              List(qIndex -> InflectedAlignment(sIndex, None)) // no reinflection necessary
+            } else {
+              Nil
+            }
+          case Some(inflectedForms) =>
+            if(lowerQToken == inflectedForms.past && lowerQToken == inflectedForms.pastParticiple) {
+              // since these two are very often the same, we want to intelligently distinguish between them
+              val pastPartAuxes = Set("am", "is", "are", "was", "were", "has", "have", "had").map(_.lowerCase)
+              if(lowerQuestion.take(qIndex).exists(pastPartAuxes.contains)) {
+                List(qIndex -> InflectedAlignment(sIndex, Some(4))) // index of past participle in allForms
+              } else {
+                List(qIndex -> InflectedAlignment(sIndex, Some(3))) // index of past in allForms
+              }
+            } else if(lowerSToken == lowerQToken) {
+              List(qIndex -> InflectedAlignment(sIndex, None)) // no reinflection necessary
+            } else {
+              List(qIndex -> InflectedAlignment(sIndex, inflectedForms.allForms.indexOpt(lowerQToken)))
+            }
         }
       }
     } yield res

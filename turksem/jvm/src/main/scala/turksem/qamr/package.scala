@@ -173,12 +173,18 @@ trait PackagePlatformExtensions {
 
   // to find target of redundancy, choose the one in the same chunk that has the indicated question index.
 
+  // TODO make it take data structures representing already-aligned gen/val infos
+
+  // TODO consolidate these functions into one place
+
   def makeReadableQAPairTSV[SID : HasTokens](
     ids: List[SID],
     writeId: SID => String, // serialize sentence ID for distribution in data file
     anonymizeWorker: String => String, // anonymize worker IDs so they can't be tied back to workers on Turk
     genInfos: List[HITInfo[GenerationPrompt[SID], List[WordedQAPair]]],
-    valInfos: List[HITInfo[ValidationPrompt[SID], List[ValidationAnswer]]]
+    valInfos: List[HITInfo[ValidationPrompt[SID], List[ValidationAnswer]]],
+    keepQA: (SID, WordedQAPair, List[ValidationAnswer]) => Boolean = (
+      (_: SID, _: WordedQAPair, _: List[ValidationAnswer]) => true)
   ): String = {
     val genInfosBySentenceId = genInfos.groupBy(_.hit.prompt.id)
     val valInfosByGenAssignmentId = valInfos.groupBy(_.hit.prompt.sourceAssignmentId)
@@ -186,7 +192,9 @@ trait PackagePlatformExtensions {
     for(id <- ids) {
       val idString = writeId(id)
       val sentenceTokens = id.tokens
-      sb.append(s"\t${idString}\t${nlpdata.util.Text.render(sentenceTokens)}\n")
+      val sentenceSB = new StringBuilder
+      var shouldIncludeSentence = false
+      sentenceSB.append(s"${idString}\t${nlpdata.util.Text.render(sentenceTokens)}\n")
       // sort by keyword group first...
       for(HITInfo(genHIT, genAssignments) <- genInfosBySentenceId(id).sortBy(_.hit.prompt.keywords.min)) {
         // then worker ID second, so the data will be chunked correctly according to HIT;
@@ -199,18 +207,24 @@ trait PackagePlatformExtensions {
             if(valResponses.size != 2) {
               System.err.println("Warning: don't have 2 validation answers for question. Actual number: " + valResponses.size)
             }
+            val valAnswers = valResponses.map(_._2)
 
-            sb.append(genHIT.prompt.keywords.mkString(",") + "\t") // 1: space-separated set of keywords presented to turker
-            sb.append(anonymizeWorker(genAssignment.workerId) + "\t") // 2: anonymized worker ID
-            sb.append(wqa.question + "\t") // 5: question string written by worker
-            sb.append(
-              ((Answer(wqa.answer)) :: valResponses.map(_._2)).map { valAnswer =>
-                ValidationAnswer.render(sentenceTokens, valAnswer, genAssignment.response)
-              }.mkString("\t")
-            )
-            sb.append("\n")
+            if(keepQA(id, wqa, valAnswers)) {
+              shouldIncludeSentence = true
+              sentenceSB.append(anonymizeWorker(genAssignment.workerId) + "\t") // anonymized worker ID
+              sentenceSB.append(wqa.question + "\t") // question string written by worker
+              sentenceSB.append(
+                ((Answer(wqa.answer)) :: valResponses.map(_._2)).map { valAnswer =>
+                  ValidationAnswer.render(sentenceTokens, valAnswer, genAssignment.response)
+                }.mkString("\t")
+              )
+              sentenceSB.append("\n")
+            }
           }
         }
+      }
+      if(shouldIncludeSentence) {
+        sb.append(sentenceSB.toString)
       }
     }
     sb.toString
