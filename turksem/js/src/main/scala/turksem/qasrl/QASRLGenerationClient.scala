@@ -51,6 +51,11 @@ class QASRLGenerationClient[SID : Reader : Writer](
     FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
+  val Instructions = ScalaComponent.builder[Unit]("Instructions")
+    .render(_ => instructions)
+    .componentDidMount(_ => Callback(scala.scalajs.js.Dynamic.global.$("[data-toggle=\"tooltip\"]").tooltip()))
+    .build
+
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse]
   import WebsocketLoadableComponent._
   val HighlightingComponent = new HighlightingComponent[(Int, Int, Int)] // keyword index AMONG KEYWORDS, qa index, answer word index
@@ -496,7 +501,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                           ^.disabled := !s.qaGroups.forall(getCompleteQAPairs(_).size > 0),
                           ^.id := FieldLabels.submitButtonLabel,
                           ^.value := "submit"),
-                        instructions
+                        Instructions()
                       )
                   }))
           }))

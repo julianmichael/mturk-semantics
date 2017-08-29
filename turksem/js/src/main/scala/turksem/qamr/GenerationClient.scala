@@ -285,7 +285,7 @@ class GenerationClient[SID : Reader : Writer](
   val FullUI = ScalaComponent.builder[Unit]("Full UI")
     .initialState(State.initial)
     .renderBackend[FullUIBackend]
-    .componentDidUpdate(_.backend.updateResponse)
+    .componentDidUpdate(context => context.backend.updateResponse /*>> Callback(jQuery("[data-toggle=\"tooltop\"]").tooltip())*/)
     .build
 
 }

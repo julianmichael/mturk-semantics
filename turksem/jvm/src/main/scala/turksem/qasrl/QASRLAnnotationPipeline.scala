@@ -191,7 +191,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       provided by autocomplete functionality.
       Maintain high accuracy to stay qualified.
     """.trim.replace("\\s+", " "),
-    reward = 0.05,
+    reward = QASRLSettings.smallGenerationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
       approvalRateRequirement, locationRequirement, genAccuracyRequirement
@@ -199,7 +199,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   val largeGenHITType = smallGenHITType.copy(
     title = s"Write question-answer pairs about verbs (3 or more verbs)",
-    reward = 0.15
+    reward = QASRLSettings.largeGenerationReward
   )
 
   lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {

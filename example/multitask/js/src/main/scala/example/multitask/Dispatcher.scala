@@ -21,154 +21,109 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.li(
       <.div(
         if(isGood) Styles.goodGreen else Styles.badRed,
-        ^.className := "tooltip",
+        VdomAttr("data-toggle") := "tooltip",
+        VdomAttr("data-placement") := "top",
+        ^.title := tooltip,
         <.span(question),
         <.span(" --> "),
-        <.span(answer),
-        <.span(^.className := "tooltiptext", tooltip)
+        <.span(answer)
       )
     )
 
   override val generationInstructions = <.div(
     <.h2("""Task Summary"""),
-    <.p(<.span("""This task is for an academic research project by the natural language processing group at the University of Washington.
+    <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into lists of questions and answers.
-        You will be presented with a selection of English text with a set of """), <.b("special words"), " written in bold."),
-    <.p("""For each special word, you will write questions and their answers, where the answer is taken from the sentence and
-           either """, <.b("""the question or the answer """),
-        """contains the special word. """,
-        <.b("""You will earn bonuses by writing more questions and answers. """),
-        """For example, consider the sentence:"""),
-    <.blockquote(<.i("The jubilant ", <.span(Styles.specialWord, "protesters"),
-                     " celebrated after executive intervention canceled the project.")),
-    <.p("""Valid question-answer pairs include:"""),
+        You will be presented with a selection of English text with some of its verbs written in bold."""),
+    <.p("""For each verb, you will write questions about the verb and highlight their answers in the original sentence.
+        Questions are required to follow a strict format, which is enforced by autocomplete functionality in the interface. """,
+        <.b(""" You will be paid according to how many questions you write. """),
+        """ For each verb, you should provide all possible questions (without redundancy) and all of their correct answers. """,
+        """ For example, consider the sentence: """),
+    <.blockquote(<.i("Local officials ", <.span(Styles.bolded, " promised "), " on Tuesday that they will ",
+                     <.span(Styles.bolded, " resume "), " the investigation, after ",
+                     <.span(Styles.bolded, " facing "), "heavy pressure from demonstrators.")),
+    <.p("""You should write all of the following:"""),
     <.ul(
-      <.li("How did the ", <.b("protesters "), "feel? --> jubilant"),
-      <.li("Who celebrated? --> the ", <.b("protesters"))),
-    <.p(<.b("""Warning: """), """The text shown to you is drawn randomly
-           from Wikipedia and news articles from the past few years.
-           We have no control over the contents of the text, which may discuss sensitive subjects,
-           including crime and death, or occasionally contain offensive ideas. Please use appropriate discretion.
-           (If you receive a selection of text that is not in English, please skip or return the HIT and let us know.)"""),
-    <.h2("""Requirements"""),
-    <.p("""This task is best fit for native speakers of English.
-        Your response must be grammatical, fluent English that satisfies the following criteria:"""),
-    <.ol(
-      <.li("""Either the question or the answer contains the special word."""),
-      <.li("""The question contains at least one word from the sentence."""),
-      <.li("The question is about the meaning of the sentence (and not, for example, the order of the words)."),
-      <.li("""The question is answered obviously and explicitly in the sentence."""),
-      <.li("""The question is open-ended: yes/no and either/or questions are not allowed."""),
-      <.li("""None of your question-answer pairs are redundant with each other,
-              even for different special words.""")
-    ),
-    <.p("""See the examples for further explanation."""),
-    <.h2("""Examples"""),
-    <.p("Suppose you are given the following sentence:"),
-    <.blockquote(<.i(""" In the year since the regulations were enacted,
-                         the Director of the Environmental Protection Agency (EPA),
-                         Gina McCarthy, has been aggressive in enforcing them.""")),
-    <.p("""Here are questions and answers that someone may write
-        (ignoring the special word requirement for now).
-        Good ones are green while examples of bad questions are in red.
-        Mouse over each example to see an explanation."""),
-    <.ul(
-      generationExample(question = "What was enacted?", answer = "the regulations", isGood = true,
-              tooltip = """This is a standard, straightforward question that is answered literally by the sentence.
-                           Most questions should look something like this."""),
-      generationExample(question = "In the what since?", answer = "year", isGood = false,
-              tooltip = """This simply replaces a word with "what"
-                           instead of using it to form a proper English question."""),
-      generationExample(question = "How long was it since the regulations were enacted?", answer = "the year", isGood = true,
-              tooltip = """While "a year" is a more natural answer, "the year" is the closest you can get
-                           and the question is answered in the sentence so it is still acceptable."""),
-      generationExample(question = "What does EPA stand for?", answer = "Environmental Protection Agency", isGood = true,
-              tooltip = """Asking about the meanings of words or acronyms, when they are explicitly defined
-                           in the sentence, is acceptable."""),
-      generationExample(question = "What pronoun refers to the regulations?", answer = "them", isGood = false,
-              tooltip = """This question is about the words in the sentence instead of the sentence's meaning,
-                           so it is unacceptable."""),
-      generationExample(question = "Who enacted the regulations?", answer = "the Environmental Protection Agency (EPA)", isGood = false,
-              tooltip = """This is not directly implied by the sentence, so the question is invalid.
-                           (In fact, it is also wrong: it is Congress which enacts regulations, not the EPA.)"""),
-      generationExample(question = "What is Gina's last name?", answer = "McCarthy", isGood = true,
-              tooltip = """This is an acceptable question much like "What does EPA stand for?",
-                           but note that the similar question "What is the last word in Gina's name? would be invalid."""),
-      generationExample(question = "What is the is the Agency responsible for?", answer = "Environmental Protection", isGood = true,
-              tooltip = """While "responsibility" is not explicitly mentioned in the sentence,
-                           this fact is part of the meaning of the name "Environmental Protection Agency"."""),
-      generationExample(question = "Was McCarthy aggressive or lax?", answer = "aggressive", isGood = false,
-              tooltip = """This is an either/or question, which is disallowed."""),
-      generationExample(question = "What was enforced?", answer = "them", isGood = true,
-              tooltip = """The answer "the regulations" is also acceptable here. It is okay for the answer
-                           to be non-unique if it is because multiple different phrases
-                           refer to the same thing.""")
-    ),
-    <.p("Now consider the following sentence, with the special word ", <.b("decision. ")),
-    <.blockquote(<.i("""I take full and complete responsibility for my thoughtless """, <.span(Styles.specialWord, """decision"""),
-                     """ to disclose these materials to the public. """)),
-    <.p("Here are examples of some good question-answer pairs:"),
-    <.ul(
-      <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
-                 <.span("Who "), <.b("decided "), <.span("something? --> I"),
-                 <.span(^.className := "tooltiptext",
-                        """Where possible, change nouns like "decision" to verbs in order to write short questions about them."""))),
-      <.li(<.div(Styles.goodGreen, ^.className := "tooltip",
-                 <.span("What kind of "), <.b("decision"), <.span("? --> thoughtless"),
-                 <.span(^.className := "tooltiptext",
-                        """To get descriptive words as answers, you may need to ask "What kind" or similar questions.""")))
-    ),
-    <.p("""Now suppose you are given the following sentence, with the special word """, <.b("pushed. ")),
-    <.blockquote(<.i("""Alex """, <.span(Styles.specialWord, "pushed"), """ Chandler at school today.""")),
-    <.p("Mouse over the following examples of bad question-answer pairs for explanations:"),
-    <.ul(
-      <.li(<.div(Styles.badRed, ^.className := "tooltip",
-                 <.span("Who got hurt? --> Chandler"),
-                 <.span(^.className := "tooltiptext",
-                        """The question must include some content word from the sentence, which this fails to do."""))),
-      <.li(<.div(Styles.badRed, ^.className := "tooltip",
-                 <.span("Did Alex or Chandler ", <.b("push"), " someone? --> Alex"),
-                 <.span(^.className := "tooltiptext",
-                        """Either/or and yes/no questions are not allowed."""))),
-      <.li(<.div(Styles.badRed, ^.className := "tooltip",
-                 <.span("Where did Alex ", <.b("push"), " Chandler? --> at school today"),
-                 <.span(^.className := "tooltiptext",
-                        """The question asked "where", so including the word "today" is incorrect.""")))
+      <.li("Who ", <.span(" promised "), " something? --> Local officials / they"),
+      <.li("What did someone ", <.span(" promise"), "? --> that they will resume the investigation"),
+      <.li("What did someone ", <.span(" promise "), " to do? --> resume the investigation"),
+      <.li("When did someone ", <.span(" promise "), " to do something? --> on Tuesday / after facing heavy pressure from demonstrators"),
+      <.li("Why did someone ", <.span(" promise "), " to do something? --> heavy pressure from demonstrators"),
+      <.li("Who might ", <.span(" resume "), " something? --> Local officials / they"),
+      <.li("What might be ", <.span(" resumed"), "? --> the investigation"),
+      <.li("Who ", <.span(" faced "), " something? --> Local officials / they"),
+      <.li("What did someone ", <.span(" face"), "? --> heavy pressure from demonstrators")),
+    <.p(""" See below for further explanation. """),
+    <.h2("""Question Format"""),
+    <.p(""" The interface will force your questions to follow a strict format, filling 7 slots as in the examples repeated below.
+        This will keep your questions simple, focused, and easier to write.
+        Most slots (but not the wh-word and verb) may be omitted, depending on the context.
+        Also, not every way of filling the slots will be accepted by the autocomplete: some bad combinations (e.g., """, <.i(" Who has looking?"), """)
+        will be ruled out automatically.
+        However, you are still responsible for making sure you write grammatical questions.
+        """),
+    <.table(
+      ^.classSet1("table"),
+      <.thead(
+        <.tr(
+          <.th("Wh-word"), <.th("Auxiliary"), <.th("Subject"), <.th("Verb"), <.th("Object"), <.th("Preposition"), <.th("Misc")
+        )
+      ),
+      <.tbody(
+        <.tr(<.td("Who"), <.td(), <.td(), <.td("promised"), <.td("something"), <.td(), <.td()),
+        <.tr(<.td("What"), <.td("did"), <.td("someone"), <.td("promise"), <.td(), <.td(), <.td()),
+        <.tr(<.td("What"), <.td("did"), <.td("someone"), <.td("promise"), <.td(), <.td("to"), <.td("do")),
+        <.tr(<.td("When"), <.td("did"), <.td("someone"), <.td("promise"), <.td(), <.td("to"), <.td("do something")),
+        <.tr(<.td("Why"), <.td("did"), <.td("someone"), <.td("promise"), <.td(), <.td("to"), <.td("do something")),
+        <.tr(<.td("Who"), <.td("might"), <.td(), <.td("resume"), <.td("something"), <.td(), <.td()),
+        <.tr(<.td("What"), <.td("might"), <.td(), <.td("be resumed"), <.td(), <.td(), <.td()),
+        <.tr(<.td("Who"), <.td(), <.td(), <.td("faced"), <.td("something"), <.td(), <.td()),
+        <.tr(<.td("What"), <.td("did"), <.td("someone"), <.td("face"), <.td(), <.td(), <.td())
+      )
     ),
     <.h2("Redundancy"),
     <.p(""" Two question-answer pairs are """, <.b("redundant "), """if they are both """,
         <.b("asking the same question "), "and they ", <.b("have the same answer. "), """
-        None of your question-answer pairs in one HIT should be redundant with each other.
-        For example, consider the following sentence and questions:"""),
-    <.blockquote(<.i("""Intelligence documents leaked to the public today have dealt another blow to the agency's credibility.""")),
+        None of your question-answer pairs about a single verb may be redundant with each other.
+        For example, consider the following two questions:"""),
     <.ul(
-      <.li(<.div("When was something leaked?")),
-      <.li(<.div("On what day was something leaked?"))
+      <.li(<.div("What did someone promise?")),
+      <.li(<.div("What was promised?"))
     ),
-    <.p("""They have the same answer (""", <.i("today"), """) and the second question is just a minor rephrasing of the first, so """,
-        <.b(Styles.badRed, "these are redundant. "), """
-        However, consider the following:"""),
+    <.p("""The second is just another way of phrasing the first: the answer to one will always be the same as the answer to the other. So """,
+        <.b(Styles.badRed, "these are redundant"), """. You should ask only one of the two.
+        Now consider the following:"""),
     <.ul(
-      <.li(<.div("What was leaked today?")),
-      <.li(<.div("What kind of documents?"))
+      <.li(<.div("Who promised something?")),
+      <.li(<.div("Who would have promised something?"))
     ),
-    <.p("""While these both may be answered with the same phrase, """, <.i("intelligence documents"), """,
-        these questions are """, <.b(Styles.goodGreen, "not redundant "), """ because they are asking about different things:
-        the first is asking about what it is that leaked,
-        and the second is asking about a characteristic of the documents."""),
+    <.p("""Again, """, <.b(Styles.badRed, "these are redundant"), """.
+        They are asking about the same thing (who is doing the "promising"), just using different tense/aspect (auxiliary verbs).
+        Of these two you should only ask the one whose auxiliary verbs make the most sense with the sentence.
+        Finally, consider the following: """),
+    <.ul(
+      <.li(<.div("What did someone promise?")),
+      <.li(<.div("What did someone promise to do?"))
+    ),
+    <.p("""While these are asking about something very similar, they are not always interchangeable
+        (consider the sentence """, <.i(" He promised he was clean"), """)
+        and they have different answers (see the example at the top), so these questions are """, <.b(Styles.goodGreen, "not redundant"), "."),
+
+    <.h2("Multiple Answers"),
+    // TODO
     <.h2("""Conditions & Bonuses"""),
-    <.p(s"""For each HIT, you will be shown up to four special words from the sentence.
-          You are required to write at least one question-answer pair for each special word.
-          However, you will receive a bonus of ${dollarsToCents(bonusPerQuestion)}c per question if you come up with more.
-          (As you complete each one, new fields will appear for you to write more.)
-          your reward will be greatest if you can present """,
-          <.b("the complete set of possible questions and answers "),
-          """that relate the special words to each other and the rest of the sentence.
-          On average, it should take less than 30 seconds per question-answer pair.
+    <.p(s"""For each HIT, you will be shown a sentence with several verbs highlighted.
+          You are required to write at least one question-answer pair for each verb.
+          Please write as many different question-answer pairs as possible.
+          After your first (or third, if this is the version of the HIT with at least three verbs),
+          then each successive question-answer pair will earn you a ${dollarsToCents(bonusPerQuestion)}c bonus.
+          On average, it should take less than 30 seconds per question-answer pair,
+          and with some practice you should be able to go much quicker.
           """),
-    <.p("""Your work will be evaluated by other workers according to the above criteria. """,
-          <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
-          s""" as judged by other workers.
+    <.p("""Your work will be evaluated by other workers according to criteria described in these instructions. """,
+        <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
+        s""" as judged by other workers.
           This means the "total potential bonus" indicator is just an upper bound on what you may receive,
           which will depend on the quality of your responses.
           Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
@@ -184,31 +139,67 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           but you can check it at any time in your qualifications.
           (Note, however, that the validators will sometimes make mistakes,
           so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)"""),
-    <.h2("""Tips"""),
-    <.p(s"""To make the task go quickly, make your questions as short and simple as possible.
-            Feel free to use generic words like "someone" and "something" to do so."""),
-    <.p(""" You will find that the vast majority of your questions begin with """,
-        <.b("Who, what, when, where, why, whose, which, "),
-        " or ",
-        <.b("how"),
-        """. There is also variety of possible """,
-        <.i(" what"), ", ", <.i(" which"), ", and ", <.i(" how "), """ questions you may ask,
-        which start with phrases like """,
-        <.b(" What color, what day, which country, which person, how much, how long, how often, how large, "),
-        """ and many others. If you're having trouble coming up with questions using these words,
-        remember that you can use the special word in """, <.b(" either the question or the answer, "),
-        """ and when using it in the question, you can change its form,
-        like turning "decision" into "decide", or expanding symbols to their English versions
-        (like $ as dollars, or ° as degrees). """),
-    <.p("""Finally, it's to your advantage to """,
-        <.b("write as many good questions as possible. "),
-        """ If you can come up with more questions that you're sure are valid in one HIT,
-            it will help keep your accuracy high in case you have trouble writing the required questions in other HITs.
-            In addition, the bonuses increase the more questions you write,
-            so this will help maximize your earnings per question."""),
+
+    <.h2("""Tips for Writing Questions"""),
+    <.p("Consider again the example sentence:"),
+    <.blockquote(<.i("Local officials ", <.span(Styles.bolded, " promised "), " on Tuesday that they will ",
+                     <.span(Styles.bolded, " resume "), " the investigation, after ",
+                     <.span(" facing "), "heavy pressure from demonstrators.")),
+    <.p(""" When trying to come up with questions for a verb, remember to consider all of the following: """),
+    <.h4("Subject and Object"),
+    <.p("""Almost every time, you can ask one or more questions like these:"""),
+    <.ul(
+      <.li(<.div("Who promised something?")),
+      <.li(<.div("What did someone promise?")),
+      <.li(<.div("What did someone promise to do?"))
+    ),
+    <.p("Don't forget these, since they're low-hanging fruit."),
+    <.h4("Hypotheticals and negation"),
+    <.p("""Sometimes the verb (like """, <.i("resume"), """ above) doesn't denote something actually happening.
+        You should use words like """, <.i("would"), " or ", <.i("might"), """ in these cases, as in """,
+        <.i("Who might resume something?"), """ In case of something that is not true, you can use the word """,
+        <.i(" not "), """ or contractions like """,
+        <.i("didn't"), " in your questions.",
+        """ You might also have multiple kinds of question for a single verb: for example, in the sentence """
+    ),
+    <.blockquote("She offered to help with his homework, but not to do it for him."),
+    <.p(""" You should write both """,
+        <.i(" What did someone offer to do? --> help with his homework,"),
+        """ and """,
+        <.i(" What did someone not offer to do? --> do it for him."),
+        """ You should only use "not" for things that are stated not to be the case in the sentence,
+        not just things that are untrue. For example, """,
+        <.i(" Who did not offer to do something? --> him"),
+        """ would be unacceptable. """),
+    <.h4("When, Where, Why, and How"),
+    <.p("""Almost all verbs can get these questions; it just depends on whether the answer appears in the sentence.
+        Sometimes (as with the """, <.i("Why"), """ example above) it can be easy to miss them,
+        so it can help to quickly run through them and ask yourself for each one."""),
+    <.h4("Prepositions"),
+    <.p("""Some questions are best asked using certain prepositions. For example, if the sentence says """,
+        <.i("Protesters blamed the disaster on unchecked deregulation"), """, you should be asking """,
+        <.i("What did someone blame something on?")),
+    <.h4("Someone and Something"),
+    <.p("""Finally, you may notice that it's possible to include or omit placeholder words like """,
+        <.i("someone"), " and ", <.i("something"), """. For example, it may seem acceptable to ask either """,
+        <.i("Who promised?"), " or ", <.i("Who promised something?"),
+        """ However, these will not always have the same meaning: consider """,
+        <.i("What broke?"), " versus ", <.i("What broke something?"),
+        """ Please default to including these placeholder words when it does not affect the meaning of the question. """),
+
+    <.h2("""Interface Controls"""),
+    <.ul(
+      <.li(""" You can use the mouse, the up and down arrow keys, and the enter key to navigate the autocomplete menu.
+        However, once you get used to the question format, it will most likely be fastest just to type the questions and use
+        autocomplete to verify that they are correct."""),
+      <.li(""" We recommend leaving your mouse hovering over the sentence and using tab and shift+tab to switch between questions
+        so you don't have to spend time moving the mouse back and forth.
+        (we have made it so text fields should not lose focus when you highlight in the sentence.) """),
+      <.li(""" You may highlight words by clicking or by dragging.
+        To erase highlights, click or start dragging on a word that is already highlighted.""")),
     <.p("""If you have any questions, concerns, or points of confusion,
         please share them in the "Feedback" field.""")
-    )
+  )
 
   def validationExample(question: String, answer: String, isGood: Boolean, tooltip: String) =
     <.li(

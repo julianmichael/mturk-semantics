@@ -79,17 +79,21 @@ class Slots(
 
   val qMark = reqState("?" -> TemplateComplete)
 
+  val noPrepObj = optStateWithSpace(
+    qMark,
+    "someone", "something", "somewhere"
+  )
+
   val prepObj = optStateWithSpace(
     qMark,
-    "someone", "something", "somewhere",
+    "someone", "something",
     "doing", "doing something"
   )
 
   val postToObj = optStateWithSpace(
     qMark,
-    "someone", "something", "somewhere",
-    "do", "do something",
-    "doing", "doing something"
+    "someone", "something",
+    "do", "do something"
     // "be doing", "be doing something",
     // "have done", "have done something",
     // "have been doing", "have been doing something"
@@ -110,7 +114,8 @@ class Slots(
   val prep = TemplateProgress(
     NonEmptyList.of(
       "" -> to,
-      "" -> nonToPrep
+      "" -> nonToPrep,
+      "" -> noPrepObj
     )
   )
 
@@ -162,7 +167,7 @@ class Slots(
 
   def subj(targetVerbState: TemplateState) = reqStateWithSpace(
     postSubjectNegation(targetVerbState),
-    "someone", "something"
+    "someone", "something", "it"
   )
 
   def optionalSubj(targetVerbState: TemplateState) = TemplateProgress(
@@ -191,9 +196,8 @@ class Slots(
       NonEmptyList.of(
         " won't" -> infSubj,
         " will" -> infSubj,
-        " might" -> infSubj,
         " would" -> infNegContraction,
-        " should" -> infNegContraction
+        " might" -> infNegContraction
       )
     )
   }
