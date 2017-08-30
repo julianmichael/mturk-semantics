@@ -146,7 +146,7 @@ package object emnlp2017 {
           case Some(inflectedForms) =>
             if(lowerQToken == inflectedForms.past && lowerQToken == inflectedForms.pastParticiple) {
               // since these two are very often the same, we want to intelligently distinguish between them
-              val pastPartAuxes = Set("am", "is", "are", "was", "were", "has", "have", "had").map(_.lowerCase)
+              val pastPartAuxes = Set("be", "am", "is", "are", "was", "were", "has", "have", "had").map(_.lowerCase)
               if(lowerQuestion.take(qIndex).exists(pastPartAuxes.contains)) {
                 List(qIndex -> InflectedAlignment(sIndex, Some(4))) // index of past participle in allForms
               } else {
@@ -400,9 +400,17 @@ package object emnlp2017 {
 
   implicit class RichSeq[A](val as: Seq[A]) extends AnyVal {
     def indexOpt(a: A): Option[Int] = Some(as.indexOf(a)).filter(_ >= 0)
-    def indexFind(p: A => Boolean) = as.zipWithIndex.find(pair => p(pair._1)).map(_._2)
+    def collectFirstWithIndex[B](p: PartialFunction[A, B]): Option[(B, Int)] =
+      as.zipWithIndex.collect {
+        case (a, i) if p.isDefinedAt(a) => (p(a), i)
+      }.headOption
+    def indexFind(p: A => Boolean): Option[Int] = as.zipWithIndex.find(pair => p(pair._1)).map(_._2)
     // TODO doesn't short circuit when it finds the guy
     def indicesYielding[B](f: A => Option[B]): Seq[(Int, B)] =
       as.zipWithIndex.flatMap(pair => f(pair._1).map(b => (pair._2, b)))
+  }
+
+  implicit class RichList[A](val as: List[A]) extends AnyVal {
+    def tailOption: Option[List[A]] = if(as.nonEmpty) Some(as.tail) else None
   }
 }
