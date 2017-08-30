@@ -26,14 +26,15 @@ import scalacss.ScalaCssReact._
 import upickle.default._
 
 import monocle._
+import monocle.function.{all => Optics}
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
 class QASRLValidationClient[SID : Writer : Reader](
   instructions: VdomTag)(
-  implicit promptReader: Reader[ValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
-  responseWriter: Writer[List[ValidationAnswer]] // same as above
-) extends TaskClient[ValidationPrompt[SID], List[ValidationAnswer]] {
+  implicit promptReader: Reader[QASRLValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
+  responseWriter: Writer[List[QASRLValidationAnswer]] // same as above
+) extends TaskClient[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]] {
 
   import QASRLSettings._
 
@@ -42,19 +43,40 @@ class QASRLValidationClient[SID : Writer : Reader](
     FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
+  case class AnswerWordIndex(
+    questionIndex: Int,
+    answerIndex: Int,
+    wordIndex: Int)
+  object AnswerWordIndex {
+    def getAnswerSpans(indices: Set[AnswerWordIndex]): Map[Int, Answer] =
+      prompt.qaPairs.indices
+        .map(qi =>
+        qi -> Answer(
+          indices
+            .filter(_.questionIndex == qi)
+            .groupBy(_.answerIndex)
+            .toList
+            .sortBy(_._1)
+            .map(_._2.map(awi => awi.wordIndex).toSet))
+      ).toMap
+  }
+
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[ValidationApiRequest[SID], ValidationApiResponse]
   import WebsocketLoadableComponent._
-  val HighlightingComponent = new HighlightingComponent[(Int, Int)]
+  val HighlightingComponent = new HighlightingComponent[AnswerWordIndex] // question, answer, word
   import HighlightingComponent._
+
+  import MultiSpanHighlightableSentenceComponent._
 
   lazy val questions = prompt.qaPairs.map(_.question)
 
   @Lenses case class State(
     curQuestion: Int,
+    curAnswer: Int,
     isInterfaceFocused: Boolean,
-    answers: List[ValidationAnswer])
+    answers: List[QASRLValidationAnswer])
   object State {
-    def initial = State(0, false, questions.map(_ => Answer(Set.empty[Int])))
+    def initial = State(0, 0, false, questions.map(_ => Answer(List.empty[Set[Int]])))
   }
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
@@ -63,32 +85,61 @@ class QASRLValidationClient[SID : Writer : Reader](
     }
 
     def updateHighlights(hs: HighlightingState) = {
-      val span = hs.span
+      val highlightedAnswers = AnswerWordIndex.getAnswerSpans(hs.span)
       scope.modState(
-        State.answers.modify(answers =>
-          answers.zipWithIndex.map {
-            case (Answer(_), i) => Answer(span.filter(_._1 == i).map(_._2))
+        State.answers.modify(
+          _.zipWithIndex.map {
+            case (Answer(_), questionIndex) => highlightedAnswers(questionIndex)
             case (invalidOrRedundant, _) => invalidOrRedundant
           }
         )
       )
     }
 
-    def handleKey(e: ReactKeyboardEvent): Callback = {
-      def next = scope.modState(State.curQuestion.modify(i => (i + 1) % questions.size))
-      def prev = scope.modState(State.curQuestion.modify(i => (i + questions.size - 1) % questions.size))
+    def toggleInvalidAtIndex(highlightedAnswers: Map[Int, Answer])(questionIndex: Int) =
+      scope.modState(
+        State.answers.modify(answers =>
+          answers.updated(
+            questionIndex,
+            if(answers(questionIndex).isInvalid) highlightedAnswers(questionIndex)
+            else InvalidQuestion)
+        )
+      )
+
+    def handleKey(highlightedAnswers: Map[Int, Answer])(e: ReactKeyboardEvent): Callback = {
+      def nextQuestion = scope.modState(State.curQuestion.modify(i => (i + 1) % questions.size) andThen State.curAnswer.set(0))
+      def prevQuestion = scope.modState(State.curQuestion.modify(i => (i + questions.size - 1) % questions.size) andThen State.curAnswer.set(0))
+      def nextAnswer   = scope.modState(s =>
+        State.curAnswer.set {
+          s.answers(s.curQuestion).getAnswer.fold(s.curAnswer) {
+            case Answer(spans) => (s.curAnswer + 1) % (spans.size + 1)
+          }
+        }(s)
+      )
+      def prevAnswer   = scope.modState(s =>
+        State.curAnswer.set {
+          s.answers(s.curQuestion).getAnswer.fold(s.curAnswer) {
+            case Answer(spans) => (s.curAnswer + spans.size) % (spans.size + 1)
+          }
+        }(s)
+      )
+      def toggleInvalid = scope.zoomStateL(State.curQuestion).state >>= toggleInvalidAtIndex(highlightedAnswers)
+
       if(isNotAssigned) {
         Callback.empty
       } else CallbackOption.keyCodeSwitch(e) {
-        case KeyCode.Down => next
-        case KeyCode.Up => prev
+        case KeyCode.Up | KeyCode.W => prevQuestion
+        case KeyCode.Down | KeyCode.S => nextQuestion
+        case KeyCode.Left | KeyCode.A => prevAnswer
+        case KeyCode.Right | KeyCode.D => nextAnswer
+        case KeyCode.Space => toggleInvalid
       } >> e.preventDefaultCB
     }
 
-    def qaField(s: State, sentence: Vector[String], span: Set[(Int, Int)])(index: Int) = {
+    def qaField(s: State, sentence: Vector[String], highlightedAnswers: Map[Int, Answer])(index: Int) = {
       val isFocused = s.curQuestion == index
       val answer = s.answers(index)
-      def highlightedSpanFor(i: Int) = Answer(span.filter(_._1 == i).map(_._2))
+      val answerChoiceFocusedOpt = isFocused.option(s.curAnswer)
 
       <.div(
         ^.overflow := "hidden",
@@ -101,29 +152,22 @@ class QASRLValidationClient[SID : Writer : Reader](
           ^.border := "1px solid",
           ^.borderRadius := "2px",
           ^.textAlign := "center",
-          ^.width := "50px",
+          ^.width := "55px",
           (^.backgroundColor := "#E01010").when(answer.isInvalid),
-          ^.onClick --> scope.modState(
-            State.answers.modify(answers =>
-              answers.updated(
-                index,
-                if(answers(index).isInvalid) highlightedSpanFor(index)
-                else InvalidQuestion)
-            )
-          ),
+          ^.onClick --> toggleInvalidAtIndex(highlightedAnswers)(index),
           "Invalid"
         ),
         <.span(
           Styles.bolded.when(isFocused),
-          Styles.uncomfortableOrange.when(s.answers(s.curQuestion).getRedundant.fold(false)(_.other == index)),
+          Styles.uncomfortableOrange.when(s.answers(s.curQuestion).getRedundant.nonEmptyAnd(_.other == index)),
           Styles.unselectable,
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
           ^.onClick --> scope.modState(s =>
             if(s.curQuestion == index || !s.answers(index).isAnswer) s
-            else if(s.answers(s.curQuestion).getRedundant.fold(false)(_.other == index)) {
-              State.answers.modify(answers => answers.updated(s.curQuestion, highlightedSpanFor(s.curQuestion)))(s)
+            else if(s.answers(s.curQuestion).getRedundant.nonEmptyAnd(_.other == index)) {
+              State.answers.modify(answers => answers.updated(s.curQuestion, highlightedAnswers(s.curQuestion)))(s)
             } else {
               State.answers.modify(answers => answers.updated(s.curQuestion, Redundant(index)))(s)
             }
@@ -142,14 +186,41 @@ class QASRLValidationClient[SID : Writer : Reader](
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
-          (^.color := "#CCCCCC").when(answer.getAnswer.fold(true)(_.indices.isEmpty)),
           answer match {
-            case InvalidQuestion => "N/A"
-            case Redundant(other) => <.span("Redundant with ", <.i(questions(other)))
-            case Answer(span) if span.isEmpty && isFocused =>
-              "Highlight answer above, move with arrow keys, or click on a redundant question"
-            case Answer(span) => Text.render(
-              sentence.zipWithIndex.filter(p => span.contains(p._2)).map(_._1))
+            case InvalidQuestion => <.span(
+              ^.color := "#CCCCCC",
+              "N/A"
+            )
+            case Redundant(other) => <.span(
+              ^.color := "#CCCCCC",
+              "Redundant with ", <.i(questions(other)))
+            case Answer(spans) if spans.isEmpty && isFocused =>
+              <.span(
+                ^.color := "#CCCCCC",
+                "Highlight answer above, move with arrow keys, or click on a redundant question")
+            case Answer(spans) if isFocused => // spans nonempty
+              (spans.zipWithIndex.flatMap {
+                 case (span, index) =>
+                   List(
+                     <.span(
+                       (^.backgroundColor := "#FFFF00").when(answerChoiceFocusedOpt.nonEmptyAnd(_ == index)),
+                       Text.renderSpan(sentence, span)
+                     ),
+                     <.span(" / ")
+                   )
+               } ++ List(
+                 <.span(
+                   if(answerChoiceFocusedOpt.nonEmptyAnd(_ == spans.size)) TagMod(
+                     ^.backgroundColor := "#FFFF00",
+                     ^.color := "#CCCCCC",
+                     "Highlight new answer"
+                   ) else TagMod(
+                     ^.color := "#CCCCCC",
+                     "Use left/right arrow keys to cycle between answers")
+                   )
+                 )
+               ).toVdomArray
+            case Answer(spans) => spans.map(Text.renderSpan(sentence, _)).mkString(" / ")
           }
         )
       )
@@ -165,28 +236,40 @@ class QASRLValidationClient[SID : Writer : Reader](
               import state._
               Highlighting(
                 HighlightingProps(
-                  isEnabled = !isNotAssigned && answers(curQuestion).isAnswer, update = updateHighlights, render = {
+                  isEnabled = !isNotAssigned && answers(curQuestion).isAnswer,
+                  preUpdate = HighlightingState.span.modify(
+                    span => span.map(_.questionIndex).flatMap { questionIndex =>
+                      span.collect {
+                        case AnswerWordIndex(`questionIndex`, answerIndex, wordIndex) => (answerIndex, wordIndex)
+                      }.groupBy(_._1).toList.sortBy(_._1).map(_._2.map(p => p._2)).zipWithIndex.flatMap {
+                        case (wordIndices, newAnswerIndex) => wordIndices.map(AnswerWordIndex(questionIndex, newAnswerIndex, _))
+                      }.toSet
+                    }
+                  ),
+                  update = updateHighlights, render = {
                     case (hs @ HighlightingState(spans, status), HighlightingContext(_, startHighlight, startErase, stopHighlight, touchElement)) =>
-                      val showHighlights = answers(curQuestion).isAnswer
-                      val curSpan = spans.collect { case (`curQuestion`, i) => i }
-                      def touchWord(i: Int) = touchElement((curQuestion, i))
+                      val curVerbIndex = prompt.qaPairs(curQuestion).verbIndex
+                      val highlightedAnswers = AnswerWordIndex.getAnswerSpans(spans)
+                      val curAnswerSpans = highlightedAnswers(curQuestion).spans
+                      val curAnswerSpan = curAnswerSpans.lift(curAnswer).foldK
+                      val otherAnswerSpans = curAnswerSpans.take(curAnswer) ++ curAnswerSpans.drop(curAnswer + 1)
+                      val isCurrentInvalid = answers(curQuestion).isInvalid
+                      def touchWord(i: Int) = touchElement(AnswerWordIndex(curQuestion, curAnswer, i))
                       <.div(
+                        ^.classSet1("container-fluid"),
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
-                        Styles.mainContent,
                         <.p(<.b("")),
                         <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
                             """ To begin working on this HIT, please request the question answering agreement qualification
-                                (it is auto-granted) and take the qualification test.
-                                Also, while there may be few HITs available at any one time,
-                                more will be continuously uploaded
-                                as other workers write questions for you to validate. """),
+                                (it is auto-granted).Also, while there may be few HITs available at any one time,
+                                more will be uploaded as other workers write questions for you to validate. """),
                         <.hr(),
                         <.div(
                           ^.tabIndex := 0,
                           ^.onFocus --> scope.modState(State.isInterfaceFocused.set(true)),
                           ^.onBlur --> scope.modState(State.isInterfaceFocused.set(false)),
-                          ^.onKeyDown ==> handleKey,
+                          ^.onKeyDown ==> handleKey(highlightedAnswers),
                           ^.position := "relative",
                           <.div(
                             ^.position := "absolute",
@@ -199,39 +282,27 @@ class QASRLValidationClient[SID : Writer : Reader](
                             ^.fontSize := "48pt",
                             (if(isNotAssigned) "Accept assignment to start" else "Click here to start")
                           ).when(!isInterfaceFocused),
-                          <.p(
-                            Styles.unselectable,
-                            Text.render(
-                              sentence.indices.toList,
-                              getToken = (index: Int) => sentence(index),
-                              spaceFromNextWord = (nextIndex: Int) => List(
-                                <.span(
-                                  ^.backgroundColor := (
-                                    if(showHighlights && curSpan.contains(nextIndex) && curSpan.contains(nextIndex - 1)) {
-                                      "#FFFF00"
-                                    } else "transparent"),
-                                  " ")),
-                              renderWord = (index: Int) => List(
-                                <.span(
-                                  ^.backgroundColor := (
-                                    if(showHighlights && curSpan.contains(index)) "#FFFF00"
-                                    else "transparent"),
-                                  ^.onMouseMove --> touchWord(index),
-                                  ^.onMouseDown ==> (
-                                    (e: ReactEvent) => if(curSpan.contains(index)) {
-                                      e.stopPropagation // so we don't trigger the global startHighlight
-                                      startErase >> touchWord(index)
-                                    } else {
-                                      startHighlight >> touchWord(index)
-                                    }
-                                  ),
-                                  Text.normalizeToken(sentence(index))
-                                ))
-                            ).toVdomArray),
+                          MultiSpanHighlightableSentence(
+                            MultiSpanHighlightableSentenceProps(
+                              sentence = sentence,
+                              styleForIndex = i => TagMod(Styles.specialWord, Styles.niceBlue).when(i == curVerbIndex),
+                              highlightedSpans = (curAnswerSpan, ^.backgroundColor := "#FFFF00") :: otherAnswerSpans.map(
+                                (_, ^.backgroundColor := "#DDDDDD")
+                              ),
+                              startHighlight = startHighlight,
+                              startErase = startErase,
+                              touchWord = touchWord,
+                              render = (elements =>
+                                <.blockquote(
+                                  ^.classSet1("blockquote"),
+                                  Styles.unselectable,
+                                  elements.toVdomArray)
+                              ))
+                          ),
                           <.ul(
-                            Styles.listlessList,
+                            ^.classSet1("list-unstyled"),
                             (0 until questions.size)
-                              .map(qaField(state, sentence, hs.span))
+                              .map(qaField(state, sentence, highlightedAnswers))
                               .map(field => <.li(^.display := "block", field))
                               .toVdomArray
                           ),
@@ -248,6 +319,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                           )
                         ),
                         <.input(
+                          ^.classSet1("btn btn-primary"),
                           ^.`type` := "submit",
                           ^.disabled := !state.answers.forall(_.isComplete),
                           ^.id := FieldLabels.submitButtonLabel,

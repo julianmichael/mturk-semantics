@@ -2,20 +2,7 @@ package turksem
 
 import nlpdata.datasets.wiktionary.InflectedForms
 
-import turksem.qamr.GenerationPrompt
-import turksem.qamr.WordedQAPair
-
 package object qasrl {
-
-  case class QASRLValidationPrompt[SID](
-    genPrompt: GenerationPrompt[SID],
-    sourceHITTypeId: String,
-    sourceHITId: String,
-    sourceAssignmentId: String,
-    qaPairs: List[WordedQAPair]
-  ) {
-    def id = genPrompt.id
-  }
 
   case class QASRLGenerationApiRequest[SID](prompt: qamr.GenerationPrompt[SID])
 

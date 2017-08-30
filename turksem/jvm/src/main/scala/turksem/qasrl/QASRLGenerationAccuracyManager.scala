@@ -6,11 +6,9 @@ import turkey.tasks._
 import turksem._
 import turksem.util._
 import turksem.qamr.GenerationPrompt
-import turksem.qamr.ValidationAnswer
 import turksem.qamr.WorkerStats
 import turksem.qamr.Pring
 import turksem.qamr.SaveData
-import turksem.qamr.WordedQAPair
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
@@ -60,7 +58,7 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
       case QASRLValidationResult(prompt, hitTypeId, hitId, assignmentId, numQAsValid) =>
         val ha = for {
           hit <- hitDataService.getHIT[GenerationPrompt[SID]](hitTypeId, hitId).toOptionPrinting.toList
-          assignment <- hitDataService.getAssignmentsForHIT[List[WordedQAPair]](hitTypeId, hitId).get
+          assignment <- hitDataService.getAssignmentsForHIT[List[VerbQA]](hitTypeId, hitId).get
           if assignment.assignmentId == assignmentId
         } yield (hit, assignment)
 

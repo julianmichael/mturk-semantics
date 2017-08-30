@@ -2,6 +2,8 @@ package turksem.qasrl
 
 import scala.collection.mutable
 
+import cats.Monoid
+import cats.Applicative
 import cats.data.NonEmptyList
 import cats.implicits._
 
@@ -32,17 +34,22 @@ import scalacss.ScalaCssReact._
 import upickle.default._
 
 import monocle._
-import monocle.function.all._
-// import monocle.std.list._
+import monocle.function.{all => Optics}
+import monocle.std.{list => ListOptics}
+import monocle.std.{option => OptionOptics}
 import monocle.syntax._
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
+import japgolly.scalajs.react.CatsReact._
 
 class QASRLGenerationClient[SID : Reader : Writer](
   instructions: VdomTag)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
-  responseWriter: Writer[List[WordedQAPair]] // same as above
-) extends TaskClient[GenerationPrompt[SID], List[WordedQAPair]] {
+  responseWriter: Writer[List[VerbQA]] // same as above
+) extends TaskClient[GenerationPrompt[SID], List[VerbQA]] {
+
+  // for monoid on Callback
+  implicit def appMonoid[F[_]: Applicative, A: Monoid] = Applicative.monoid[F, A]
 
   import QASRLSettings._
 
@@ -58,7 +65,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse]
   import WebsocketLoadableComponent._
-  val HighlightingComponent = new HighlightingComponent[(Int, Int, Int)] // keyword index AMONG KEYWORDS, qa index, answer word index
+  val HighlightingComponent = new HighlightingComponent[(Int, Int, Int, Int)] // keyword index AMONG KEYWORDS, qa index, answer index, answer word index
   import HighlightingComponent._
 
   val IntState = new LocalStateComponent[Int]
@@ -66,19 +73,20 @@ class QASRLGenerationClient[SID : Reader : Writer](
   val ReferenceComponent = new ReferenceComponent[dom.html.Element]
   import ReferenceComponent._
 
-  import HighlightableSentenceComponent._
+  import MultiSpanHighlightableSentenceComponent._
 
   sealed trait QAState
   case object Complete extends QAState
   case object InProgress extends QAState
   case object Invalid extends QAState
+  case object Redundant extends QAState
 
   @Lenses case class QAPair(
     question: String,
-    answer: Set[Int],
+    answers: List[Set[Int]],
     state: QAState)
   object QAPair {
-    val empty = QAPair("", Set.empty[Int], InProgress)
+    val empty = QAPair("", List.empty[Set[Int]], InProgress)
   }
 
   @Lenses case class QAGroup(
@@ -90,7 +98,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   @Lenses case class State(
     qaGroups: List[QAGroup],
-    curFocus: Option[(Int, Int)]) {
+    curFocus: Option[(Int, Int, Int)]) {
   }
   object State {
     val empty: State = State(Nil, None)
@@ -107,9 +115,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
   }
 
   def qaLens(groupIndex: Int, qaIndex: Int) = State.qaGroups
-    .composeOptional(index(groupIndex))
+    .composeOptional(Optics.index(groupIndex))
     .composeLens(QAGroup.qas)
-    .composeOptional(index(qaIndex))
+    .composeOptional(Optics.index(qaIndex))
 
   def questionLens(groupIndex: Int, qaIndex: Int) = qaLens(groupIndex, qaIndex)
     .composeLens(QAPair.question)
@@ -123,19 +131,21 @@ class QASRLGenerationClient[SID : Reader : Writer](
       case Right(validStates) => if(validStates.exists(_.isComplete)) Complete else InProgress
     }
 
-  def isComplete(qa: QAPair): Boolean = qa.state == Complete && qa.answer.nonEmpty
+  def isQuestionComplete(qa: QAPair): Boolean = qa.state == Complete
 
-  def getCompleteQAPairs(group: QAGroup): List[WordedQAPair] = for {
+  def isComplete(qa: QAPair): Boolean = qa.state == Complete && qa.answers.nonEmpty
+
+  def getCompleteQAPairs(group: QAGroup): List[VerbQA] = for {
     qa <- group.qas
     if isComplete(qa)
-  } yield WordedQAPair(group.verbIndex, qa.question, qa.answer)
+  } yield VerbQA(group.verbIndex, qa.question, qa.answers)
 
-  def getAllCompleteQAPairs(groups: List[QAGroup]): List[WordedQAPair] =
+  def getAllCompleteQAPairs(groups: List[QAGroup]): List[VerbQA] =
     groups.flatMap(getCompleteQAPairs)
 
   // better: a PTraversal that doesn't ask for the index back. would fix the issue of the iso being bad
   def indexingIso[A] = Iso[List[A], List[(A, Int)]](_.zipWithIndex)(_.map(_._1))
-  def eachIndexed[A] = indexingIso[A].composeTraversal(each)
+  def eachIndexed[A] = indexingIso[A].composeTraversal(Optics.each)
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
 
@@ -157,40 +167,51 @@ class QASRLGenerationClient[SID : Reader : Writer](
         case Left(QASRLTemplate.AggregatedInvalidState(_, _)) =>
           qaStateLens(groupIndex, qaIndex).set(Invalid)(s)
         case Right(goodStates) =>
-          if(goodStates.exists(_.isComplete)) qaStateLens(groupIndex, qaIndex).set(Complete)(s)
+          if(goodStates.exists(_.isComplete)) {
+            if(group.qas.map(_.question).indexOf(question) < qaIndex) {
+              qaStateLens(groupIndex, qaIndex).set(Redundant)(s)
+            } else {
+              qaStateLens(groupIndex, qaIndex).set(Complete)(s)
+            }
+          }
           else qaStateLens(groupIndex, qaIndex).set(InProgress)(s)
       }
     }
 
     def addQAFields: (State => State) = State.qaGroups.modify(groups =>
       groups.map { group =>
-        if(group.qas.forall(isComplete)) group.withNewEmptyQA
+        if(group.qas.forall(isQuestionComplete)) group.withNewEmptyQA
         else group
       }
     )
 
     def moveToNextQuestion: Callback = scope.state.flatMap { s =>
-      s.curFocus.fold(Callback.empty) { focus =>
+      s.curFocus.foldMap { focus =>
+        val qaFocus = (focus._1, focus._2)
         val allFocusablePairs = s.qaGroups.toVector.zipWithIndex.flatMap {
           case (group, groupIndex) => group.qas.zipWithIndex.map {
             case (_, qaIndex) => (groupIndex, qaIndex)
           }
         }
-        val curIndex = allFocusablePairs.indexOf(focus)
+        val curIndex = allFocusablePairs.indexOf(qaFocus)
         val newIndex = (curIndex + 1) % allFocusablePairs.size
 
         Callback(allInputRefs(allFocusablePairs(newIndex)).focus)
       }
     }
 
+    def moveToAnswer(targetAnswerIndex: Int): Callback = scope.modState(
+      (State.curFocus composePrism OptionOptics.some composeLens Optics.third).set(targetAnswerIndex)
+    )
+
     def updateHighlights(hs: HighlightingState) =
       scope.modState(
         State.qaGroups.composeTraversal(eachIndexed).modify {
           case (group, groupIndex) => QAGroup.qas.composeTraversal(eachIndexed).modify {
-            case (qa, qaIndex) => QAPair.answer.set(
+            case (qa, qaIndex) => QAPair.answers.set(
               hs.span.collect {
-                case (`groupIndex`, `qaIndex`, aIndex) => aIndex
-              }.toSet)(qa) -> qaIndex
+                case (`groupIndex`, `qaIndex`, answerIndex, wordIndex) => (answerIndex, wordIndex)
+              }.groupBy(_._1).toList.sortBy(_._1).map(_._2.map(p => p._2).toSet))(qa) -> qaIndex
           }(group) -> groupIndex
         } andThen addQAFields
       )
@@ -208,11 +229,15 @@ class QASRLGenerationClient[SID : Reader : Writer](
       case State(qaGroups, curFocus) =>
         val qaGroup = qaGroups(groupIndex)
         val template = qaGroup.template
-        val isFocused = curFocus == Some(groupIndex, qaIndex)
+        val answerFocus = curFocus match {
+          case Some((`groupIndex`, `qaIndex`, answerIndex)) => Some(answerIndex)
+          case _ => None
+        }
+        val isFocused = answerFocus.nonEmpty
         val numQAsInGroup = qaGroup.qas.size
-        val QAPair(question, answer, qaState) = qaGroup.qas(qaIndex)
+        val QAPair(question, answers, qaState) = qaGroup.qas(qaIndex)
 
-        val isAnswerEmpty = answer.isEmpty
+        // val isFocusedAnswerEmpty = answerFocus.nonEmptyAnd(i => answers(i).isEmpty)
         val nextBonus = bonusPerQuestion
 
         case class Suggestion(fullText: String, isComplete: Boolean)
@@ -266,7 +291,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         case KeyCode.Enter => setBlurEnabled(true) >> moveToNextQuestion >> e.preventDefaultCB
                       }
                     } else {
-                      autocompleteStateOpt.fold(CallbackOption.pass) { acs =>
+                      autocompleteStateOpt.foldMap { acs =>
                         val menuItems = acs.suggestions
                         def next = setHighlightedIndex((highlightedIndex + 1) % menuItems.size.toInt)
                         def prev = setHighlightedIndex((highlightedIndex - 1 + menuItems.size.toInt) % menuItems.size.toInt)
@@ -282,8 +307,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
                 }
 
                 val bgStyle = qaState match {
-                  case Complete => ^.backgroundColor := "rgba(0, 255, 0, 0.3)"
-                  case InProgress if !isFocused && question.nonEmpty => ^.backgroundColor := "rgba(255, 255, 0, 0.3)"
+                  case Complete if answers.nonEmpty => ^.backgroundColor := "rgba(0, 255, 0, 0.3)"
+                  case Redundant => ^.backgroundColor := "rgba(255, 255, 0, 0.3)"
                   case Invalid if !isFocused => ^.backgroundColor := "rgba(255, 0, 0, 0.3)"
                   case _ => EmptyVdom
                 }
@@ -297,15 +322,19 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         ^.float := "left",
                         ^.`type` := "text",
                         ^.placeholder := (
-                          if(qaIndex == 0) "Question (required)"
-                          else s"Question (+${math.round(100 * nextBonus).toInt}c)"
+                          if(qaIndex == 0) ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\" (required)")
+                          else ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\"" + s" (+${math.round(100 * nextBonus).toInt}c)")
                         ),
                         ^.margin := s"1px",
                         ^.padding := s"1px",
                         ^.width := "480px",
                         ^.onKeyDown ==> handleKey,
                         ^.onChange ==> ((e: ReactEventFromInput) => handleQuestionChange(e.target.value)),
-                        ^.onFocus --> scope.modState(State.curFocus.set(Some((groupIndex, qaIndex)))),
+                        ^.onFocus --> scope.modState(
+                          State.curFocus.modify {
+                            case cf @ Some((`groupIndex`, `qaIndex`, answerIndex)) => cf
+                            case _ => Some((groupIndex, qaIndex, 0))
+                          }),
                         ^.onBlur --> (if(isBlurEnabled) scope.modState(State.curFocus.set(None)) else Callback(allInputRefs((groupIndex, qaIndex)).focus)),
                         ^.value := question
                       ),
@@ -337,11 +366,13 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                  ^.border := "solid 1px #ccc",
                                  ^.borderRadius := "3px",
                                  ^.boxShadow := "0 2px 12px rgba(0, 0, 0, 0.1)",
-                                 ^.background := "rgba(255, 255, 255, 0.9)",
+                                 ^.background := "rgba(255, 255, 255, 1.0)",
                                  ^.padding := "2px 0",
                                  ^.fontSize := "90%",
                                  ^.overflow := "auto",
                                  ^.maxHeight := "50%",
+                                 ^.onMouseMove --> setBlurEnabled(false),
+                                 ^.onMouseLeave --> setBlurEnabled(true),
                                  suggestions.zipWithIndex.toList.toVdomArray {
                                    case (ts @ Suggestion(text, isCompletion), tokenIndex) =>
                                      <.div(
@@ -373,22 +404,43 @@ class QASRLGenerationClient[SID : Reader : Writer](
                 )
               })),
           <.div(
-            Styles.answerIndicator,
-            ^.float := "left",
-            ^.minHeight := "1px",
-            ^.width := "25px",
-            "-->".when(isFocused)
-          ),
-          <.div(
             ^.float := "left",
             ^.margin := "1px",
             ^.padding := "1px",
-            (^.color := "#CCCCCC").when(isAnswerEmpty),
-            if(isAnswerEmpty && isFocused) {
-              "Highlight your answer above"
-            } else {
-              Text.renderSpan(sentence, answer)
-            }
+            ^.onMouseMove --> setBlurEnabled(false),
+            ^.onMouseLeave --> setBlurEnabled(true),
+            if(isFocused) {
+              if(answers.isEmpty) <.span(
+                ^.color := "#CCCCCC",
+                "Highlight your answer above"
+              ) else (0 to answers.size).map(i =>
+                <.span(
+                  ^.onClick --> moveToAnswer(i),
+                  if(i < answers.size) TagMod(
+                    (^.backgroundColor := "#FFFF00").when(answerFocus.nonEmptyAnd(_ == i)),
+                    Text.renderSpan(sentence, answers(i))
+                  ) else TagMod(
+                    (^.color := "#CCCCCC"),
+                    if(answerFocus.nonEmptyAnd(_ == i)) TagMod(
+                      ^.backgroundColor := "#FFFF00",
+                      "Highlight a new answer above, or click other answers to edit"
+                    ) else "Click here to add new answer; click other answers to edit"
+                  )
+                )
+              ).toList.map(List(_)).intercalate(List(<.span(" / "))).toVdomArray
+            } else <.span(
+              (0 until answers.size).map(i =>
+                <.span(
+                  ^.onClick --> (
+                    setBlurEnabled(true) >>
+                      Callback(allInputRefs((groupIndex, qaIndex)).focus) >>
+                      moveToAnswer(i) >>
+                      setBlurEnabled(false)
+                  ),
+                  Text.renderSpan(sentence, answers(i))
+                )
+              ).toList.map(List(_)).intercalate(List(<.span(" / "))).toVdomArray
+            )
           )
         )
     }
@@ -405,7 +457,18 @@ class QASRLGenerationClient[SID : Reader : Writer](
             case Loaded(QASRLGenerationApiResponse(sentence, _), _) =>
               Highlighting(
                 HighlightingProps(
-                  isEnabled = !isNotAssigned, update = updateHighlights, render = {
+                  isEnabled = !isNotAssigned,
+                  preUpdate = HighlightingState.span.modify(
+                    span => span.map(t => (t._1, t._2)).flatMap {
+                      case (keywordIndex, qaIndex) => span.collect {
+                        case (`keywordIndex`, `qaIndex`, answerIndex, wordIndex) => (answerIndex, wordIndex)
+                      }.groupBy(_._1).toList.sortBy(_._1).map(_._2.map(p => p._2)).zipWithIndex.flatMap {
+                        case (wordIndices, newAnswerIndex) => wordIndices.map((keywordIndex, qaIndex, newAnswerIndex, _))
+                      }.toSet
+                    }
+                  ),
+                  update = updateHighlights,
+                  render = {
                     case (HighlightingState(spans, status),
                           HighlightingContext(setSpan, startHighlight, startErase, stopHighlight, touchElement)) =>
 
@@ -413,15 +476,26 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
                       val curPotentialBonus = generationBonus(s.qaGroups.size, curCompleteQAPairs.size)
 
-                      val curAnswer = s.curFocus.fold(Set.empty[Int]) {
-                        case (groupIndex, qaIndex) => spans.collect {
-                          case (`groupIndex`, `qaIndex`, ansIndex) => ansIndex
+                      val curAnswers = s.curFocus.foldMap {
+                        case (groupIndex, qaIndex, _) => spans.collect {
+                          case (`groupIndex`, `qaIndex`, answerIndex, wordIndex) => (answerIndex, wordIndex)
                         }
+                      }.groupBy(_._1).toList.sortBy(_._1).map(_._2).toList.map(_.map(p => p._2).toSet)
+
+                      val curAnswer = s.curFocus.foldMap {
+                        case (_, _, answerIndex) => curAnswers.lift(answerIndex).foldMap(identity)
                       }
 
-                      def touchWord(i: Int) = s.curFocus.fold(Callback.empty) {
-                        case (groupIndex, qaIndex) => touchElement((groupIndex, qaIndex, i))
+                      val otherAnswers = s.curFocus.foldMap {
+                        case (_, _, answerIndex) => curAnswers.take(answerIndex) ++ curAnswers.drop(answerIndex + 1)
                       }
+
+                      def touchWord(i: Int) = s.curFocus.foldMap {
+                        case (groupIndex, qaIndex, answerIndex) => touchElement((groupIndex, qaIndex, answerIndex, i))
+                      }
+
+                      def ifCurGroup[M: Monoid](groupIndex: Int)(valueIfCorrect: M): M =
+                        s.curFocus.filter(_._1 == groupIndex).foldMap(_ => valueIfCorrect)
 
                       <.div(
                         ^.classSet1("container-fluid"),
@@ -431,38 +505,39 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin, """),
                             """ so you can maximize your bonuses and avoid losing your qualification. """,
                             """ To begin working on this HIT, please request the question-answer writing accuracy qualification.
-                                It is auto-granted. Also, while there may be few HITs available at any one time,
-                                more will be continuously uploaded as they are completed. """),
+                                It is auto-granted. Right now we are doing a trial run of these HITs,
+                                but many of them will be posted soon.
+                                We would appreciate any feedback on the task design.
+                            """),
                         <.hr(),
-                        HighlightableSentence(
-                          HighlightableSentenceProps(
-                            sentence = sentence,
-                            styleForIndex = ((i: Int) =>
-                              prompt.keywords.indexOf(i).onlyIf(_ != -1).map(index =>
-                                TagMod(Styles.specialWord, Styles.niceBlue)
-                              ).whenDefined
-                            ),
-                            highlightedIndices = curAnswer,
-                            startHighlight = startHighlight,
-                            startErase = startErase,
-                            touchWord = touchWord,
-                            render = (elements =>
-                              <.blockquote(
-                                ^.onMouseEnter --> setBlurEnabled(false), // TODO might not need..?
-                                ^.onMouseMove --> setBlurEnabled(false),
-                                ^.onMouseLeave --> setBlurEnabled(true),
-                                ^.classSet1("blockquote"),
-                                Styles.unselectable,
-                                elements.toVdomArray)
-                            ))
-                        ),
                         <.div(
                           (0 until s.qaGroups.size).toVdomArray(groupIndex =>
                             <.div(
-                              <.h6(
-                                ^.marginTop := "15px",
-                                Styles.bolded,
-                                Text.normalizeToken(sentence(prompt.keywords(groupIndex)))
+                              ^.marginBottom := "20px",
+                              MultiSpanHighlightableSentence(
+                                MultiSpanHighlightableSentenceProps(
+                                  sentence = sentence,
+                                  styleForIndex = ((i: Int) =>
+                                    TagMod(Styles.specialWord, Styles.niceBlue).when(
+                                      i == prompt.keywords(groupIndex)
+                                    )
+                                  ),
+                                  highlightedSpans = (curAnswer, ^.backgroundColor := "#FFFF00") :: otherAnswers.map(
+                                    (_, ^.backgroundColor := "#DDDDDD")
+                                  ),
+                                  startHighlight = startHighlight,
+                                  startErase = startErase,
+                                  touchWord = touchWord,
+                                  render = (elements =>
+                                    <.div(
+                                      ^.onMouseEnter --> setBlurEnabled(false),
+                                      ^.onMouseLeave --> setBlurEnabled(true),
+                                      <.blockquote(
+                                        ^.classSet1("blockquote"),
+                                        Styles.unselectable,
+                                        elements.toVdomArray)
+                                    )
+                                  ))
                               ),
                               <.ul(
                                 Styles.listlessList,

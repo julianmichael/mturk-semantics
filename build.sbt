@@ -60,6 +60,7 @@ lazy val turksem = crossProject
     "be.doeraene" %%% "scalajs-jquery" % "0.9.0",
     "com.github.japgolly.scalajs-react" %%% "core" % scalaJSReactVersion,
     "com.github.japgolly.scalajs-react" %%% "ext-monocle" % scalaJSReactVersion,
+    "com.github.japgolly.scalajs-react" %%% "ext-cats" % scalaJSReactVersion,
     "com.github.japgolly.scalacss" %%% "core" % "0.5.3",
     "com.github.japgolly.scalacss" %%% "ext-react" % "0.5.3"
   ),

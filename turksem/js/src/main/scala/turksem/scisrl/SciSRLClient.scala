@@ -314,7 +314,7 @@ class SciSRLClient[SID : Reader : Writer](instructions: VdomTag)(
           ^.borderRadius := "2px",
           ^.textAlign := "center",
           ^.width := "55px",
-          (^.backgroundColor := "#E01010").when(answer.isInvalid ),
+          (^.backgroundColor := "#E01010").when(answer.isInvalid),
           ^.onClick --> toggleInvalid(groupIndex, questionIndex),
           "Invalid"
         ),

@@ -18,7 +18,7 @@ object Slots {
 
   val mostCommonPrepositions = Set(
     "by", "for", "with", "about",
-    "from" // added my own on this line
+    "in", "from", "to" // added my own on this line
   ).map(_.lowerCase)
 
   val lotsOfPrepositions = Set(
@@ -27,7 +27,7 @@ object Slots {
 		"behind", "below", "beneath", "beside", "besides", "between", "beyond", "by", "despite", "down",
 		"during", "except", "for", "from", "given", "in", "inside", "into", "near", "next",
 		"of", "off", "on", "onto", "opposite", "out", "outside", "over", "pace", "per",
-		"round", "since", "than", "through", "throughout", "till", "times", "toward", "towards",
+		"round", "since", "than", "through", "throughout", "till", "times", "to", "toward", "towards",
 		"under", "underneath", "until", "unto", "up", "upon", "versus", "via", "with ", "within",
 		"without"
   ).map(_.lowerCase)
@@ -67,11 +67,15 @@ class Slots(
     .filter(_.forall(isPreposition))
     .map(_.mkString(" ").lowerCase)
 
-  val chosenPrepositions: Set[LowerCaseString] = (
+  val allChosenPrepositions: Set[LowerCaseString] = (
     newPrepositions.iterator ++
       prepositionBigrams ++
       Slots.mostCommonPrepositions.iterator
   ).toSet
+
+  val nonToEndingPrepositions = allChosenPrepositions.filterNot(_.endsWith("to"))
+
+  val toEndingPrepositions = allChosenPrepositions.filter(_.endsWith("to"))
 
   import verbInflectedForms._
 
@@ -102,13 +106,12 @@ class Slots(
 
   val nonToPrep = optStateWithSpace(
     prepObj,
-    chosenPrepositions.map(_.toString).toSeq: _*
+    nonToEndingPrepositions.map(_.toString).toSeq: _*
   )
 
-  val to = TemplateProgress(
-    NonEmptyList.of(
-      " to" -> postToObj
-    )
+  val to = optStateWithSpace(
+    postToObj,
+    toEndingPrepositions.map(_.toString).toSeq: _*
   )
 
   val prep = TemplateProgress(

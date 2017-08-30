@@ -20,7 +20,7 @@
 // case class ValidationBegun[SID](prompt: QASRLValidationPrompt[SID]) extends TrackingUpdate[SID]
 // case class ValidationFinished[SID](
 //   prompt: QASRLValidationPrompt[SID],
-//   assignments: List[Assignment[List[ValidationAnswer]]]
+//   assignments: List[Assignment[List[QASRLValidationAnswer]]]
 // ) extends TrackingUpdate[SID]
 
 // class QASRLSentenceTracker[SID : Reader : Writer : HasTokens : HasKeyIndices](
@@ -118,11 +118,11 @@
 //     val sentence = id.tokens
 //     val allValHITIds = allValidations.map(_.hitId).toSet
 //     val valHITInfos = allValHITIds.toList
-//       .map(hitId => config.hitDataService.getHITInfo[QASRLValidationPrompt[SID], List[ValidationAnswer]](valHITTypeId, hitId).get)
+//       .map(hitId => config.hitDataService.getHITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](valHITTypeId, hitId).get)
 //     val genHITInfos = valHITInfos
 //       .map(vhi => (vhi.hit.prompt.sourceHITTypeId, vhi.hit.prompt.sourceHITId))
 //       .toSet.toList
-//       .map(pair => config.hitDataService.getHITInfo[GenerationPrompt[SID], List[WordedQAPair]](pair._1, pair._2).get)
+//       .map(pair => config.hitDataService.getHITInfo[GenerationPrompt[SID], List[VerbQA]](pair._1, pair._2).get)
 //     val sentenceHITInfo = SentenceHITInfo(sentence, genHITInfos, valHITInfos)
 
 //     val earliestTime = Try(
@@ -146,7 +146,7 @@
 //       val qaPairs = for {
 //         HITInfo(hit, assignments) <- genHITInfos
 //         assignment <- assignments
-//         wqa @ WordedQAPair(_, question, answerIndices) <- assignment.response
+//         wqa @ VerbQA(_, question, answers) <- assignment.response
 //         if (answerIndices contains keywordIndex) || question.toLowerCase.contains(sentence(keywordIndex).toLowerCase)
 //       } yield wqa
 //       qaPairs.size
@@ -164,7 +164,7 @@
 
 //     val numQAPairs = genHITInfos.flatMap(_.assignments).flatMap(_.response).size
 //     val numValidQAPairs = alignedValidations
-//       .map(av => ValidationAnswer.numValidQuestions(av.valAssignments.map(_.response)))
+//       .map(av => QASRLValidationAnswer.numValidQuestions(av.valAssignments.map(_.response)))
 //       .sum
 //     val completionTime = Try(
 //       valHITInfos.flatMap(_.assignments).map(_.submitTime).max

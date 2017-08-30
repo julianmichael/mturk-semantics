@@ -35,10 +35,18 @@ package object util extends PackagePlatformExtensions {
 
   def const[A](a: A): Any => A = _ => a
 
-  // TODO contribute this to mouse
   implicit class RichBoolean(val b: Boolean) extends AnyVal {
+    def option[A](a: A) = if(b) Some(a) else None
+    // TODO contribute this to mouse?
     import cats.Monoid
     def ifTrue[M](m: => M)(implicit M: Monoid[M]): M = if(b) m else M.empty
+  }
+
+  implicit class RichOption[A](val a: Option[A]) extends AnyVal {
+    // these replace the two possible foldMaps you might normally do with the two typical Boolean monoids.
+    // it's not really more concise, but it's more readable / harder to mess up.
+    def emptyOr(predicate: A => Boolean): Boolean = a.fold(true)(predicate)
+    def nonEmptyAnd(predicate: A => Boolean): Boolean = a.fold(false)(predicate)
   }
 
   // TODO make this return an option

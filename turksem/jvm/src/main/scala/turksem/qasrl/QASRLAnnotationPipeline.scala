@@ -32,12 +32,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
-  qualTest: QualTest,
   frozenGenerationHITTypeID: Option[String] = None,
   frozenValidationHITTypeID: Option[String] = None,
   generationAccuracyQualTypeLabel: Option[String] = None,
-  validationAgreementQualTypeLabel: Option[String] = None,
-  validationTestQualTypeLabel: Option[String] = None)(
+  validationAgreementQualTypeLabel: Option[String] = None)(
   implicit config: TaskConfig,
   inflections: Inflections) {
 
@@ -131,33 +129,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
     null, false)
 
-  val valTestQualTypeLabelString = validationTestQualTypeLabel.fold("")(x => s"[$x] ")
-  val valTestQualTypeName = if(config.isProduction) s"${valTestQualTypeLabelString}Question answering test score (%)"
-                            else "Sandbox test score qual"
-  val valTestQualType = config.service.searchQualificationTypes(
-    valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
-  ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == valTestQualTypeName)).getOrElse {
-    System.out.println("Generating validation test qualification type...")
-    config.service.createQualificationType(
-      valTestQualTypeName,
-      "language,english,question answering",
-      """Score on the qualification test for the question answering task,
-         as a test of your understanding of the instructions.""".replaceAll("\\s+", " "),
-      QualificationTypeStatus.Active,
-      300L, // retry delay (seconds) --- 5 minutes
-      qualTest.testString, // test: QuestionForm
-      qualTest.answerKeyString, // AnswerKey
-      1200L, // test time limit (seconds) --- 30 minutes
-      false, // auto granted
-      null // auto granted value
-    )
-  }
-  val valTestQualTypeId = valTestQualType.getQualificationTypeId
-  val valTestRequirement = new QualificationRequirement(
-    valTestQualTypeId,
-    Comparator.GreaterThanOrEqualTo, 75,
-    null, false)
-
   lazy val (taskPageHeadLinks, taskPageBodyLinks) = {
     import scalatags.Text.all._
     val headLinks = List(
@@ -226,7 +197,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     reward = validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement, valAgreementRequirement, valTestRequirement
+      approvalRateRequirement, locationRequirement, valAgreementRequirement
     ))
 
   lazy val valApiFlow = Flow[ValidationApiRequest[SID]].map {
@@ -236,14 +207,16 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val sampleValPrompt = QASRLValidationPrompt[SID](
     sampleGenPrompt, "", "", "",
-    List(WordedQAPair(0, "Who is awesome?", Set(1, 2, 3, 4)),
-         WordedQAPair(1, "What is Julian?", Set(5, 6, 8, 9)),
-         WordedQAPair(1, "Whih one is best?", Set(5, 6, 8, 9)),
-         WordedQAPair(1, "Herp derp?", Set(5, 6, 8, 9))))
+    List(VerbQA(0, "Who is awesome?", List(Set(1, 2, 3, 4))),
+         VerbQA(1, "What is Julian?", List(Set(5, 6, 8, 9))),
+         VerbQA(1, "Whih one is best?", List(Set(5, 6, 8, 9))),
+         VerbQA(1, "Herp derp?", List(Set(5, 6, 8, 9)))))
 
-  lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[ValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
+  lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
     validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
-    frozenHITTypeId = frozenValidationHITTypeID)
+    frozenHITTypeId = frozenValidationHITTypeID,
+    taskPageHeadElements = taskPageHeadLinks,
+    taskPageBodyElements = taskPageBodyLinks)
 
   // val dashboardApiFlow = Flow[Unit]
   //   .merge(Source.tick(initialDelay = 0.seconds, interval = 1.minute, ()))
@@ -258,10 +231,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   //       stats -> SentenceHITInfo(
   //         sentence,
   //         stats.genHITIds.toList
-  //           .map(hitDataService.getHITInfo[GenerationPrompt[SID], List[WordedQAPair]](genTaskSpec.hitTypeId, _))
+  //           .map(hitDataService.getHITInfo[GenerationPrompt[SID], List[VerbQA]](genTaskSpec.hitTypeId, _))
   //           .map(_.get),
   //         stats.valHITIds.toList
-  //           .map(hitDataService.getHITInfo[QASRLValidationPrompt[SID], List[ValidationAnswer]](valTaskSpec.hitTypeId, _))
+  //           .map(hitDataService.getHITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](valTaskSpec.hitTypeId, _))
   //           .map(_.get))
   //     ).toOption
   //   }.toMap
@@ -338,7 +311,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   var largeGenManagerPeek: QASRLGenerationHITManager[SID] = null
 
   def makeGenHITManagement(hitType: HITType, prompts: Vector[GenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit)) = {
-    val taskSpec = TaskSpecification[GenerationPrompt[SID], List[WordedQAPair], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
+    val taskSpec = TaskSpecification[GenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
       generationTaskKey, hitType, genApiFlow, sampleGenPrompt,
       frozenHITTypeId = frozenGenerationHITTypeID,
       taskPageHeadElements = taskPageHeadLinks,
@@ -451,11 +424,11 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   // for use while it's running. Ideally instead of having to futz around at the console calling these functions,
   // in the future you could have a nice dashboard UI that will help you examine common sources of issues
 
-  def allSmallGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[WordedQAPair]](smallGenTaskSpec.hitTypeId).get
-  def allLargeGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[WordedQAPair]](largeGenTaskSpec.hitTypeId).get
+  def allSmallGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[VerbQA]](smallGenTaskSpec.hitTypeId).get
+  def allLargeGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[VerbQA]](largeGenTaskSpec.hitTypeId).get
   def allGenInfos = allSmallGenInfos ++ allLargeGenInfos
 
-  def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SID], List[ValidationAnswer]](valTaskSpec.hitTypeId).get
+  def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](valTaskSpec.hitTypeId).get
 
   def workerGenInfos(workerId: String) = for {
     hi <- allGenInfos
@@ -470,7 +443,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       if hi.assignments.exists(_.workerId == workerId)
       workerAssignment = hi.assignments.find(_.workerId == workerId).get
       nonWorkerAssignments = hi.assignments.filter(_.workerId != workerId)
-      avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(a => ValidationAnswer.numAgreed(workerAssignment.response, a.response)).mean
+      avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(a => QASRLValidationAnswer.numAgreed(workerAssignment.response, a.response)).mean
     } yield (HITInfo(hi.hit, workerAssignment :: nonWorkerAssignments), avgNumDisagreed)
     scored.sortBy(_._2).map(_._1)
   }
@@ -481,14 +454,14 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     ).toList
   }
 
-  def renderValidation(info: HITInfo[QASRLValidationPrompt[SID], List[ValidationAnswer]]) = {
+  def renderValidation(info: HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]) = {
     val sentence = info.hit.prompt.genPrompt.id.tokens
     info.assignments.map { assignment =>
       Text.render(sentence) + "\n" +
         info.hit.prompt.qaPairs.zip(assignment.response).map {
-          case (WordedQAPair(kwIndex, question, answerIndices), valAnswer) =>
-            val answerString = Text.renderSpan(sentence, answerIndices)
-            val validationString = ValidationAnswer.render(sentence, valAnswer, info.hit.prompt.qaPairs)
+          case (VerbQA(kwIndex, question, answers), valAnswer) =>
+            val answerString = answers.map(Text.renderSpan(sentence, _)).mkString(" / ")
+            val validationString = QASRLValidationAnswer.render(sentence, valAnswer, info.hit.prompt.qaPairs)
             s"\t$question --> $answerString \t|$validationString"
         }.mkString("\n")
     }.mkString("\n") + "\n"

@@ -32,11 +32,13 @@ object Styles extends StyleSheet.Inline {
   )
 
   val goodGreen = style(
-    color(c"rgb(48, 140, 20)")
+    color(c"rgb(48, 140, 20)"),
+    fontWeight.bold
   )
 
   val badRed = style(
-    color(c"rgb(216, 31, 00)")
+    color(c"rgb(216, 31, 00)"),
+    fontWeight.bold
   )
 
   // freeze after expF

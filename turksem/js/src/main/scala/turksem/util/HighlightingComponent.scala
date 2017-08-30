@@ -42,28 +42,38 @@ class HighlightingComponent[Index] {
 
   case class HighlightingProps(
     isEnabled: Boolean,
+    preUpdate: HighlightingState => HighlightingState = identity,
     update: HighlightingState => Callback,
     initial: Set[Index] = Set.empty[Index],
     render: (HighlightingState, HighlightingContext) => VdomElement)
 
   class HighlightingBackend(scope: BackendScope[HighlightingProps, HighlightingState]) {
 
-    def setSpan(span: Set[Index]): Callback =
-      scope.modState(HighlightingState.span.set(span)) >>
-        scope.state.flatMap(s => scope.props.flatMap(p => p.update(s)))
+    def setSpan(span: Set[Index]): Callback = for {
+      p <- scope.props
+      s <- scope.state
+      _ <- scope.setState(p.preUpdate(s.copy(span = span)))
+      _ <- scope.state >>= p.update
+    } yield ()
 
     def touchElement(props: HighlightingProps)(index: Index): Callback = scope.modState {
       case s @ HighlightingState(span, status) =>
         if(!props.isEnabled) s
-        else status match {
-          case DoNothing => s
-          case Highlight => HighlightingState(span + index, status)
-          case Erase => HighlightingState(span - index, status)
-        }
-    } >> scope.state.flatMap(s => scope.props.flatMap(p => p.update(s)))
-    def setHighlightingStatus(s: HighlightingStatus): Callback =
-      scope.modState(HighlightingState.status.set(s)) >>
-        scope.state.flatMap(s => scope.props.flatMap(p => p.update(s)))
+        else props.preUpdate(
+          status match {
+            case DoNothing => s
+            case Highlight => HighlightingState(span + index, status)
+            case Erase => HighlightingState(span - index, status)
+          }
+        )
+    } >> scope.props >>= (p => scope.state >>= p.update)
+
+    def setHighlightingStatus(s: HighlightingStatus): Callback = for {
+      p <- scope.props
+      _ <- scope.modState(HighlightingState.status.set(s) andThen p.preUpdate)
+      _ <- scope.state >>= p.update
+    } yield ()
+
     val startHighlight: Callback = setHighlightingStatus(Highlight)
     val startErase: Callback = setHighlightingStatus(Erase)
     val stop: Callback = setHighlightingStatus(DoNothing)

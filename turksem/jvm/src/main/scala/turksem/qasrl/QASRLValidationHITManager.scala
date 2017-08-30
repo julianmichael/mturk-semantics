@@ -3,8 +3,6 @@ package turksem.qasrl
 import turksem._
 import turksem.util._
 import turksem.qamr.GenerationPrompt
-import turksem.qamr.ValidationAnswer
-import turksem.qamr.WorkerInfo
 import turksem.qamr.Pring
 import turksem.qamr.SaveData
 
@@ -27,7 +25,7 @@ import com.typesafe.scalalogging.StrictLogging
 
 object QASRLValidationHITManager {
   def apply[SID : Reader : Writer](
-    helper: HITManager.Helper[QASRLValidationPrompt[SID], List[ValidationAnswer]],
+    helper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
     valQualificationTypeId: String,
     accuracyStatsActor: ActorRef,
     // sentenceTrackingActor: ActorRef,
@@ -74,7 +72,7 @@ Finally, it is always possible that you got unlucky and were compared to low-qua
 }
 
 class QASRLValidationHITManager[SID : Reader : Writer] private (
-  helper: HITManager.Helper[QASRLValidationPrompt[SID], List[ValidationAnswer]],
+  helper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
   valQualificationTypeId: String,
   accuracyStatsActor: ActorRef,
   // sentenceTrackingActor: ActorRef,
@@ -82,7 +80,7 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
   initNumHITsToKeepActive: Int,
   _promptSource: Iterator[QASRLValidationPrompt[SID]])(
   implicit annotationDataService: AnnotationDataService
-) extends NumAssignmentsHITManager[QASRLValidationPrompt[SID], List[ValidationAnswer]](
+) extends NumAssignmentsHITManager[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](
   helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource) {
 
   import QASRLValidationHITManager._
@@ -99,7 +97,7 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
   override def promptFinished(prompt: QASRLValidationPrompt[SID]): Unit = {
     val assignments = promptToAssignments(prompt)
     // sentenceTrackingActor ! ValidationFinished(prompt, assignments)
-    val numValid = ValidationAnswer.numValidQuestions(assignments.map(_.response))
+    val numValid = QASRLValidationAnswer.numValidQuestions(assignments.map(_.response))
     accuracyStatsActor ! QASRLValidationResult(prompt.genPrompt, prompt.sourceHITTypeId, prompt.sourceHITId, prompt.sourceAssignmentId, numValid)
     promptToAssignments = promptToAssignments - prompt
   }
@@ -117,35 +115,35 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
   private[this] def save = {
     annotationDataService.saveLiveData(
       workerInfoFilename,
-      write[Map[String, WorkerInfo]](allWorkerInfo))
+      write[Map[String, QASRLValidationWorkerInfo]](allWorkerInfo))
     annotationDataService.saveLiveData(
       promptToAssignmentsFilename,
-      write[Map[QASRLValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]](promptToAssignments))
+      write[Map[QASRLValidationPrompt[SID], List[Assignment[List[QASRLValidationAnswer]]]]](promptToAssignments))
     annotationDataService.saveLiveData(
       validationPromptsFilename,
       write[List[QASRLValidationPrompt[SID]]](allPrompts))
     annotationDataService.saveLiveData(
       feedbackFilename,
-      write[List[Assignment[List[ValidationAnswer]]]](feedbacks))
+      write[List[Assignment[List[QASRLValidationAnswer]]]](feedbacks))
     logger.info("Validation data saved.")
   }
 
   var allWorkerInfo = {
     annotationDataService.loadLiveData(workerInfoFilename)
       .map(_.mkString)
-      .map(read[Map[String, WorkerInfo]])
+      .map(read[Map[String, QASRLValidationWorkerInfo]])
       .toOption.getOrElse {
       // TODO assemble from saved data?
-      Map.empty[String, WorkerInfo]
+      Map.empty[String, QASRLValidationWorkerInfo]
     }
   }
 
   private[this] var promptToAssignments = {
     annotationDataService.loadLiveData(promptToAssignmentsFilename)
       .map(_.mkString)
-      .map(read[Map[QASRLValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]])
+      .map(read[Map[QASRLValidationPrompt[SID], List[Assignment[List[QASRLValidationAnswer]]]]])
       .toOption.getOrElse {
-      Map.empty[QASRLValidationPrompt[SID], List[Assignment[List[ValidationAnswer]]]]
+      Map.empty[QASRLValidationPrompt[SID], List[Assignment[List[QASRLValidationAnswer]]]]
     }
   }
 
@@ -154,12 +152,12 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
   var feedbacks =
     annotationDataService.loadLiveData(feedbackFilename)
       .map(_.mkString)
-      .map(read[List[Assignment[List[ValidationAnswer]]]])
+      .map(read[List[Assignment[List[QASRLValidationAnswer]]]])
       .toOption.getOrElse {
-      List.empty[Assignment[List[ValidationAnswer]]]
+      List.empty[Assignment[List[QASRLValidationAnswer]]]
     }
 
-  def tryWarnOrBlock(worker: WorkerInfo): WorkerInfo = {
+  def tryWarnOrBlock(worker: QASRLValidationWorkerInfo): QASRLValidationWorkerInfo = {
     if(worker.agreement.isNaN) worker // this means no comparisons have been done yet
     else worker.warnedAt match {
       case None =>
@@ -203,7 +201,7 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
   }
 
   // override for more interesting review policy
-  override def reviewAssignment(hit: HIT[QASRLValidationPrompt[SID]], assignment: Assignment[List[ValidationAnswer]]): Unit = {
+  override def reviewAssignment(hit: HIT[QASRLValidationPrompt[SID]], assignment: Assignment[List[QASRLValidationAnswer]]): Unit = {
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
       feedbacks = assignment :: feedbacks
@@ -224,14 +222,14 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
 
     var newWorkerInfo = allWorkerInfo
       .get(workerId)
-      .getOrElse(WorkerInfo.empty(workerId))
+      .getOrElse(QASRLValidationWorkerInfo.empty(workerId))
       .addAssignment(assignment.response,
                      assignment.submitTime - assignment.acceptTime,
                      taskSpec.hitType.reward + totalBonus)
     // do comparisons with other workers
     promptToAssignments.get(hit.prompt).getOrElse(Nil).foreach { otherAssignment =>
       val otherWorkerId = otherAssignment.workerId
-      val nAgreed = ValidationAnswer.numAgreed(assignment.response, otherAssignment.response)
+      val nAgreed = QASRLValidationAnswer.numAgreed(assignment.response, otherAssignment.response)
       // update current worker with comparison
       newWorkerInfo = newWorkerInfo
         .addComparison(numQuestions, nAgreed)
