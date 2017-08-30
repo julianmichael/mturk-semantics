@@ -350,7 +350,7 @@ object QuestionTemplating {
     def whTemplateToken = TemplateString(whStr)
 
     def isDoLast = trailingWords.init.lastOption match {
-      case TemplateString("do".lowerCase) => true
+      case Some(w) => w == "do".lowerCase
       case _ => false
     }
 
@@ -425,28 +425,41 @@ object QuestionTemplating {
 
   val auxTemplateString = TemplateString("<aux>".lowerCase)
 
+  val negationWords = Inflections.negationWords + "n't".lowerCase
+
   def abstractNounTemplate(template: QuestionTemplate[String]): Option[QuestionTemplate[String]] = {
     // assume 1 slot, and that it's a noun
     for {
       (nounPOS, nounSlotIndex) <- template.templateTokens.collectFirstWithIndex {
         case TemplateSlot(n) if allNounPosTags.contains(n) => n
       }
-      isDoAfterNoun = template.templateTokens.drop(nounSlotIndex + 1).exists {
-        case TemplateString(s) => Inflections.doVerbs.contains(s)
-        case _ => false
-      }
-      abstractedTokens = template.templateTokens.zipWithIndex.map {
+      lastAuxIndexOpt = template.templateTokens.zipWithIndex.collect {
+        case (TemplateString(s), i) if Inflections.willVerbs.contains(s) || Inflections.modalVerbs.contains(s) || Inflections.doVerbs.contains(s) || Inflections.haveVerbs.contains(s) || Inflections.beVerbs.contains(s) => i
+      }.lastOption
+      // isAuxAfterNoun = template.templateTokens.drop(nounSlotIndex + 1).exists {
+      //   case TemplateString(s) => Inflections.doVerbs.contains(s) || Inflections.haveVerbs.contains(s) || Inflections.beVerbs.contains(s)
+      //   case _ => false
+      // }
+      abstractedTokens = template.templateTokens.zipWithIndex.flatMap {
         case (TemplateString(s), index) =>
-          val newToken =
-            if(kindClassifiers.contains(s)) "<kind>".lowerCase
-            else if(nounPlaceholderWords.contains(s)) "<obj>".lowerCase
-            else if(index > nounSlotIndex && Inflections.doVerbs.contains(s)) "<do>".lowerCase
-            else if(isDoAfterNoun && negOrAuxWords.contains(s)) "<aux>".lowerCase
-            else if(Inflections.beVerbs.contains(s)) "<be>".lowerCase
-            else if(Inflections.haveVerbs.contains(s)) "<have>".lowerCase
-            else s
-          TemplateString(newToken)
-        case (TemplateSlot(n), _) => TemplateSlot(n)
+          val newTokenOpt =
+            if(kindClassifiers.contains(s)) Some("<kind>".lowerCase)
+            else if(negationWords.contains(s)) None
+            else if(nounPlaceholderWords.contains(s)) Some("<obj>".lowerCase)
+            else lastAuxIndexOpt match {
+              case None => Some(s) // no auxes so the rest is irrelevant anyway
+              case Some(auxIndex) =>
+                if(index == auxIndex) {
+                  if(Inflections.doVerbs.contains(s) || Inflections.willVerbs.contains(s) || Inflections.modalVerbs.contains(s)) Some("<do>".lowerCase)
+                  else if(Inflections.beVerbs.contains(s)) Some("<be>".lowerCase)
+                  else if(Inflections.haveVerbs.contains(s)) Some("<have>".lowerCase)
+                  else Some(s) // shouldn't actually happen since this is the aux-index
+                } else if(Inflections.auxiliaryVerbs.contains(s)) {
+                  Some("<aux>".lowerCase)
+                } else Some(s)
+            }
+          newTokenOpt.map(TemplateString(_))
+        case (TemplateSlot(n), _) => Some(TemplateSlot(n))
       }
       wordBeforeNoun <- template.templateTokens(nounSlotIndex - 1) match {
         case TemplateString(s) => Some(s)
