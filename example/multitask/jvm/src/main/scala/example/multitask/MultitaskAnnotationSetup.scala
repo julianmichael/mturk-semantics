@@ -130,8 +130,6 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
   lazy val experiment = new QASRLAnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
-    qualTest = MultitaskQualTest,
     generationAccuracyQualTypeLabel = Some("v3-templates"),
-    validationAgreementQualTypeLabel = Some("v3-templates"),
-    validationTestQualTypeLabel = Some("v3-templates"))
+    validationAgreementQualTypeLabel = Some("v3-templates"))
 }
