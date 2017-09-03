@@ -139,20 +139,13 @@ object QASRLGenerationAccuracyManager {
     val explanatoryText = if(curAccuracy < generationAccuracyBlockingThreshold) {
       s"""There will be a grace period of several more assignments (${generationBufferBeforeBlocking} more after this calculation was done), and after that, if your accuracy remains below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. Note that your qualification value may not accurately reflect your accuracy: it will be prevented from going below ${math.round(generationAccuracyBlockingThreshold * 100).toInt} until the grace period is over."""
     } else {
-      s"""You are fine for now, but if this drops below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period (${generationBufferBeforeBlocking} more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}."""
+      s"""If this drops below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period (${generationBufferBeforeBlocking} more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}."""
     }
     val dropOrRemain = if(curAccuracy < generationAccuracyBlockingThreshold) "remain" else "drop"
     f"""
 Of your question-answer pairs that have been reviewed so far, ${math.round(curAccuracy * 10000.0) / 100.0}%.2f%% were judged valid or non-redundant by validators. $explanatoryText%s
 
-If you are having trouble writing grammatical questions for all of the words you are given, keep a few things in mind:
-
-  1) You can use a special word in either the question or the answer. Sometimes it is hard to form a nice question-answer pair one way, but it is very easy to do it the other way.
-  2) The answer can contain more than just the special word. Especially with proper names that contain several words, you may be able to use that full name as the answer to a few questions, and spread those question-answer pairs over the set of special words you were given.
-
-Also be sure not to write any redundant questions. Before you continue, we suggest that you carefully read over the instructions again to maximize the rewards you can get out of the task and minimize the chance you lose your qualification. If you haven't already, it could be a good idea to try the other task, titled "Answer simple questions about a sentence". Doing its qualification test and some HITs could help give you an idea of how to come up with and write good questions.
-
-Finally, it is always possible that you got unlucky. If your responses are high-quality, then your accuracy will likely not $dropOrRemain%s too low. However, because this process is inherently random, we cannot guarantee that no high-quality workers will lose their qualification.
+If you are not sure why your score is this low, we recommend reading over the instructions again. We are still iterating on the task design and we are not yet sure what the common sources of disagreement are. After this batch of HITs, we will reset everyone's qualification values and try again with adjustments to the instructions and interface.
 """.trim
   }
 
