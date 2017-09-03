@@ -338,7 +338,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             valHelper,
             valManager,
             // sentenceTracker,
-            (_: GenerationPrompt[SID]) => 2, 3, prompts.iterator)
+            (_: GenerationPrompt[SID]) => 1, 3, prompts.iterator)
           setPeek(manager)
           manager
         }
