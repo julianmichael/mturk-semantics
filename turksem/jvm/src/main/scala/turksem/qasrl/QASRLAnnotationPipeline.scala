@@ -360,7 +360,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   private[this] var schedule: List[Cancellable] = Nil
   def startSaves(interval: FiniteDuration = 5 minutes): Unit = {
     if(schedule.exists(_.isCancelled) || schedule.isEmpty) {
-      schedule = List(smallGenManager, largeGenManager).map(actor =>
+      schedule = List(smallGenManager, largeGenManager, valManager, accuracyTracker).map(actor =>
         config.actorSystem.scheduler.schedule(
           2 seconds, interval, actor, SaveData)(
           config.actorSystem.dispatcher, actor)
@@ -368,13 +368,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     }
   }
   def stopSaves = schedule.foreach(_.cancel())
-  def saveData = {
-    accuracyTracker ! SaveData
-    // sentenceTracker ! SaveData
-    valManager ! SaveData
-    smallGenManager ! SaveData
-    largeGenManager ! SaveData
-  }
 
   def setGenHITsActiveEach(n: Int) = {
     smallGenManager ! SetNumHITsActive(n)
@@ -416,6 +409,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
   def save() = {
     // sentenceTracker ! SaveData
+    accuracyTracker ! SaveData
     smallGenManager ! SaveData
     largeGenManager ! SaveData
     valManager ! SaveData
@@ -465,6 +459,66 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             s"\t$question --> $answerString \t|$validationString"
         }.mkString("\n")
     }.mkString("\n") + "\n"
+  }
+
+  case class StatSummary(
+    workerId: String,
+    numQs: Option[Int],
+    accuracy: Option[Double],
+    numAs: Option[Int],
+    pctBad: Option[Double],
+    agreement: Option[Double],
+    earnings: Double)
+
+  object StatSummary {
+    def makeFromStatsAndInfo(
+      stats: Option[WorkerStats],
+      info: Option[QASRLValidationWorkerInfo]) = stats.map(_.workerId).orElse(info.map(_.workerId)).map { wid =>
+      StatSummary(
+        workerId = wid,
+        numQs = stats.map(_.numQAPairsWritten),
+        accuracy = stats.map(_.accuracy),
+        numAs = info.map(i => i.numAnswerSpans + i.numInvalids + i.numRedundants),
+        pctBad = info.map(
+          i => 100.0 * (i.numInvalids + i.numRedundants) / (i.numAnswerSpans + i.numInvalids + i.numRedundants)
+        ),
+        agreement = info.map(_.agreement),
+        earnings = stats.fold(0.0)(_.earnings) + info.fold(0.0)(_.earnings)
+      )
+    }
+  }
+
+  def printStats[B : Ordering](sortFn: StatSummary => B) = {
+    val allStats = accuracyTrackerPeek.allWorkerStats
+    val allInfos = valManagerPeek.allWorkerInfo
+    val summaries = (allStats.keys ++ allInfos.keys).toSet.toList.flatMap((wid: String) =>
+      StatSummary.makeFromStatsAndInfo(allStats.get(wid), allInfos.get(wid))
+    ).sortBy(sortFn)
+    println(f"${"Worker ID"}%14s  ${"Qs"}%5s  ${"Acc"}%4s  ${"As"}%5s  ${"%Bad"}%4s  ${"Agr"}%4s  $$")
+    summaries.foreach { case StatSummary(wid, numQsOpt, accOpt, numAsOpt, pctBadOpt, agrOpt, earnings)=>
+      val numQs = numQsOpt.getOrElse("")
+      val acc = accOpt.foldMap(pct => f"$pct%.2f")
+      val numAs = numAsOpt.getOrElse("")
+      val pctBad = pctBadOpt.foldMap(pct => f"$pct%.2f")
+      val agr = agrOpt.foldMap(pct => f"$pct%.2f")
+      println(f"$wid%14s  $numQs%5s  $acc%4s  $numAs%5s  $pctBad%4s  $agr%4s  $earnings%.2f")
+    }
+  }
+
+  def printQStats = printStats(-_.numQs.getOrElse(0))
+  def printAStats = printStats(-_.numAs.getOrElse(0))
+
+  def printSmallGenFeedback(n: Int) = smallGenManagerPeek.feedbacks.take(n).foreach(println)
+  def printLargeGenFeedback(n: Int) = largeGenManagerPeek.feedbacks.take(n).foreach(println)
+  def printValFeedback(n: Int) = valManagerPeek.feedbacks.take(n).foreach(println)
+
+  def printAllFeedbacks(n: Int = Int.MaxValue) = {
+    println("Small gen:")
+    printSmallGenFeedback(n)
+    println("\nLarge gen:")
+    printLargeGenFeedback(n)
+    println("\nValidation:")
+    printValFeedback(n)
   }
 
   // def allSentenceStats: Map[SID, SentenceStats[SID]] = {
