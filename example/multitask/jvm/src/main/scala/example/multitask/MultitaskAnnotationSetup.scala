@@ -114,7 +114,7 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
       path <- eligibleBrownPaths
       sentence <-  PTB.getFile(path).sentences
     } yield sentence.path
-    eligibleSentencePaths.toVector
+    eligibleSentencePaths.toVector.take(100)
   }
 
   implicit lazy val inflections = {
