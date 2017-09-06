@@ -130,6 +130,9 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
   lazy val experiment = new QASRLAnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
+    frozenSmallGenerationHITTypeID = Some("33RDX9IX09HK2UG36D9ZX0GNORFQ3N"),
+    frozenLargeGenerationHITTypeID = Some("3SJ5GB440G65KQZ76REI758T2RBQ48"),
+    frozenValidationHITTypeID = Some("3KBOIXB475RNG937KWXSCXE72N6Q5D"),
     generationAccuracyQualTypeLabel = Some("v3-templates"),
     validationAgreementQualTypeLabel = Some("v3-templates"))
 }

@@ -33,6 +33,6 @@ def exit = {
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
 
-val setup = new multitask.MultitaskAnnotationSetup
+val setup = new multitask.MultitaskAnnotationSetup()
 val exp = setup.experiment
 exp.server

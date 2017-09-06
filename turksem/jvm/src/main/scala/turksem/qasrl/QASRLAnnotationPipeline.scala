@@ -32,7 +32,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
-  frozenGenerationHITTypeID: Option[String] = None,
+  frozenSmallGenerationHITTypeID: Option[String] = None,
+  frozenLargeGenerationHITTypeID: Option[String] = None,
   frozenValidationHITTypeID: Option[String] = None,
   generationAccuracyQualTypeLabel: Option[String] = None,
   validationAgreementQualTypeLabel: Option[String] = None)(
@@ -310,10 +311,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   var smallGenManagerPeek: QASRLGenerationHITManager[SID] = null
   var largeGenManagerPeek: QASRLGenerationHITManager[SID] = null
 
-  def makeGenHITManagement(hitType: HITType, prompts: Vector[GenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit)) = {
+  def makeGenHITManagement(hitType: HITType, prompts: Vector[GenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit), frozenHITTypeId: Option[String]) = {
     val taskSpec = TaskSpecification[GenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
       generationTaskKey, hitType, genApiFlow, sampleGenPrompt,
-      frozenHITTypeId = frozenGenerationHITTypeID,
+      frozenHITTypeId = frozenHITTypeId,
       taskPageHeadElements = taskPageHeadLinks,
       taskPageBodyElements = taskPageBodyLinks)
     val helper = new HITManager.Helper(taskSpec)
@@ -349,10 +350,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   lazy val (smallGenTaskSpec, smallGenHelper, smallGenManager, smallGenActor) = makeGenHITManagement(
-    smallGenHITType, smallPrompts, smallGenManagerPeek = _)
+    smallGenHITType, smallPrompts, smallGenManagerPeek = _, frozenSmallGenerationHITTypeID)
 
   lazy val (largeGenTaskSpec, largeGenHelper, largeGenManager, largeGenActor) = makeGenHITManagement(
-    largeGenHITType, largePrompts, largeGenManagerPeek = _)
+    largeGenHITType, largePrompts, largeGenManagerPeek = _, frozenLargeGenerationHITTypeID)
 
   lazy val server = new Server(List(smallGenTaskSpec, largeGenTaskSpec, valTaskSpec))
 
@@ -494,7 +495,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     val summaries = (allStats.keys ++ allInfos.keys).toSet.toList.flatMap((wid: String) =>
       StatSummary.makeFromStatsAndInfo(allStats.get(wid), allInfos.get(wid))
     ).sortBy(sortFn)
-    println(f"${"Worker ID"}%14s  ${"Qs"}%5s  ${"Acc"}%4s  ${"As"}%5s  ${"%Bad"}%4s  ${"Agr"}%4s  $$")
+    println(f"${"Worker ID"}%14s  ${"Qs"}%5s  ${"Acc"}%4s  ${"As"}%5s  ${"%Bad"}%5s  ${"Agr"}%4s  $$")
     summaries.foreach { case StatSummary(wid, numQsOpt, accOpt, numAsOpt, pctBadOpt, agrOpt, earnings)=>
       val numQs = numQsOpt.getOrElse("")
       val acc = accOpt.foldMap(pct => f"$pct%.2f")
@@ -508,9 +509,15 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   def printQStats = printStats(-_.numQs.getOrElse(0))
   def printAStats = printStats(-_.numAs.getOrElse(0))
 
-  def printSmallGenFeedback(n: Int) = smallGenManagerPeek.feedbacks.take(n).foreach(println)
-  def printLargeGenFeedback(n: Int) = largeGenManagerPeek.feedbacks.take(n).foreach(println)
-  def printValFeedback(n: Int) = valManagerPeek.feedbacks.take(n).foreach(println)
+  def printSmallGenFeedback(n: Int) = smallGenManagerPeek.feedbacks.take(n).foreach(a =>
+    println(a.workerId + " " + a.feedback)
+  )
+  def printLargeGenFeedback(n: Int) = largeGenManagerPeek.feedbacks.take(n).foreach(a =>
+    println(a.workerId + " " + a.feedback)
+  )
+  def printValFeedback(n: Int) = valManagerPeek.feedbacks.take(n).foreach(a =>
+    println(a.workerId + " " + a.feedback)
+  )
 
   def printAllFeedbacks(n: Int = Int.MaxValue) = {
     println("Small gen:")
