@@ -15,54 +15,217 @@ import scalajs.js.JSApp
 
 object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
 
+  val dataToggle = VdomAttr("data-toggle")
+  val dataPlacement = VdomAttr("data-placement")
+
   import QASRLSettings._
 
-  def generationExample(question: String, answer: String, isGood: Boolean, tooltip: String) =
+  def generationExample(question: String, answer: String, isGood: Boolean, tooltip: String = "") =
     <.li(
-      <.div(
+      <.span(
         if(isGood) Styles.goodGreen else Styles.badRed,
-        VdomAttr("data-toggle") := "tooltip",
-        VdomAttr("data-placement") := "top",
-        ^.title := tooltip,
+        TagMod(
+          Styles.underlined,
+          dataToggle := "tooltip",
+          dataPlacement := "top",
+          ^.title := tooltip).when(tooltip.nonEmpty),
         <.span(question),
         <.span(" --> "),
         <.span(answer)
       )
     )
 
+  private[this] val examples = <.div(
+    <.p(" Below, for each verb, we list a complete set of good questions (green) and some bad ones (red). ",
+        " (This section is exactly the same between the question writing and question answering tasks.) ",
+        " Hover the mouse over the underlined examples for an explanation. "),
+    <.blockquote(
+      ^.classSet1("blockquote"),
+      "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today refused to promise that they would resume the investigation before year's end. "),
+    <.ul(
+      generationExample(
+        "Who blamed someone?",
+        "Protesters",
+        true),
+      generationExample(
+        "Who did someone blame something on?",
+        "local officials",
+        true),
+      generationExample(
+        "What did someone blame someone for?",
+        "the corruption scandal",
+        true,
+        """ "What did someone blame on someone?" would also have been okay. """),
+      generationExample(
+        "Who blamed?",
+        "Protesters",
+        false,
+        """ This question is invalid by the litmus test, because the sentence "Protesters blamed." is ungrammatical. """)
+    ),
+
+    <.blockquote(
+      ^.classSet1("blockquote"),
+      "Protesters blamed the corruption scandal on local officials, who today ", <.span(Styles.bolded, " refused "), " to promise that they would resume the investigation before year's end. "),
+    <.ul(
+      generationExample(
+        "Who refused to do something?",
+        "local officials / they",
+        true,
+        """List all of the phrases in the sentence that refer to the correct answer, including pronouns like "they"."""),
+      generationExample(
+        "What did someone refuse to do?",
+        "promise that they would resume the investigation before year's end",
+        true),
+      generationExample(
+        "What did someone refuse to do?",
+        "promise that they would resume the investigation",
+        false,
+        "This answer is not specific enough: specifically, local officials refused to promise to do it before year's end, but the sentence doesn't say they refused to promise to do it altogether."),
+      generationExample(
+        "When did someone refuse to do something?",
+        "today",
+        true),
+      generationExample(
+        "What did someone refuse to do?",
+        "resume the investigation before year's end",
+        false,
+        """ Your questions and answers should only address what is explicitly stated in the sentence. The sentence says they refuse to promise this, not that they refuse to do it. """),
+      generationExample(
+        "Who didn't refuse to do something?",
+        "Protesters",
+        false,
+        """ Your questions should only address things explicitly stated in the sentence. Even if the protesters were not refusing anything, the sentence does not say anything about this, so this question is bad.""")
+    ),
+
+    <.blockquote(
+      ^.classSet1("blockquote"),
+      "Protesters blamed the corruption scandal on local officials, who today refused to ", <.span(Styles.bolded, " promise "), " that they would resume the investigation before year's end. "),
+    <.ul(
+      generationExample(
+        "Who didn't promise something?",
+        "local officials / they",
+        true,
+        "Ask negated questions when the sentence is indicating that the event or state expressed by the verb did not happen."),
+      generationExample(
+        "What didn't someone promise?",
+        "that they would resume the investigation before year's end",
+        true),
+      generationExample(
+        "When didn't someone promise to do something?",
+        "before year's end",
+        false,
+        """ This question is bad because "before year's end" refers to the timeframe of resuming the investigation, not the timeframe of the promise being made.
+            Make sure all such questions pertain to the time/place of the chosen verb. """)
+    ),
+
+    <.blockquote(
+      ^.classSet1("blockquote"),
+      "Protesters blamed the corruption scandal on local officials, who today refused to promise that they would ", <.span(Styles.bolded, " resume "), " the investigation before year's end. "),
+    <.ul(
+      generationExample(
+        "Who might resume something?",
+        "local officials / they",
+        true,
+        """When the sentence doesn't clearly indicate whether the event did or didn't happen, just hedge your question with "might" or "would"."""),
+      generationExample(
+        "What might someone resume?",
+        "the investigation",
+        true),
+      generationExample(
+        "When might someone resume something?",
+        "before year's end",
+        true)
+    ),
+
+    <.blockquote(
+      ^.classSet1("blockquote"),
+      <.span(Styles.bolded, " Let"), "'s go up to the counter and ask."),
+    <.ul(
+      generationExample(
+        "Who should someone let do something?",
+        "'s",
+        true,
+        """ This is a slightly tricky case: you should read 's as the word it stands for: "us".
+            So by substituting back into the question, we get "someone should let us do something",
+            which is what someone is suggesting when they say "Let's go". """),
+      generationExample(
+        "What should someone let us do?",
+        "go up to the counter and ask",
+        true,
+        """ While "go up to the counter" and "ask" could be two different answers, please collapse them into one when possible. """),
+      generationExample(
+        "Where should someone let someone do something?",
+        "the counter",
+        false,
+        """ Please only write questions specifically about the verb: "letting" is not happening at the counter. """)
+    ),
+
+    <.blockquote(
+      ^.classSet1("blockquote"),
+      "Let's ", <.span(Styles.bolded, " go "), " up to the counter and ask."),
+    <.ul(
+      generationExample(
+        "Who should go somewhere?",
+        "'s",
+        true),
+      generationExample(
+        "Where should someone go?",
+        "up to the counter",
+        true,
+        """Since both "up" and "to the counter", describe where they will go, they should both be included in the answer to a "where" question. """))
+  )
+
   override val generationInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into lists of questions and answers.
-        You will be presented with a selection of English text with some of its verbs written in bold."""),
-    <.p("""For each verb, you will write questions about the verb and highlight their answers in the original sentence.
+        You will be presented with a selection of English text with a verb written in bold."""),
+    <.p("""You will write questions about the verb and highlight their answers in the original sentence.
         Questions are required to follow a strict format, which is enforced by autocomplete functionality in the interface. """,
         <.b(""" You will be paid according to how many questions you write. """),
-        """ For each verb, you should provide all possible questions (without redundancy) and all of their correct answers. """,
-        """ For example, consider the sentence: """),
+        """ For each HIT, you should provide all possible questions and all of their correct answers,
+            where none of the answers overlap with each other. You are required to write at least one question for each HIT.
+            """, // and at least two questions per HIT on average.
+        """ For example, the prompt below should elicit the following questions and answers: """),
     <.blockquote(
       ^.classSet1("blockquote"),
-      "Local officials ", <.span(Styles.bolded, " promised "), " on Tuesday that they will ",
-          <.span(Styles.bolded, " resume "), " the investigation, after ",
-          <.span(Styles.bolded, " facing "), "heavy pressure from demonstrators."),
-    <.p("""You should write all of the following:"""),
+      "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today refused to promise that they would resume the investigation before year's end. "),
     <.ul(
-      <.li("Who ", <.span(" promised "), " something? --> Local officials / they"),
-      <.li("What did someone ", <.span(" promise"), "? --> that they will resume the investigation"),
-      <.li("What did someone ", <.span(" promise "), " to do? --> resume the investigation"),
-      <.li("When did someone ", <.span(" promise "), " to do something? --> on Tuesday / after facing heavy pressure from demonstrators"),
-      <.li("Who might ", <.span(" resume "), " something? --> Local officials / they"),
-      <.li("What might be ", <.span(" resumed"), "? --> the investigation"),
-      <.li("Who ", <.span(" faced "), " something? --> Local officials / they"),
-      <.li("What did someone ", <.span(" face"), "? --> heavy pressure from demonstrators")),
-    <.p(""" See below for further explanation. """),
-    <.h2("""Writing Questions"""),
-    <.p(""" The interface will force your questions to follow a strict format, filling in slots like in the table below.
-        (You do not need to know this table; it is only here for clarity.)
-        This will keep your questions simple and focused, so they are easier for you to write and for us to analyze.
-        Note that slots can often be omitted, and not every way of filling the slots will be accepted by the autocomplete:
-        some bad combinations (e.g., """, <.i(" Who did promised?"), """) are ruled out automatically.
-        However, """, <.b(" you are still responsible for making sure you write grammatical questions. ")),
+      <.li("Who blamed someone? --> Protesters"),
+      <.li("Who did someone blame something on? --> local officials"),
+      <.li("What did someone blame on someone? --> the corruption scandal")
+    ),
+    <.h2("Guidelines"),
+    <.h4("Questions"),
+    <.p("Your questions must satisfy the following criteria:"),
+    <.ol(
+      <.li("They must follow a strict format centered around the verb. (This is enforced by the interface, which can help with writing questions.)"),
+      <.li("They must be grammatical."),
+      <.li("You must write as many questions as possible."),
+      <.li("None of your questions' answers may overlap. (This is enforced by the interface.)")),
+    <.p(""" To determine whether a question is grammatical, the litmus test is turning it into a sentence by substituting its answer in.
+        For example: """, <.span(Styles.bolded, " Who blamed? --> Protesters"), """ would be wrong, because by substituting the answer back in, we get
+        """, <.span(Styles.bolded, "Protesters blamed"), """, which is not a grammatical sentence.
+        There also may be more than one way to write a question: for example, you may ask """, <.span(Styles.bolded, "Who was blamed for something?"), """ instead of """,
+        <.span(Styles.bolded, "Who did someone blame something on?"), """ In these cases, either way is fine, but you can't ask both since they have the same answer."""),
+    <.p(" Occasionally, you may get a bolded word that isn't a verb, or is hard or impossible to write questions about. ",
+        " In this case, please do your best to come up with one question, even if it is nonsensical. ",
+        " While it will count against your accuracy, this case is rare enough that it shouldn't matter. "),
+    <.h4("Answers"),
+    <.p("Your answers will be phrases that you highlight in the sentence. They must satisfy all of the following criteria:"),
+    <.ol(
+      <.li("You must highlight every correct answer, including phrases such as pronouns that refer to the correct answer."),
+      <.li("Include only the words relevant for answering the question, but if all else is equal, prefer longer answers.")),
+    <.p(
+      """ To determine if an answer is good, again use the litmus test of substituting it back into the question.
+      It should form a grammatical sentence that is true according to the sentence.
+      """),
+    <.p(" Please read through the examples at the bottom for a complete explanation. "),
+
+    <.h2("""Question format"""),
+    <.p(""" This section is just for reference to help you understand the format of the questions.
+        They all will be formed by filling slots like in the table below.
+        The set of words you may use in each slot may depend on the words you wrote in the previous slots."""),
     <.table(
       ^.classSet1("table"),
       <.thead(
@@ -71,137 +234,13 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         )
       ),
       <.tbody(
-        <.tr(<.td("Who"), <.td(), <.td(), <.td("promised"), <.td("something"), <.td(), <.td()),
-        <.tr(<.td("What"), <.td("did"), <.td("someone"), <.td("promise"), <.td(), <.td(), <.td()),
-        <.tr(<.td("What"), <.td("did"), <.td("someone"), <.td("promise"), <.td(), <.td("to"), <.td("do")),
-        <.tr(<.td("When"), <.td("did"), <.td("someone"), <.td("promise"), <.td(), <.td("to"), <.td("do something")),
-        <.tr(<.td("Who"), <.td("might"), <.td(), <.td("resume"), <.td("something"), <.td(), <.td()),
-        <.tr(<.td("What"), <.td("might"), <.td(), <.td("be resumed"), <.td(), <.td(), <.td()),
-        <.tr(<.td("Who"), <.td(), <.td(), <.td("faced"), <.td("something"), <.td(), <.td()),
-        <.tr(<.td("What"), <.td("did"), <.td("someone"), <.td("face"), <.td(), <.td(), <.td())
+        <.tr(<.td("Who"), <.td(), <.td(), <.td("blamed"), <.td("someone"), <.td(), <.td()),
+        <.tr(<.td("What"), <.td("did"), <.td("someone"), <.td("blame"), <.td("something"), <.td("on"), <.td()),
+        <.tr(<.td("Who"), <.td(), <.td(), <.td("refused"), <.td(), <.td("to"), <.td("do something")),
+        <.tr(<.td("When"), <.td("did"), <.td("someone"), <.td("refuse"), <.td(), <.td("to"), <.td("do something")),
+        <.tr(<.td("Who"), <.td("might"), <.td(), <.td("resume"), <.td("something"), <.td(), <.td())
       )
     ),
-
-    <.h4("""Examples"""),
-    <.p("Consider again the example sentence:"),
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "Local officials ", <.span(Styles.bolded, " promised "), " on Tuesday that they will ",
-                     <.span(Styles.bolded, " resume "), " the investigation, after ",
-                     <.span(Styles.bolded, " facing "), "heavy pressure from demonstrators."),
-    <.p(""" When trying to come up with questions for a verb, remember to consider all of the following: """),
-    <.h5("Subject and Object"),
-    <.p("""Almost every time, you can ask one or more questions like these:"""),
-    <.ul(
-      <.li(<.span(Styles.goodGreen, "Who promised something?")),
-      <.li(<.span(Styles.goodGreen, "What did someone promise?")),
-      <.li(<.span(Styles.goodGreen, "What did someone promise to do?"))
-    ),
-    <.p("Don't forget these, since they're low-hanging fruit."),
-    <.h5("Hypotheticals and negation"),
-    <.p("""Sometimes the verb (like """, <.i("resume"), """ above) doesn't denote something actually happening.
-        You should use words like """, <.i("would"), " or ", <.i("might"), """ in these cases, as in """,
-        <.span(Styles.goodGreen, "Who might resume something?"), """ In case of something that is not true, you can use the word """,
-        <.i(" not "), """ or contractions like """,
-        <.i("didn't"), " in your questions.",
-        """ You might also have multiple kinds of question for a single verb: for example, in the sentence """
-    ),
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "She offered to help with his homework, but not to do it for him."),
-    <.p("""You should write both of the following: """),
-    <.ul(
-      <.li(<.span(Styles.goodGreen, "What did someone offer to do? --> help with his homework")),
-      <.li(<.span(Styles.goodGreen, "What did someone not offer to do? --> do it for him"))
-    ),
-    <.p("""You should only use "not" for things that are stated not to be the case in the sentence,
-        not just things that are untrue. For example, """),
-    <.ul(
-      <.li(<.span(Styles.badRed, "Who did not offer to do something? --> him"))
-    ),
-    <.p("""would be unacceptable. """),
-    <.h5("When, Where, Why, and How"),
-    <.p("""Almost all verbs can get these questions; it just depends on whether the answer appears in the sentence.
-        Sometimes it is easy to miss them, so it can help to quickly run through them and ask yourself for each one."""),
-    <.h5("Prepositions"),
-    <.p("""Some questions are best asked using certain prepositions. For example, for sentence """),
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "Protesters blamed the disaster on unchecked deregulation"
-    ),
-    <.p("""you should be asking """),
-    <.ul(
-      <.li(<.span(Styles.goodGreen, "What did someone blame something on?"))
-    ),
-    <.h5("Someone and Something"),
-    <.p("""Finally, you may notice that it's possible to include or omit placeholder words like """,
-        <.i("someone"), " and ", <.i("something"), """. For example, it may seem acceptable to ask either """,
-        <.span(Styles.badRed, "Who promised?"), " or ", <.span(Styles.goodGreen, "Who promised something?"),
-        """ However, these will not always have the same meaning: consider """,
-        <.span(Styles.goodGreen, "What broke?"), " versus ", <.span(Styles.goodGreen, "What broke something?"),
-        " Please ", <.b(" include "),  """ these placeholder words when it does not affect the meaning of the question. """),
-
-    <.h2("Redundancy"),
-    <.p(""" Two question-answer pairs are """, <.b("redundant "), """if they are both """,
-        <.b("asking the same question "), "and they ", <.b("have the same answer. "), """
-        None of your question-answer pairs about a single verb may be redundant with each other.
-        For example, suppose you have already written the question """,
-        <.span(Styles.goodGreen, "What did someone promise?"), "."),
-    <.ul(
-      <.li(<.span(Styles.badRed, "What was promised?"), """ — this is redundant,
-           because it's just another way of phrasing the first, which will always have the same answer. """),
-      <.li(<.span(Styles.badRed, "What would someone have promised?"), """ — you should consider this redundant as well.
-           It is asking about the same thing (the claim being promised), just using different auxiliary verbs
-           ("would have" versus "did"). Of this and the above, you shuold only ask the one whose auxiliary verbs
-           make the most sense with the sentence.
-           """),
-      <.li(<.span(Styles.goodGreen, "What did someone promise to do?"), """ — this is not redundant.
-           While the two questions are asking about something very similar, they are not always interchangeable
-           (consider the sentence "He promised that he was clean") and they have different answers (see the example at the top).""")
-    ),
-
-    <.h2("Choosing Answers"),
-    <.p(""" You must choose all correct answers to each question.
-        Each answer must be """, <.b("correct "), "and ", <.b("as grammatical as possible"),
-        """. Include only the words relevant for answering the question,
-        but if all else is equal, prefer longer answers over shorter ones.
-        If there are multiple correct answers written as a list or with an "and", you should choose the whole list.
-        To determine if an answer is good, the litmus test is whether you can substitute it back into the question
-        and come to a true statement expressed by the sentence.
-        For example:
-        """),
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "John was born in Alaska, and so was Mary."
-    ),
-    <.ul(
-      <.li(Styles.goodGreen, "Who was born somewhere? --> John / Mary")
-    ),
-    <.p(""" Both are good answers because the sentence expresses both that """,
-        <.span(Styles.goodGreen, "John was born somewhere"), " and ", <.span(Styles.goodGreen, " Mary was born somewhere."),
-        """ You should also choose all answers, including pronouns, that refer to the correct answer, as in: """),
-    <.ul(
-      <.li(Styles.goodGreen, "Who promised something? --> Local officials / they")
-    ),
-    <.p("""
-      If the answers appear together, prefer to highlight the entire phrase encompassing both, as in the following:
-      """),
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "Mary and John met in front of the house."
-    ),
-    <.ul(
-      <.li(Styles.goodGreen, "Who met? --> Mary and John"),
-      <.li(Styles.goodGreen, "Who met someone? --> Mary / John")
-    ),
-    <.p(
-      """ Notice that you can ask both of these (and they are not redundant, since they have different answers).
-      The answers make sense according to the litmus test above: it's true that """,
-      <.span(Styles.goodGreen, " Mary and John met, "), " but not that ",
-      <.span(Styles.badRed, " Mary and John met ", <.i(" someone ")),
-      """ (which implies the existence of some other person who they both met). But it is true that """,
-      <.span(Styles.goodGreen, " Mary met someone "), " (namely, John), and that ",
-      <.span(Styles.goodGreen, " John met someone "), "(namely, Mary)."),
 
     <.h2("""Using the Interface"""),
     <.ul(
@@ -210,32 +249,29 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         Once you get used to the question format, it might be fastest to type all of the questions
         (with autocomplete checking your work) and then fill in the answers.
         You can use tab and shift+tab to switch between questions quickly."""),
-      <.li(""" You may highlight words for your answers by clicking or by dragging on any of the copies of the sentence.
+      <.li(""" You may highlight words for your answers by clicking or by dragging on words in the sentence.
         To erase highlights, click or start dragging on a word that is already highlighted.
         To add a new answer, just click on the open slot next to the current answer;
-        and click on a previous answer to edit it.""")),
+        and click on a previous answer to edit it.
+        You will be prevented from including any words in more than one answer. """)),
     <.p("""
       When a question-answer pair is complete (the question is finished and it has at least one answer),
       its input field will turn """, <.span(
           ^.backgroundColor := "rgba(0, 255, 0, 0.3)", "green"
         ), """. If it violates the required formatting, it will turn """, <.span(
           ^.backgroundColor := "rgba(255, 0, 0, 0.3)", "red"
-        ), """. If it is a repeat of a previous question for that verb, it will turn """, <.span(
+        ), """. If it is a repeat of a previous question, it will turn """, <.span(
           ^.backgroundColor := "rgba(255, 255, 0, 0.3)", "yellow"
         ), """. Only complete (green) question-answer pairs will count towards your requirements and bonus. """
     ),
-    <.p("""
-      The sentence is repeated before each verb so you won't have to scroll up and down.
-      You may highlight your answer in any of the copies of the sentence, and it will register that answer for the question
-      that is currently in focus.
-      """),
 
     <.h2("""Conditions & Bonuses"""),
-    <.p(s"""For each HIT, you will be shown a sentence with several verbs highlighted.
-          You are required to write at least one question-answer pair for each verb.
-          Please write as many different question-answer pairs as possible.
-          After your first (or third, if this is the version of the HIT with at least three verbs),
-          then each successive question-answer pair will earn you a ${dollarsToCents(bonusPerQuestion)}c bonus.
+    <.p(s"""For each HIT, you will be shown a sentence with a highlighted word.
+          Please write as many different question-answer pairs as possible about this word.
+          If no sensible questions are possible, just write one as close as you can and move on;
+          this will count slightly against your accuracy but these cases should be rare enough that it doesn't matter.
+          After your first, each successive question-answer pair will earn you a bonus:
+          5c for the second question, 6c for the third, then 7c, etc.
           On average, it should take less than 30 seconds per question-answer pair,
           and with some practice you should be able to go much quicker.
           """),
@@ -259,7 +295,10 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)"""),
 
     <.p("""If you have any questions, concerns, or points of confusion,
-        please share them in the "Feedback" field.""")
+        please share them in the "Feedback" field."""),
+
+    <.h2("Examples"),
+    examples
   )
 
   override val validationInstructions = <.div(
@@ -268,101 +307,56 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.
            You will be presented with a selection of English text and a list of questions prepared by other annotators."""),
     <.p("""You will highlight the words in the sentence that correctly answer each question,
-           as well as mark whether questions are invalid or redundant.
-           For example, for the following sentence and questions, you should respond with the answers below:"""),
+           as well as mark whether questions are invalid.
+           For example, consider the following sentence:"""),
     <.blockquote(
       ^.classSet1("blockquote"),
-      "Local officials ", <.span(Styles.bolded, " promised "), " on Tuesday that they will ",
-          <.span(Styles.bolded, " resume "), " the investigation, after ",
-          <.span(Styles.bolded, " facing "), "heavy pressure from demonstrators."),
-    <.p("""You should write all of the following:"""),
+      "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today ",
+      <.span(Styles.bolded, " refused "), " to promise that they would resume the investigation before year's end. "),
+    <.p("""You should choose all of the following answers:"""),
     <.ul(
-      <.li("Who ", <.span(" promised "), " something? --> ", <.span(Styles.goodGreen, "Local officials / they")),
-      <.li("What did someone ", <.span(" promise"), "? --> ", <.span(Styles.goodGreen, "that they will resume the investigation")),
-      <.li("What did someone ", <.span(" promise "), " to do? --> ", <.span(Styles.goodGreen, "resume the investigation")),
-      <.li("When did someone ", <.span(" promise "), " to do something? --> ", <.span(Styles.goodGreen, "on Tuesday / after facing heavy pressure from demonstrators")),
-      <.li("Who might ", <.span(" resume "), " something? --> ", <.span(Styles.goodGreen, "Local officials / they")),
-      <.li("What might be ", <.span(" resumed"), "? --> ", <.span(Styles.goodGreen, "the investigation")),
-      <.li("Who ", <.span(" faced "), " something? --> ", <.span(Styles.goodGreen, "Local officials / they")),
-      <.li("What did someone ", <.span(" face"), "? --> ", <.span(Styles.goodGreen, "heavy pressure from demonstrators"))),
+      <.li("Who blamed someone? --> ", <.span(Styles.goodGreen, " Protesters ")),
+      <.li("Who did someone blame something on? --> ", <.span(Styles.goodGreen, " local officials / they")),
+      <.li("What did someone blame on someone? --> ", <.span(Styles.goodGreen, " the corruption scandal")),
+      <.li("Who refused to do something? --> ", <.span(Styles.goodGreen, " local officials / they")),
+      <.li("What did someone refuse to do? --> ", <.span(Styles.goodGreen, " promise that they would resume the investigation before year's end")),
+      <.li("When did someone refuse to do something? --> ", <.span(Styles.goodGreen, " today"))),
     <.p(s"""You will be paid in accordance with the number of questions shown to you, with a bonus of
             ${dollarsToCents(validationBonusPerQuestion)}c per question after the first four
             that will be paid when the assignment is approved."""),
-    <.h2("""Requirements"""),
+    <.h2("""Guidelines"""),
     <.p("""This task is best fit for native speakers of English.
         For each question, you will either """,
-        <.b("answer it, "), "mark it ", <.b("invalid, "), "or mark it ", <.b("redundant.")),
-    <.h3("Answers"),
-    <.p(""" You must choose all correct answers to each question.
-        Each answer must be """, <.b("correct "), "and ", <.b("as grammatical as possible"),
-        """. Include only the words relevant for answering the question,
-        but if all else is equal, prefer longer answers over shorter ones.
-        If there are multiple correct answers written as a list or with an "and", you should choose the whole list.
-        To determine if an answer is good, the litmus test is whether you can substitute it back into the question
-        and come to a true statement expressed by the sentence.
-        For example:
-        """),
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "John was born in Alaska, and so was Mary."
-    ),
-    <.ul(
-      <.li("Who was born somewhere? --> ", <.span(Styles.goodGreen, "John / Mary"))
-    ),
-    <.p(""" Both are good answers because the sentence expresses both that """,
-        <.span(Styles.goodGreen, "John was born somewhere"), " and ", <.span(Styles.goodGreen, " Mary was born somewhere."),
-        """ You should also choose all answers, including pronouns, that refer to the correct answer, as in: """),
-    <.ul(
-      <.li("Who promised something? --> ", <.span(Styles.goodGreen, "Local officials / they"))
-    ),
+        <.b(" answer it "), " or mark it ", <.b(" invalid"), "."),
+    <.h4("Answers"),
+    <.p("Your answers will be phrases that you highlight in the sentence. They must satisfy all of the following criteria:"),
+    <.ol(
+      <.li("You must highlight every correct answer, including phrases such as pronouns that refer to the correct answer."),
+      <.li("Include only the words relevant for answering the question, but if all else is equal, prefer longer answers.")),
+    <.p(""" To determine whether an answer is correct, the litmus test is turning it into a sentence by substituting its answer in.
+        For example: for the question """, <.span(Styles.bolded, " Who blamed someone?"), """, the answer """, <.span(Styles.bolded, " Protesters "), """ would be correct,
+        because the sentence does imply that """, <.span(Styles.bolded, " Protesters blamed someone."), """."""),
     <.p(""" Each question centers around some verb in the sentence. While that question is selected,
-        the corresponding verb in the sentence will be bolded. Use this to disambiguate in the case of sentences with
+        the corresponding verb in the sentence will be bolded. Use this to disambiguate in the case of repeat questions in sentences with
         verbs that appear multiple times."""),
-    <.h3("Invalid Questions"),
+    <.h4("Invalid Questions"),
     <.p("""A question should be marked invalid if either of the following are true:"""),
     <.ul(
       <.li("It is not a grammatical English question."),
-      <.li("It does not have a correct answer expressed in the sentence..")
+      <.li("It does not have a correct answer expressed in the sentence.")
     ),
-    <.p("""If a question is both invalid and redundant, please mark it invalid."""),
-    <.h3("Redundancy"),
-    <.p(""" Two question-answer pairs are """, <.b("redundant "), """if they are both """,
-        <.b("asking the same question "), "and they ", <.b("have the same answer. "), """
-        None of your question-answer pairs about a single verb may be redundant with each other.
-        For example, suppose you have already answered the question """,
-        <.span(Styles.goodGreen, "What did someone promise?"), "."),
-    <.ul(
-      <.li(<.span(Styles.badRed, "What was promised?"), """ — this is redundant,
-           because it's just another way of phrasing the first, which will always have the same answer. """),
-      <.li(<.span(Styles.badRed, "What would someone have promised?"), """ — you should consider this redundant as well.
-           It is asking about the same thing (the claim being promised), just using different auxiliary verbs
-           ("would have" versus "did").
-           """),
-      <.li(<.span(Styles.goodGreen, "What did someone promise to do?"), """ — this is not redundant.
-           While the two questions are asking about something very similar, they are not always interchangeable
-           (consider the sentence "He promised that he was clean") and they have different answers (see the example at the top).""")
-    ),
-    <.p(""" Remember that even if two questions are the same, if they align to different instances of a verb in the sentence,
-        they should not be counted redundant. For example:
-        """),
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "I ate", <.sub("1"), " one half and she ate", <.sub("2"), " the other."
-    ),
-    <.ul(
-      <.li("Who ate", <.sub("1"), " something? --> ", <.span(Styles.goodGreen, "I")),
-      <.li("Who ate", <.sub("2"), " something? --> ", <.span(Styles.goodGreen, "she"))
-    ),
-    <.p("(The subscripts here will not appear in the interface; rather, the corresponding word will be bolded in the sentence.)"),
+    <.p(""" To determine whether a question is grammatical, again use the litmus test above.
+        For example: """, <.span(Styles.bolded, " Who blamed? --> Protesters"), """ would be wrong, because by substituting the answer back in, we get
+        """, <.span(Styles.bolded, "Protesters blamed"), """, which is not a grammatical sentence. """),
+    <.p(" Occasionally, you may get questions that are about words that aren't verbs or are impossible to ask questions about. Please mark these invalid. "),
+
+    <.p(" Please read through the examples at the bottom for a complete explanation. "),
+
     <.h2("Interface Controls"),
     <.ul(
-      <.li("Change questions using the up and down arrow keys, or W and S."),
+      <.li("Change questions using the mouse, the up and down arrow keys, or W and S."),
       <.li("Cycle between answers using the left and right arrow keys, or A and D."),
       <.li("Click the button labeled \"Invalid\" or press the space bar to toggle a question as invalid."),
-      <.li("""To mark the selected question as redundant, just click the question it's redundant with (which will turn orange).
-              To unmark it, click the orange question again."""),
-      <.li("""You can only mark a question as redundant with a question that has an answer.
-              (If more than two questions are mutually redundant, answer one of them and mark the others as redundant with that one.)"""),
       <.li(""" Highlight words for your answers by clicking or by dragging on the sentence.
         To erase highlights, click or start dragging on a word that is already highlighted.""")
     ),
@@ -382,6 +376,9 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         so there is an element of randomness to it: don't read too deeply into small changes in your agreement rate.)
         As long as you are qualified, your work will be approved and the bonus will be paid within an hour."""),
     <.p("""If you have any questions, concerns, or points of confusion,
-        please share them in the "Feedback" field.""")
+        please share them in the "Feedback" field."""),
+
+    <.h2("Examples"),
+    examples
   )
 }

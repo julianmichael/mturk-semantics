@@ -8,12 +8,9 @@ object QASRLSettings {
   val validationTaskKey = "validation"
   val dashboardTaskKey = "dashboard"
 
-  final def generationBonus(nKeywords: Int, nValidQAs: Int) = {
-    if(nKeywords < 3) {
-      math.max(0.0, (nValidQAs - 1) * bonusPerQuestion) // bonus applies after 1 question
-    } else {
-      math.max(0.0, (nValidQAs - 3) * bonusPerQuestion) // bonus applies after 3 questions
-    }
+  final def generationBonus(nValidQAs: Int) = {
+    val cents = math.max(0, (0 until nValidQAs).map(i => math.max(5, i + 4)).sum - 5)
+    cents * 0.01
   }
 
   final def validationBonus(numQuestions: Int) =
@@ -21,9 +18,7 @@ object QASRLSettings {
 
   // annotation pipeline hyperparameters
 
-  val smallGenerationReward = 0.05
-  val largeGenerationReward = 0.15
-  val bonusPerQuestion = 0.06
+  val generationReward = 0.05
 
   val validationReward = 0.08
   val validationBonusPerQuestion = 0.02

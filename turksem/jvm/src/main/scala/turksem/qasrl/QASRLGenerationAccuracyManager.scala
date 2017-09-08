@@ -66,23 +66,20 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
           // award bonuses
           val numSpecialWords = prompt.keywords.size
           val numQAsProvided = assignment.response.size
-          val bonusAwarded = generationBonus(numSpecialWords, numQAsValid)
+          val bonusAwarded = generationBonus(numQAsValid)
           if(bonusAwarded > 0.0) {
             service.grantBonus(
               assignment.workerId, bonusAwarded, assignment.assignmentId,
               s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
-            where at least $numSpecialWords were required, for a bonus of
             ${dollarsToCents(bonusAwarded)}c.""")
           }
-
-          val flatReward = if(prompt.keywords.size < 3) smallGenerationReward else largeGenerationReward
 
           val stats = allWorkerStats
             .get(assignment.workerId)
             .getOrElse(WorkerStats.empty(assignment.workerId))
             .addAssignment(assignment.response.size, numQAsValid,
                            assignment.submitTime - assignment.acceptTime,
-                           flatReward + bonusAwarded)
+                           QASRLSettings.generationReward + bonusAwarded)
 
           // update qualifications according to performance
           val newStats = stats.warnedAt match {

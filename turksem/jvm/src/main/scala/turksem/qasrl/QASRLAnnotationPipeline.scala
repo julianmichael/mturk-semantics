@@ -32,9 +32,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
-  frozenSmallGenerationHITTypeID: Option[String] = None,
-  frozenLargeGenerationHITTypeID: Option[String] = None,
-  frozenValidationHITTypeID: Option[String] = None,
   generationAccuracyQualTypeLabel: Option[String] = None,
   validationAgreementQualTypeLabel: Option[String] = None)(
   implicit config: TaskConfig,
@@ -45,12 +42,22 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       val posTaggedTokens = PosTagger.posTag(id.tokens)
       posTaggedTokens.collect {
         case Word(index, pos, token) if PosTags.verbPosTags.contains(pos) =>
-          // detect if "have"-verb is an auxiliary
-          if(Set("has", "have", "had").contains(token) &&
-               posTaggedTokens
-               .drop(index + 1) // after the "have" verb,
-               .takeWhile(_.pos != "VBN") // until the next past-participle form verb,
-               .forall(w => PosTags.adverbPosTags.contains(w.pos)) // everything is an adverb
+          if( // detect if "have"-verb is an auxiliary
+            Inflections.haveVerbs.contains(token.lowerCase) &&
+              (posTaggedTokens.lift(index + 1).map(_.token.lowerCase).nonEmptyAnd(Inflections.negationWords.contains) || // negation appears directly after, or
+                 posTaggedTokens.drop(index + 1).forall(_.pos != "VBN") || // there is no past-participle verb afterward, or
+                 posTaggedTokens.drop(index + 1) // after the "have" verb,
+                 .takeWhile(_.pos != "VBN") // until the next past-participle form verb,
+                 .forall(w => Inflections.negationWords.contains(w.token.lowerCase) || PosTags.adverbPosTags.contains(w.pos)) // everything is an adverb or negation (though I guess negs are RB)
+              )
+          ) None else if( // detect if "do"-verb is an auxiliary
+            Inflections.doVerbs.contains(token.lowerCase) &&
+              (posTaggedTokens.lift(index + 1).map(_.token.lowerCase).nonEmptyAnd(Inflections.negationWords.contains) || // negation appears directly after, or
+                 posTaggedTokens.drop(index + 1).forall(w => w.pos != "VB" && w.pos != "VBP") || // there is no stem or non-3rd-person present verb afterward (to mitigate pos tagger mistakes), or
+                 posTaggedTokens.drop(index + 1) // after the "do" verb,
+                 .takeWhile(w => w.pos != "VBP" && w.pos != "VBP") // until the next VB or VBP verb,
+                 .forall(w => Inflections.negationWords.contains(w.token.lowerCase) || PosTags.adverbPosTags.contains(w.pos)) // everything is an adverb or negation (though I guess negs are RB)
+              )
           ) None else inflections.getInflectedForms(token.lowerCase).map(_ => index)
       }.flatten.toSet
     }
@@ -58,16 +65,12 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val allPrompts: Vector[GenerationPrompt[SID]] = for {
     id <- allIds
-    verbIndices = id.keyIndices.toList.sorted
-    if verbIndices.nonEmpty
-  } yield GenerationPrompt(id, verbIndices)
+    verbIndex <- id.keyIndices.toList.sorted
+  } yield GenerationPrompt(id, List(verbIndex))
 
-  lazy val (smallPrompts, largePrompts) = allPrompts.partition(_.keywords.size < 3)
+  // lazy val (smallPrompts, largePrompts) = allPrompts.partition(_.keywords.size < 3)
 
   implicit val ads = annotationDataService
-  implicit val settings = QASRLSettings
-
-  import settings._
 
   import config.hitDataService
 
@@ -103,7 +106,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val genAccQualTypeId = genAccQualType.getQualificationTypeId
   val genAccuracyRequirement = new QualificationRequirement(
     genAccQualTypeId,
-    Comparator.GreaterThanOrEqualTo, (math.round(generationAccuracyBlockingThreshold * 100.0).toInt),
+    Comparator.GreaterThanOrEqualTo, (math.round(QASRLSettings.generationAccuracyBlockingThreshold * 100.0).toInt),
     null, false)
 
   val valAgrQualTypeLabelString = validationAgreementQualTypeLabel.fold("")(x => s"[$x] ")
@@ -127,7 +130,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val valAgrQualTypeId = valAgrQualType.getQualificationTypeId
   val valAgreementRequirement = new QualificationRequirement(
     valAgrQualTypeId,
-    Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
+    Comparator.GreaterThanOrEqualTo, (math.round(QASRLSettings.validationAgreementBlockingThreshold * 100.0).toInt),
     null, false)
 
   lazy val (taskPageHeadLinks, taskPageBodyLinks) = {
@@ -154,25 +157,20 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     (headLinks, bodyLinks)
   }
 
-  val smallGenHITType = HITType(
-    title = s"Write question-answer pairs about verbs (1-2 verbs)",
+  val genHITType = HITType(
+    title = s"Write question-answer pairs about a verb",
     description = s"""
-      Given a sentence and some verbs from that sentence,
-      write questions about each verb and their answers.
+      Given a sentence and a verb from that sentence,
+      write questions and answers about that verb.
       Questions must adhere to a certain template,
       provided by autocomplete functionality.
       Maintain high accuracy to stay qualified.
     """.trim.replace("\\s+", " "),
-    reward = QASRLSettings.smallGenerationReward,
+    reward = QASRLSettings.generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement, genAccuracyRequirement
+      approvalRateRequirement, locationRequirement, genAccuracyRequirement // TODO qual task req
     ))
-
-  val largeGenHITType = smallGenHITType.copy(
-    title = s"Write question-answer pairs about verbs (3 or more verbs)",
-    reward = QASRLSettings.largeGenerationReward
-  )
 
   lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {
     case QASRLGenerationApiRequest(GenerationPrompt(id, keywords)) =>
@@ -195,10 +193,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       and mark questions that are invalid or redundant.
       Maintain high agreement with others to stay qualified.
     """.trim,
-    reward = validationReward,
+    reward = QASRLSettings.validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement, valAgreementRequirement
+      approvalRateRequirement, locationRequirement, valAgreementRequirement // TODO maybe another requirement
     ))
 
   lazy val valApiFlow = Flow[ValidationApiRequest[SID]].map {
@@ -208,14 +206,12 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val sampleValPrompt = QASRLValidationPrompt[SID](
     sampleGenPrompt, "", "", "",
-    List(VerbQA(0, "Who is awesome?", List(Set(1, 2, 3, 4))),
-         VerbQA(1, "What is Julian?", List(Set(5, 6, 8, 9))),
-         VerbQA(1, "Whih one is best?", List(Set(5, 6, 8, 9))),
-         VerbQA(1, "Herp derp?", List(Set(5, 6, 8, 9)))))
+    List(VerbQA(0, "Who did someone look at?", List(Set(4))),
+         VerbQA(1, "Who looked at someone?", List(Set(0, 1))),
+         VerbQA(1, "How did someone look at someone?", List(Set(5)))))
 
   lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
-    validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
-    frozenHITTypeId = frozenValidationHITTypeID,
+    QASRLSettings.validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks)
 
@@ -308,13 +304,11 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
-  var smallGenManagerPeek: QASRLGenerationHITManager[SID] = null
-  var largeGenManagerPeek: QASRLGenerationHITManager[SID] = null
+  var genManagerPeek: QASRLGenerationHITManager[SID] = null
 
-  def makeGenHITManagement(hitType: HITType, prompts: Vector[GenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit), frozenHITTypeId: Option[String]) = {
+  def makeGenHITManagement(hitType: HITType, prompts: Vector[GenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit)) = {
     val taskSpec = TaskSpecification[GenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
-      generationTaskKey, hitType, genApiFlow, sampleGenPrompt,
-      frozenHITTypeId = frozenHITTypeId,
+      QASRLSettings.generationTaskKey, hitType, genApiFlow, sampleGenPrompt,
       taskPageHeadElements = taskPageHeadLinks,
       taskPageBodyElements = taskPageBodyLinks)
     val helper = new HITManager.Helper(taskSpec)
@@ -349,19 +343,16 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     (taskSpec, helper, hitManager, actor)
   }
 
-  lazy val (smallGenTaskSpec, smallGenHelper, smallGenManager, smallGenActor) = makeGenHITManagement(
-    smallGenHITType, smallPrompts, smallGenManagerPeek = _, frozenSmallGenerationHITTypeID)
+  lazy val (genTaskSpec, genHelper, genManager, genActor) = makeGenHITManagement(
+    genHITType, allPrompts, genManagerPeek = _)
 
-  lazy val (largeGenTaskSpec, largeGenHelper, largeGenManager, largeGenActor) = makeGenHITManagement(
-    largeGenHITType, largePrompts, largeGenManagerPeek = _, frozenLargeGenerationHITTypeID)
-
-  lazy val server = new Server(List(smallGenTaskSpec, largeGenTaskSpec, valTaskSpec))
+  lazy val server = new Server(List(genTaskSpec, valTaskSpec))
 
   // used to schedule data-saves
   private[this] var schedule: List[Cancellable] = Nil
   def startSaves(interval: FiniteDuration = 5 minutes): Unit = {
     if(schedule.exists(_.isCancelled) || schedule.isEmpty) {
-      schedule = List(smallGenManager, largeGenManager, valManager, accuracyTracker).map(actor =>
+      schedule = List(genManager, valManager, accuracyTracker).map(actor =>
         config.actorSystem.scheduler.schedule(
           2 seconds, interval, actor, SaveData)(
           config.actorSystem.dispatcher, actor)
@@ -371,8 +362,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   def stopSaves = schedule.foreach(_.cancel())
 
   def setGenHITsActiveEach(n: Int) = {
-    smallGenManager ! SetNumHITsActive(n)
-    largeGenManager ! SetNumHITsActive(n)
+    genManager ! SetNumHITsActive(n)
   }
   def setValHITsActive(n: Int) = {
     valManager ! SetNumHITsActive(n)
@@ -382,46 +372,38 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   def start(interval: FiniteDuration = 30 seconds) = {
     server
     startSaves()
-    smallGenActor ! Start(interval, delay = 0 seconds)
-    largeGenActor ! Start(interval, delay = 0 seconds)
+    genActor ! Start(interval, delay = 0 seconds)
     valActor ! Start(interval, delay = 3 seconds)
   }
   def stop() = {
-    smallGenActor ! Stop
-    largeGenActor ! Stop
+    genActor ! Stop
     valActor ! Stop
     stopSaves
   }
   def disable() = {
-    smallGenActor ! Disable
-    largeGenActor ! Disable
+    genActor ! Disable
     valActor ! Disable
   }
   def expire() = {
-    smallGenActor ! Expire
-    largeGenActor ! Expire
+    genActor ! Expire
     valActor ! Expire
   }
   def update() = {
     server
-    smallGenActor ! Update
-    largeGenActor ! Update
+    genActor ! Update
     valActor ! Update
   }
   def save() = {
     // sentenceTracker ! SaveData
     accuracyTracker ! SaveData
-    smallGenManager ! SaveData
-    largeGenManager ! SaveData
+    genManager ! SaveData
     valManager ! SaveData
   }
 
   // for use while it's running. Ideally instead of having to futz around at the console calling these functions,
   // in the future you could have a nice dashboard UI that will help you examine common sources of issues
 
-  def allSmallGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[VerbQA]](smallGenTaskSpec.hitTypeId).get
-  def allLargeGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[VerbQA]](largeGenTaskSpec.hitTypeId).get
-  def allGenInfos = allSmallGenInfos ++ allLargeGenInfos
+  def allGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[VerbQA]](genTaskSpec.hitTypeId).get
 
   def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](valTaskSpec.hitTypeId).get
 
@@ -444,7 +426,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   def currentGenSentences: List[(SID, String)] = {
-    (smallGenHelper.activeHITInfosByPromptIterator ++ largeGenHelper.activeHITInfosByPromptIterator).map(_._1.id).map(id =>
+    genHelper.activeHITInfosByPromptIterator.map(_._1.id).map(id =>
       id -> Text.render(id.tokens)
     ).toList
   }
@@ -509,10 +491,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   def printQStats = printStats(-_.numQs.getOrElse(0))
   def printAStats = printStats(-_.numAs.getOrElse(0))
 
-  def printSmallGenFeedback(n: Int) = smallGenManagerPeek.feedbacks.take(n).foreach(a =>
-    println(a.workerId + " " + a.feedback)
-  )
-  def printLargeGenFeedback(n: Int) = largeGenManagerPeek.feedbacks.take(n).foreach(a =>
+  def printGenFeedback(n: Int) = genManagerPeek.feedbacks.take(n).foreach(a =>
     println(a.workerId + " " + a.feedback)
   )
   def printValFeedback(n: Int) = valManagerPeek.feedbacks.take(n).foreach(a =>
@@ -520,10 +499,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   )
 
   def printAllFeedbacks(n: Int = Int.MaxValue) = {
-    println("Small gen:")
-    printSmallGenFeedback(n)
-    println("\nLarge gen:")
-    printLargeGenFeedback(n)
+    println("Generation:")
+    printGenFeedback(n)
     println("\nValidation:")
     printValFeedback(n)
   }

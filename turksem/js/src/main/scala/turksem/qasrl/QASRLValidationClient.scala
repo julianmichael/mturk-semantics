@@ -164,14 +164,7 @@ class QASRLValidationClient[SID : Writer : Reader](
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
-          ^.onClick --> scope.modState(s =>
-            if(s.curQuestion == index || !s.answers(index).isAnswer) s
-            else if(s.answers(s.curQuestion).getRedundant.nonEmptyAnd(_.other == index)) {
-              State.answers.modify(answers => answers.updated(s.curQuestion, highlightedAnswers(s.curQuestion)))(s)
-            } else {
-              State.answers.modify(answers => answers.updated(s.curQuestion, Redundant(index)))(s)
-            }
-          ),
+          ^.onClick --> scope.modState(State.curQuestion.set(index) andThen State.curAnswer.set(0)),
           questions(index)
         ),
         <.div(
@@ -197,7 +190,7 @@ class QASRLValidationClient[SID : Writer : Reader](
             case Answer(spans) if spans.isEmpty && isFocused =>
               <.span(
                 ^.color := "#CCCCCC",
-                "Highlight answer above, move with arrow keys, or click on a redundant question")
+                "Highlight answer above, move with arrow keys or mouse")
             case Answer(spans) if isFocused => // spans nonempty
               (spans.zipWithIndex.flatMap {
                  case (span, index) =>
@@ -262,7 +255,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                         <.p(<.b("")),
                         <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
                             """ To begin working on this HIT, please request the question answering agreement qualification
-                                (it is auto-granted).Also, while there may be few HITs available at any one time,
+                                (it is auto-granted). Also, while there may be few HITs available at any one time,
                                 more will be uploaded as other workers write questions for you to validate. """),
                         <.hr(),
                         <.div(

@@ -200,6 +200,7 @@ class Slots(
         " won't" -> infSubj,
         " will" -> infSubj,
         " would" -> infNegContraction,
+        " should" -> infNegContraction,
         " might" -> infNegContraction
       )
     )
@@ -236,7 +237,8 @@ class Slots(
         "Where" -> auxRequiringSubject,
         "Why" -> auxRequiringSubject,
         "How" -> auxRequiringSubject,
-        "How much" -> auxRequiringSubject
+        "How much" -> auxRequiringSubject,
+        "How long" -> auxRequiringSubject
       )
     )
   }

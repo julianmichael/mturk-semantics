@@ -117,4 +117,8 @@ object Styles extends StyleSheet.Inline {
 
   val highlightedAutocompleteItem = style()
   val autocompleteItem = style()
+
+  val underlined = style(
+    textDecoration := "underline"
+  )
 }

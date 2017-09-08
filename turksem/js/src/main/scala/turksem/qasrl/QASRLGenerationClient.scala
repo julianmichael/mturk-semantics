@@ -51,8 +51,6 @@ class QASRLGenerationClient[SID : Reader : Writer](
   // for monoid on Callback
   implicit def appMonoid[F[_]: Applicative, A: Monoid] = Applicative.monoid[F, A]
 
-  import QASRLSettings._
-
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
     FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
@@ -224,7 +222,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
       s: State,
       sentence: Vector[String],
       groupIndex: Int,
-      qaIndex: Int
+      qaIndex: Int,
+      nextPotentialBonus: Double
     ) = s match {
       case State(qaGroups, curFocus) =>
         val qaGroup = qaGroups(groupIndex)
@@ -236,9 +235,6 @@ class QASRLGenerationClient[SID : Reader : Writer](
         val isFocused = answerFocus.nonEmpty
         val numQAsInGroup = qaGroup.qas.size
         val QAPair(question, answers, qaState) = qaGroup.qas(qaIndex)
-
-        // val isFocusedAnswerEmpty = answerFocus.nonEmptyAnd(i => answers(i).isEmpty)
-        val nextBonus = bonusPerQuestion
 
         case class Suggestion(fullText: String, isComplete: Boolean)
 
@@ -323,7 +319,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         ^.`type` := "text",
                         ^.placeholder := (
                           if(qaIndex == 0) ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\" (required)")
-                          else ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\"" + s" (+${math.round(100 * nextBonus).toInt}c)")
+                          else ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\"" + s" (+${math.round(100 * nextPotentialBonus).toInt}c)")
                         ),
                         ^.margin := s"1px",
                         ^.padding := s"1px",
@@ -474,21 +470,41 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
                       val curCompleteQAPairs = getAllCompleteQAPairs(s.qaGroups)
 
-                      val curPotentialBonus = generationBonus(s.qaGroups.size, curCompleteQAPairs.size)
+                      val curPotentialBonus = QASRLSettings.generationBonus(curCompleteQAPairs.size)
+                      val nextPotentialBonus = QASRLSettings.generationBonus(curCompleteQAPairs.size + 1) - curPotentialBonus
 
-                      val curAnswers = s.curFocus.foldMap {
-                        case (groupIndex, qaIndex, _) => spans.collect {
-                          case (`groupIndex`, `qaIndex`, answerIndex, wordIndex) => (answerIndex, wordIndex)
+                      val groupAnswersByQAIndex = s.curFocus.foldMap {
+                        case (groupIndex, _, _) => spans.collect {
+                          case (`groupIndex`, qaIndex, answerIndex, wordIndex) => (qaIndex, answerIndex, wordIndex)
                         }
-                      }.groupBy(_._1).toList.sortBy(_._1).map(_._2).toList.map(_.map(p => p._2).toSet)
+                      }.groupBy(_._1).map {
+                        case (qaIndex, tuples) => qaIndex -> tuples
+                            .map(t => (t._2, t._3))
+                            .groupBy(_._1).toList.sortBy(_._1)
+                            .map(_._2).toList.map(_.map(p => p._2).toSet)
+                      }
+
+                      val otherAnswersInGroup = s.curFocus.foldMap {
+                        case (_, qaIndex, answerIndex) =>
+                          groupAnswersByQAIndex.toList.flatMap {
+                            case (`qaIndex`, answerSpans) => answerSpans.take(answerIndex) ++ answerSpans.drop(answerIndex + 1)
+                            case (_, answerSpans) => answerSpans
+                          }
+                      }
+
+                      val otherAnswerWordsInGroup = otherAnswersInGroup.flatten.toSet
+
+                      val curAnswers = s.curFocus.flatMap {
+                        case (_, qaIndex, _) => groupAnswersByQAIndex.get(qaIndex)
+                      }.foldK
 
                       val curAnswer = s.curFocus.foldMap {
                         case (_, _, answerIndex) => curAnswers.lift(answerIndex).foldMap(identity)
                       }
 
-                      val otherAnswers = s.curFocus.foldMap {
-                        case (_, _, answerIndex) => curAnswers.take(answerIndex) ++ curAnswers.drop(answerIndex + 1)
-                      }
+                      // val otherAnswersToQuestion = s.curFocus.foldMap {
+                      //   case (_, _, answerIndex) => curAnswers.take(answerIndex) ++ curAnswers.drop(answerIndex + 1)
+                      // }
 
                       def touchWord(i: Int) = s.curFocus.foldMap {
                         case (groupIndex, qaIndex, answerIndex) => touchElement((groupIndex, qaIndex, answerIndex, i))
@@ -522,12 +538,12 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                       i == prompt.keywords(groupIndex)
                                     )
                                   ),
-                                  highlightedSpans = (curAnswer, ^.backgroundColor := "#FFFF00") :: otherAnswers.map(
+                                  highlightedSpans = (curAnswer, ^.backgroundColor := "#FFFF00") :: otherAnswersInGroup.map(
                                     (_, ^.backgroundColor := "#DDDDDD")
                                   ),
                                   startHighlight = startHighlight,
                                   startErase = startErase,
-                                  touchWord = touchWord,
+                                  touchWord = (i: Int) => if(otherAnswerWordsInGroup.contains(i)) Callback.empty else touchWord(i),
                                   render = (elements =>
                                     <.div(
                                       ^.onMouseEnter --> setBlurEnabled(false),
@@ -544,7 +560,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                 (0 until s.qaGroups(groupIndex).qas.size).toVdomArray(qaIndex =>
                                   <.li(
                                     ^.display := "block",
-                                    qaField(s, sentence, groupIndex, qaIndex)
+                                    qaField(s, sentence, groupIndex, qaIndex, nextPotentialBonus)
                                   )
                                 )
                               )
