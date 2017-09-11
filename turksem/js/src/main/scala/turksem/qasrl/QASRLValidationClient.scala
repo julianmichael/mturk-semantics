@@ -31,7 +31,8 @@ import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
 class QASRLValidationClient[SID : Writer : Reader](
-  instructions: VdomTag)(
+  preTaskInstructions: VdomTag,
+  postTaskInstructions: VdomTag)(
   implicit promptReader: Reader[QASRLValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[QASRLValidationAnswer]] // same as above
 ) extends TaskClient[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]] {
@@ -252,11 +253,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                         ^.classSet1("container-fluid"),
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
-                        <.p(<.b("")),
-                        <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
-                            """ To begin working on this HIT, please request the question answering agreement qualification
-                                (it is auto-granted). Also, while there may be few HITs available at any one time,
-                                more will be uploaded as other workers write questions for you to validate. """),
+                        preTaskInstructions,
                         <.hr(),
                         <.div(
                           ^.tabIndex := 0,
@@ -317,7 +314,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                           ^.disabled := !state.answers.forall(_.isComplete),
                           ^.id := FieldLabels.submitButtonLabel,
                           ^.value := "submit"),
-                        instructions
+                        postTaskInstructions
                       )
                   }
                 )

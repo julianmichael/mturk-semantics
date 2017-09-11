@@ -33,6 +33,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
   generationAccuracyQualTypeLabel: Option[String] = None,
+  generationCoverageQualTypeLabel: Option[String] = None,
   validationAgreementQualTypeLabel: Option[String] = None)(
   implicit config: TaskConfig,
   inflections: Inflections) {
@@ -109,6 +110,32 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     Comparator.GreaterThanOrEqualTo, (math.round(QASRLSettings.generationAccuracyBlockingThreshold * 100.0).toInt),
     null, false)
 
+  val genCoverageQualTypeLabelString = generationCoverageQualTypeLabel.fold("")(x => s"[$x] ")
+  val genCoverageQualTypeName = s"${genCoverageQualTypeLabelString}Avg. number of questions asked (x10) per verb (auto-granted)"
+  val genCoverageQualType = config.service.searchQualificationTypes(
+    genCoverageQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
+  ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == genCoverageQualTypeName)).getOrElse {
+    System.out.println("Generating generation coverage qualification type...")
+    config.service.createQualificationType(
+      genCoverageQualTypeName,
+      "language,english,question answering",
+      """ The number of questions that you ask for each verb
+          in our question-answer pair generation task,
+          on average, times 10.
+      """.replaceAll("\\s+", " "),
+      QualificationTypeStatus.Active,
+      null, // retry delay (seconds)
+      null, null, null, // these 3 are for a test/answer key
+      true, // auto granted
+      20 // auto granted value
+    )
+  }
+  val genCoverageQualTypeId = genCoverageQualType.getQualificationTypeId
+  val genCoverageRequirement = new QualificationRequirement(
+    genCoverageQualTypeId,
+    Comparator.GreaterThanOrEqualTo, math.floor(QASRLSettings.generationCoverageBlockingThreshold).toInt,
+    null, false)
+
   val valAgrQualTypeLabelString = validationAgreementQualTypeLabel.fold("")(x => s"[$x] ")
   val valAgrQualTypeName = s"${valAgrQualTypeLabelString}Question answering agreement % (auto-granted)"
   val valAgrQualType = config.service.searchQualificationTypes(
@@ -169,16 +196,25 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     reward = QASRLSettings.generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement, genAccuracyRequirement // TODO qual task req
+      approvalRateRequirement, locationRequirement, genAccuracyRequirement, genCoverageRequirement // TODO qual task req
     ))
 
   lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {
-    case QASRLGenerationApiRequest(GenerationPrompt(id, keywords)) =>
+    case QASRLGenerationApiRequest(workerIdOpt, GenerationPrompt(id, keywords)) =>
+      val questionListsOpt = for {
+        genManagerP <- Option(genManagerPeek)
+        workerId <- workerIdOpt
+        qCounts <- genManagerPeek.coverageStats.get(workerId)
+      } yield qCounts
+      val questionLists = questionListsOpt.getOrElse(Nil)
+      val stats = GenerationStatSummary(
+        numVerbsCompleted = questionLists.size,
+        numQuestionsWritten = questionLists.sum)
       val tokens = id.tokens
       val indicesWithInflectedForms = keywords.flatMap(kw =>
         inflections.getInflectedForms(tokens(kw).lowerCase).map(forms => IndexWithInflectedForms(kw, forms))
       )
-      QASRLGenerationApiResponse(tokens, indicesWithInflectedForms)
+      QASRLGenerationApiResponse(stats, tokens, indicesWithInflectedForms)
   }
 
   lazy val sampleGenPrompt = allPrompts.head
@@ -319,6 +355,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             helper,
             valHelper,
             valManager,
+            genCoverageQualTypeId,
             // sentenceTracker,
             numGenerationAssignmentsForPrompt, 30, prompts.iterator)
           setPeek(manager)
@@ -332,6 +369,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             helper,
             valHelper,
             valManager,
+            genCoverageQualTypeId,
             // sentenceTracker,
             (_: GenerationPrompt[SID]) => 1, 3, prompts.iterator)
           setPeek(manager)

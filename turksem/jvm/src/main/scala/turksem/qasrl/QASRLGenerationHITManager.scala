@@ -1,5 +1,7 @@
 package turksem.qasrl
 
+import cats.implicits._
+
 import turkey._
 import turkey.tasks._
 
@@ -30,6 +32,7 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
   helper: HITManager.Helper[GenerationPrompt[SID], List[VerbQA]],
   validationHelper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
   validationActor: ActorRef,
+  coverageQualificationTypeId: String,
   // sentenceTrackingActor: ActorRef,
   numAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   initNumHITsToKeepActive: Int,
@@ -53,9 +56,7 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
   var badSentences = annotationDataService.loadLiveData(badSentenceIdsFilename)
     .map(_.mkString)
     .map(read[Set[SID]])
-    .toOption.getOrElse {
-    Set.empty[SID]
-  }
+    .toOption.foldK
 
   private[this] def flagBadSentence(id: SID) = {
     badSentences = badSentences + id
@@ -69,23 +70,31 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
       .foreach(service.disableHIT)
   }
 
+  val coverageStatsFilename = "coverageStats"
+
+  var coverageStats: Map[String, List[Int]] = annotationDataService.loadLiveData(coverageStatsFilename)
+    .map(_.mkString)
+    .map(read[Map[String, List[Int]]])
+    .toOption.getOrElse(Map.empty[String, List[Int]])
+
   val feedbackFilename = "genFeedback"
 
   var feedbacks =
     annotationDataService.loadLiveData(feedbackFilename)
       .map(_.mkString)
       .map(read[List[Assignment[List[VerbQA]]]])
-      .toOption.getOrElse {
-      List.empty[Assignment[List[VerbQA]]]
-    }
+      .toOption.foldK
 
   private[this] def save = {
     annotationDataService.saveLiveData(
+      coverageStatsFilename,
+      write(coverageStats))
+    annotationDataService.saveLiveData(
       feedbackFilename,
-      write[List[Assignment[List[VerbQA]]]](feedbacks))
+      write(feedbacks))
     annotationDataService.saveLiveData(
       badSentenceIdsFilename,
-      write[Set[SID]](badSentences))
+      write(badSentences))
     logger.info("Generation data saved.")
   }
 
@@ -95,6 +104,21 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
       feedbacks = assignment :: feedbacks
       logger.info(s"Feedback: ${assignment.feedback}")
     }
+
+    val newQuestionRecord = assignment.response.size :: coverageStats.get(assignment.workerId).foldK
+    coverageStats = coverageStats.updated(assignment.workerId, newQuestionRecord)
+    val verbsCompleted = newQuestionRecord.size
+    val questionsPerVerb = newQuestionRecord.sum.toDouble / verbsCompleted
+    val clampedQsPerVerb = if(verbsCompleted <= generationCoverageGracePeriod) {
+      math.max(questionsPerVerb, generationCoverageQuestionsPerVerbThreshold)
+    } else {
+      questionsPerVerb
+    }
+    val newQualValue = math.floor(clampedQsPerVerb * 10).toInt
+    config.service.updateQualificationScore(
+      coverageQualificationTypeId,
+      assignment.workerId,
+      newQualValue)
     val validationPrompt = QASRLValidationPrompt(hit.prompt, hit.hitTypeId, hit.hitId, assignment.assignmentId, assignment.response)
     validationActor ! validationHelper.Message.AddPrompt(validationPrompt)
     // sentenceTrackingActor ! ValidationBegun(validationPrompt)

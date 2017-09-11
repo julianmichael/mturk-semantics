@@ -20,6 +20,10 @@ object QASRLSettings {
 
   val generationReward = 0.05
 
+  val generationCoverageQuestionsPerVerbThreshold = 2.0
+  val generationCoverageBlockingThreshold = math.floor(generationCoverageQuestionsPerVerbThreshold * 10).toInt
+  val generationCoverageGracePeriod = 15
+
   val validationReward = 0.08
   val validationBonusPerQuestion = 0.02
   val validationBonusThreshold = 4
@@ -27,10 +31,10 @@ object QASRLSettings {
   val generationAccuracyWarningThreshold = 0.8
   val generationAccuracyBlockingThreshold = 0.75
   val generationBufferBeforeWarning = 10
-  val generationBufferBeforeBlocking = 10
+  val generationBufferBeforeBlocking = 15
 
   val validationAgreementWarningThreshold = 0.75
   val validationAgreementBlockingThreshold = 0.70
   val validationBufferBeforeWarning = 10
-  val validationBufferBeforeBlocking = 10
+  val validationBufferBeforeBlocking = 15
 }

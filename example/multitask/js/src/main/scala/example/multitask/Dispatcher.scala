@@ -18,6 +18,11 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
   val dataToggle = VdomAttr("data-toggle")
   val dataPlacement = VdomAttr("data-placement")
 
+  val TooltipsComponent = ScalaComponent.builder[VdomTag]("Tooltips")
+    .render(_.props)
+    .componentDidMount(_ => Callback(scala.scalajs.js.Dynamic.global.$("[data-toggle=\"tooltip\"]").tooltip()))
+    .build
+
   import QASRLSettings._
 
   def generationExample(question: String, answer: String, isGood: Boolean, tooltip: String = "") =
@@ -35,147 +40,158 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
       )
     )
 
-  private[this] val examples = <.div(
-    <.p(" Below, for each verb, we list a complete set of good questions (green) and some bad ones (red). ",
-        " (This section is exactly the same between the question writing and question answering tasks.) ",
-        " Hover the mouse over the underlined examples for an explanation. "),
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today refused to promise that they would resume the investigation before year's end. "),
-    <.ul(
-      generationExample(
-        "Who blamed someone?",
-        "Protesters",
-        true),
-      generationExample(
-        "Who did someone blame something on?",
-        "local officials",
-        true),
-      generationExample(
-        "What did someone blame someone for?",
-        "the corruption scandal",
-        true,
-        """ "What did someone blame on someone?" would also have been okay. """),
-      generationExample(
-        "Who blamed?",
-        "Protesters",
-        false,
-        """ This question is invalid by the litmus test, because the sentence "Protesters blamed." is ungrammatical. """)
-    ),
+  private[this] val examples = TooltipsComponent(
+    <.div(
+      <.p(" Below, for each verb, we list a complete set of good questions (green) and some bad ones (red). ",
+          " (This section is exactly the same between the question writing and question answering tasks.) ",
+          " Hover the mouse over the underlined examples for an explanation. "),
+      <.blockquote(
+        ^.classSet1("blockquote"),
+        "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today refused to promise that they would resume the investigation before year's end. "),
+      <.ul(
+        generationExample(
+          "Who blamed someone?",
+          "Protesters",
+          true),
+        generationExample(
+          "Who did someone blame something on?",
+          "local officials",
+          true),
+        generationExample(
+          "What did someone blame someone for?",
+          "the corruption scandal",
+          true,
+          """ "What did someone blame on someone?" would also have been okay. """),
+        generationExample(
+          "Who blamed?",
+          "Protesters",
+          false,
+          """ This question is invalid by the litmus test, because the sentence "Protesters blamed." is ungrammatical. """)
+      ),
 
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "Protesters blamed the corruption scandal on local officials, who today ", <.span(Styles.bolded, " refused "), " to promise that they would resume the investigation before year's end. "),
-    <.ul(
-      generationExample(
-        "Who refused to do something?",
-        "local officials / they",
-        true,
-        """List all of the phrases in the sentence that refer to the correct answer, including pronouns like "they"."""),
-      generationExample(
-        "What did someone refuse to do?",
-        "promise that they would resume the investigation before year's end",
-        true),
-      generationExample(
-        "What did someone refuse to do?",
-        "promise that they would resume the investigation",
-        false,
-        "This answer is not specific enough: specifically, local officials refused to promise to do it before year's end, but the sentence doesn't say they refused to promise to do it altogether."),
-      generationExample(
-        "When did someone refuse to do something?",
-        "today",
-        true),
-      generationExample(
-        "What did someone refuse to do?",
-        "resume the investigation before year's end",
-        false,
-        """ Your questions and answers should only address what is explicitly stated in the sentence. The sentence says they refuse to promise this, not that they refuse to do it. """),
-      generationExample(
-        "Who didn't refuse to do something?",
-        "Protesters",
-        false,
-        """ Your questions should only address things explicitly stated in the sentence. Even if the protesters were not refusing anything, the sentence does not say anything about this, so this question is bad.""")
-    ),
+      <.blockquote(
+        ^.classSet1("blockquote"),
+        "Protesters blamed the corruption scandal on local officials, who today ", <.span(Styles.bolded, " refused "), " to promise that they would resume the investigation before year's end. "),
+      <.ul(
+        generationExample(
+          "Who refused to do something?",
+          "local officials / they",
+          true,
+          """List all of the phrases in the sentence that refer to the correct answer, including pronouns like "they"."""),
+        generationExample(
+          "What did someone refuse to do?",
+          "promise that they would resume the investigation before year's end",
+          true),
+        generationExample(
+          "What did someone refuse to do?",
+          "promise that they would resume the investigation",
+          false,
+          "This answer is not specific enough: specifically, local officials refused to promise to do it before year's end, but the sentence doesn't say they refused to promise to do it altogether."),
+        generationExample(
+          "When did someone refuse to do something?",
+          "today",
+          true),
+        generationExample(
+          "What did someone refuse to do?",
+          "resume the investigation before year's end",
+          false,
+          """ Your questions and answers should only address what is explicitly stated in the sentence. The sentence says they refuse to promise this, not that they refuse to do it. """),
+        generationExample(
+          "Who didn't refuse to do something?",
+          "Protesters",
+          false,
+          """ Your questions should only address things explicitly stated in the sentence. Even if the protesters were not refusing anything, the sentence does not say anything about this, so this question is bad.""")
+      ),
 
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "Protesters blamed the corruption scandal on local officials, who today refused to ", <.span(Styles.bolded, " promise "), " that they would resume the investigation before year's end. "),
-    <.ul(
-      generationExample(
-        "Who didn't promise something?",
-        "local officials / they",
-        true,
-        "Ask negated questions when the sentence is indicating that the event or state expressed by the verb did not happen."),
-      generationExample(
-        "What didn't someone promise?",
-        "that they would resume the investigation before year's end",
-        true),
-      generationExample(
-        "When didn't someone promise to do something?",
-        "before year's end",
-        false,
-        """ This question is bad because "before year's end" refers to the timeframe of resuming the investigation, not the timeframe of the promise being made.
+      <.blockquote(
+        ^.classSet1("blockquote"),
+        "Protesters blamed the corruption scandal on local officials, who today refused to ", <.span(Styles.bolded, " promise "), " that they would resume the investigation before year's end. "),
+      <.ul(
+        generationExample(
+          "Who didn't promise something?",
+          "local officials / they",
+          true,
+          "Ask negated questions when the sentence is indicating that the event or state expressed by the verb did not happen."),
+        generationExample(
+          "What didn't someone promise?",
+          "that they would resume the investigation before year's end",
+          true),
+        generationExample(
+          "When didn't someone promise to do something?",
+          "before year's end",
+          false,
+          """ This question is bad because "before year's end" refers to the timeframe of resuming the investigation, not the timeframe of the promise being made.
             Make sure all such questions pertain to the time/place of the chosen verb. """)
-    ),
+      ),
 
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "Protesters blamed the corruption scandal on local officials, who today refused to promise that they would ", <.span(Styles.bolded, " resume "), " the investigation before year's end. "),
-    <.ul(
-      generationExample(
-        "Who might resume something?",
-        "local officials / they",
-        true,
-        """When the sentence doesn't clearly indicate whether the event did or didn't happen, just hedge your question with "might" or "would"."""),
-      generationExample(
-        "What might someone resume?",
-        "the investigation",
-        true),
-      generationExample(
-        "When might someone resume something?",
-        "before year's end",
-        true)
-    ),
+      <.blockquote(
+        ^.classSet1("blockquote"),
+        "Protesters blamed the corruption scandal on local officials, who today refused to promise that they would ", <.span(Styles.bolded, " resume "), " the investigation before year's end. "),
+      <.ul(
+        generationExample(
+          "Who might resume something?",
+          "local officials / they",
+          true,
+          """When the sentence doesn't clearly indicate whether the event did or didn't happen, just hedge your question with "might" or "would"."""),
+        generationExample(
+          "What might someone resume?",
+          "the investigation",
+          true),
+        generationExample(
+          "When might someone resume something?",
+          "before year's end",
+          true)
+      ),
 
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      <.span(Styles.bolded, " Let"), "'s go up to the counter and ask."),
-    <.ul(
-      generationExample(
-        "Who should someone let do something?",
-        "'s",
-        true,
-        """ This is a slightly tricky case: you should read 's as the word it stands for: "us".
+      <.blockquote(
+        ^.classSet1("blockquote"),
+        <.span(Styles.bolded, " Let"), "'s go up to the counter and ask."),
+      <.ul(
+        generationExample(
+          "Who should someone let do something?",
+          "'s",
+          true,
+          """ This is a slightly tricky case: you should read 's as the word it stands for: "us".
             So by substituting back into the question, we get "someone should let us do something",
             which is what someone is suggesting when they say "Let's go". """),
-      generationExample(
-        "What should someone let us do?",
-        "go up to the counter and ask",
-        true,
-        """ While "go up to the counter" and "ask" could be two different answers, please collapse them into one when possible. """),
-      generationExample(
-        "Where should someone let someone do something?",
-        "the counter",
-        false,
-        """ Please only write questions specifically about the verb: "letting" is not happening at the counter. """)
-    ),
+        generationExample(
+          "What should someone let us do?",
+          "go up to the counter and ask",
+          true,
+          """ While "go up to the counter" and "ask" could be two different answers, please collapse them into one when possible. """),
+        generationExample(
+          "Where should someone let someone do something?",
+          "the counter",
+          false,
+          """ Please only write questions specifically about the verb: "letting" is not happening at the counter. """)
+      ),
 
-    <.blockquote(
-      ^.classSet1("blockquote"),
-      "Let's ", <.span(Styles.bolded, " go "), " up to the counter and ask."),
-    <.ul(
-      generationExample(
-        "Who should go somewhere?",
-        "'s",
-        true),
-      generationExample(
-        "Where should someone go?",
-        "up to the counter",
-        true,
-        """Since both "up" and "to the counter", describe where they will go, they should both be included in the answer to a "where" question. """))
+      <.blockquote(
+        ^.classSet1("blockquote"),
+        "Let's ", <.span(Styles.bolded, " go "), " up to the counter and ask."),
+      <.ul(
+        generationExample(
+          "Who should go somewhere?",
+          "'s",
+          true),
+        generationExample(
+          "Where should someone go?",
+          "up to the counter",
+          true,
+          """Since both "up" and "to the counter", describe where they will go, they should both be included in the answer to a "where" question. """))
+    )
   )
 
-  override val generationInstructions = <.div(
+  override val generationPreTaskInstructions =
+    <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin, """),
+        """ so you can maximize your bonuses and avoid losing your qualification. """,
+        """ To begin working on this HIT, please request the question-answer writing accuracy qualification.
+                                It is auto-granted. Right now we are doing a trial run of these HITs,
+                                but many of them will be posted soon.
+                                We would appreciate any feedback on the task design.
+                            """)
+
+  override val generationPostTaskInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of English sentences into lists of questions and answers.
@@ -301,7 +317,13 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     examples
   )
 
-  override val validationInstructions = <.div(
+  override val validationPreTaskInstructions =
+    <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
+        """ To begin working on this HIT, please request the question answering agreement qualification
+                                (it is auto-granted). Also, while there may be few HITs available at any one time,
+                                more will be uploaded as other workers write questions for you to validate. """)
+
+  override val validationPostTaskInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.

@@ -131,5 +131,6 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
     generationAccuracyQualTypeLabel = Some("v3-templates"),
+    generationCoverageQualTypeLabel = Some("v3-templates"),
     validationAgreementQualTypeLabel = Some("v3-templates"))
 }

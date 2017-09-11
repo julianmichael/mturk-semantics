@@ -43,10 +43,17 @@ import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.CatsReact._
 
 class QASRLGenerationClient[SID : Reader : Writer](
-  instructions: VdomTag)(
+  preTaskInstructions: VdomTag,
+  postTaskInstructions: VdomTag)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[VerbQA]] // same as above
 ) extends TaskClient[GenerationPrompt[SID], List[VerbQA]] {
+
+  // TODO put in TaskClient
+  lazy val workerIdOpt: Option[String] = {
+    import scala.scalajs.js.Dynamic.global
+    Option(global.turkGetParam("workerId", "UNASSIGNED").asInstanceOf[String]).filter(_ != "UNASSIGNED")
+  }
 
   // for monoid on Callback
   implicit def appMonoid[F[_]: Applicative, A: Monoid] = Applicative.monoid[F, A]
@@ -55,11 +62,6 @@ class QASRLGenerationClient[SID : Reader : Writer](
     Styles.addToDocument()
     FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
-
-  val Instructions = ScalaComponent.builder[Unit]("Instructions")
-    .render(_ => instructions)
-    .componentDidMount(_ => Callback(scala.scalajs.js.Dynamic.global.$("[data-toggle=\"tooltip\"]").tooltip()))
-    .build
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse]
   import WebsocketLoadableComponent._
@@ -101,7 +103,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
   object State {
     val empty: State = State(Nil, None)
     def initFromResponse(response: QASRLGenerationApiResponse): State = response match {
-      case QASRLGenerationApiResponse(sentence, indicesWithTemplates) =>
+      case QASRLGenerationApiResponse(_, sentence, indicesWithTemplates) =>
         val qaGroups = indicesWithTemplates.map {
           case IndexWithInflectedForms(verbIndex, forms) =>
             val slots = new Slots(sentence, forms)
@@ -445,12 +447,16 @@ class QASRLGenerationClient[SID : Reader : Writer](
       WebsocketLoadable(
         WebsocketLoadableProps(
           websocketURI = websocketUri,
-          request = QASRLGenerationApiRequest(prompt),
+          request = QASRLGenerationApiRequest(workerIdOpt, prompt),
           onLoad = ((response: QASRLGenerationApiResponse) => scope.setState(State.initFromResponse(response))),
           render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
-            case Loaded(QASRLGenerationApiResponse(sentence, _), _) =>
+            case Loaded(QASRLGenerationApiResponse(GenerationStatSummary(numVerbsCompleted, numQuestionsWritten), sentence, _), _) =>
+              val questionsPerVerbOpt = if(numVerbsCompleted == 0) None else Some(
+                numQuestionsWritten.toDouble / numVerbsCompleted
+              )
+              val remainingInGracePeriod = QASRLSettings.generationCoverageGracePeriod - numVerbsCompleted
               Highlighting(
                 HighlightingProps(
                   isEnabled = !isNotAssigned,
@@ -518,14 +524,25 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
                         Styles.mainContent,
-                        <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin, """),
-                            """ so you can maximize your bonuses and avoid losing your qualification. """,
-                            """ To begin working on this HIT, please request the question-answer writing accuracy qualification.
-                                It is auto-granted. Right now we are doing a trial run of these HITs,
-                                but many of them will be posted soon.
-                                We would appreciate any feedback on the task design.
-                            """),
+                        preTaskInstructions,
                         <.hr(),
+                        questionsPerVerbOpt.whenDefined(questionsPerVerb =>
+                          <.p(
+                            """Your current stats: """,
+                            <.span(
+                              if(questionsPerVerb <= QASRLSettings.generationCoverageQuestionsPerVerbThreshold) {
+                                Styles.badRed
+                              } else if(questionsPerVerb <= (QASRLSettings.generationCoverageQuestionsPerVerbThreshold * 1.1)) {
+                                TagMod(Styles.uncomfortableOrange, Styles.bolded)
+                              } else {
+                                Styles.goodGreen
+                              },
+                              f"$questionsPerVerb%.1f"
+                            ),
+                            " questions per verb ",
+                            s" ($remainingInGracePeriod verbs until end of grace period) ".when(remainingInGracePeriod > 0)
+                          )
+                        ),
                         <.div(
                           (0 until s.qaGroups.size).toVdomArray(groupIndex =>
                             <.div(
@@ -592,7 +609,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                           ^.disabled := !s.qaGroups.forall(getCompleteQAPairs(_).size > 0),
                           ^.id := FieldLabels.submitButtonLabel,
                           ^.value := "submit"),
-                        Instructions()
+                        postTaskInstructions
                       )
                   }))
           }))

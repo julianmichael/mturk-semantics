@@ -4,13 +4,21 @@ import nlpdata.datasets.wiktionary.InflectedForms
 
 package object qasrl {
 
-  case class QASRLGenerationApiRequest[SID](prompt: qamr.GenerationPrompt[SID])
+  case class GenerationStatSummary(
+    numVerbsCompleted: Int,
+    numQuestionsWritten: Int)
+
+  case class QASRLGenerationApiRequest[SID](
+    workerId: Option[String],
+    prompt: qamr.GenerationPrompt[SID]
+  )
 
   case class IndexWithInflectedForms(
     wordIndex: Int,
     inflectedForms: InflectedForms)
 
   case class QASRLGenerationApiResponse(
+    stats: GenerationStatSummary,
     tokens: Vector[String],
     templates: List[IndexWithInflectedForms])
 
