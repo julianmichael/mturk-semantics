@@ -56,13 +56,13 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
 
   import java.nio.file.{Paths, Path, Files}
   private[this] val liveDataPath = if(config.isProduction) {
-    Paths.get("live-data/multitask/production")
+    Paths.get("live-data/multitask-exp2/production")
   } else {
-    Paths.get("live-data/multitask/sandbox")
+    Paths.get("live-data/multitask-exp2/sandbox")
   }
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  val staticDataPath = Paths.get("static-data/multitask")
+  val staticDataPath = Paths.get("static-data/multitask-exp2")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
     val directory = staticDataPath.resolve("out")
