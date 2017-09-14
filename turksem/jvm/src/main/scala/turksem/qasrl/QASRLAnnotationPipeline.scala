@@ -160,6 +160,18 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     Comparator.GreaterThanOrEqualTo, (math.round(QASRLSettings.validationAgreementBlockingThreshold * 100.0).toInt),
     null, false)
 
+  def resetAllQualificationValues = {
+    def setQualToValueForAllWorkers(qualTypeId: String, value: Int) = {
+      val quals = config.service.getAllQualificationsForQualificationType(qualTypeId)
+      quals.foreach(qual =>
+        config.service.updateQualificationScore(qualTypeId, qual.getSubjectId, value)
+      )
+    }
+    setQualToValueForAllWorkers(genAccQualTypeId, 101)
+    setQualToValueForAllWorkers(genCoverageQualTypeId, 101)
+    setQualToValueForAllWorkers(valAgrQualTypeId, 101)
+  }
+
   lazy val (taskPageHeadLinks, taskPageBodyLinks) = {
     import scalatags.Text.all._
     val headLinks = List(

@@ -70,7 +70,7 @@ object TemplateStateMachine {
 
   val mostCommonPrepositions = Set(
     "by", "for", "with", "about",
-    "in", "from", "to" // added my own on this line
+    "in", "from", "to", "as" // added my own on this line
   ).map(_.lowerCase)
 
   val lotsOfPrepositions = Set(

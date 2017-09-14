@@ -93,7 +93,7 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
                    stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
 
                 service.notifyWorkers(
-                  "Notification (warning + tips) regarding the question-answer task",
+                  "Notification (warning) regarding the question-answer task",
                   notificationEmailText(stats.accuracy),
                   Array(assignment.workerId))
 
@@ -139,10 +139,11 @@ object QASRLGenerationAccuracyManager {
       s"""If this drops below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period (${generationBufferBeforeBlocking} more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(generationAccuracyBlockingThreshold * 100).toInt}."""
     }
     val dropOrRemain = if(curAccuracy < generationAccuracyBlockingThreshold) "remain" else "drop"
-    f"""
-Of your question-answer pairs that have been reviewed so far, ${math.round(curAccuracy * 10000.0) / 100.0}%.2f%% were judged valid or non-redundant by validators. $explanatoryText%s
 
-If you are not sure why your score is this low, we recommend reading over the instructions again. We are still iterating on the task design and we are not yet sure what the common sources of disagreement are. After this batch of HITs, we will reset everyone's qualification values and try again with adjustments to the instructions and interface.
+    f"""
+Of your question-answer pairs that have been reviewed so far, ${math.round(curAccuracy * 10000.0) / 100.0}%.2f%% were judged valid by validators. $explanatoryText%s
+
+If you are not sure why your score is this low, we recommend reading over the examples in the instructions again. We are still iterating on the task design and we are not yet sure what the common sources of disagreement are. After this batch of HITs, we will reset everyone's qualification values and try again with changes to the instructions and interface.
 """.trim
   }
 

@@ -270,14 +270,15 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         Once you get used to the question format, it might be fastest to type all of the questions
         (with autocomplete checking your work) and then fill in the answers.
         You can use tab and shift+tab to switch between questions quickly."""),
-      <.li("""Once you have written at least one question, the autocomplete dropdown will start proposing complete questions.
-        completions of your question. These can significantly speed up your question writing,
+      <.li("""Once you have written at least one question,
+        the autocomplete dropdown will start proposing completions of your question.
+        These can significantly speed up your question writing,
         though keep in mind that the suggestions will not always be grammatical or answerable.
         The suggestions are based on the structure of your previous questions, so to get the most out of the
         autocomplete suggestions, write questions with more structure (e.g., "Who looked at someone?") rather than
         less (e.g., "Who looked?").
         """),
-      <.li("""You may highlight words for your answers by clicking or by dragging on words in the sentence.
+      <.li("""Highlight words for your answers by clicking or by dragging on words in the sentence.
         To erase highlights, click or start dragging on a word that is already highlighted.
         To add a new answer, just click on the open slot next to the current answer;
         and click on a previous answer to edit it.

@@ -56,10 +56,11 @@ object QASRLValidationHITManager {
       s"""If this drops below ${math.round(validationAgreementBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period (${validationBufferBeforeBlocking} more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(validationAgreementBlockingThreshold * 100).toInt}."""
     }
     val dropOrRemain = if(curAgreement < validationAgreementBlockingThreshold) "remain" else "drop"
+
     f"""
 The answer judgments that you have provided so far agree with other annotators ${math.round(curAgreement * 10000.0) / 100.0}%.2f%% of the time. $explanatoryText%s
 
-If you are not sure why your score is this low, we recommend reading over the instructions again. We are still iterating on the task design and we are not yet sure what the common sources of disagreement are. After this batch of HITs, we will reset everyone's qualification values and try again with adjustments to the instructions and interface.
+If you are not sure why your score is this low, we recommend reading over the examples in the instructions again. We are still iterating on the task design and we are not yet sure what the common sources of disagreement are. After this batch of HITs, we will reset everyone's qualification values and try again with changes to the instructions and interface.
 
 """.trim
   }
