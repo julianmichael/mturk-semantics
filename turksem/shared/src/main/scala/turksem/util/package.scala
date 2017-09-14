@@ -1,5 +1,8 @@
 package turksem
 
+import cats.Foldable
+import cats.implicits._
+
 import nlpdata.util.LowerCaseStrings._
 import scala.util.{Try, Success, Failure}
 
@@ -17,6 +20,11 @@ package object util extends PackagePlatformExtensions {
     sets.flatten.toSet
       .filter(ai => sets.filter(_.contains(ai)).size >= (sets.size / 2))
   }
+
+  def counts[F[_]: Foldable, A](fa: F[A]): Map[A, Int] =
+    fa.foldLeft(Map.empty[A, Int].withDefaultValue(0)) {
+      case (m, a) => m.updated(a, m(a) + 1)
+    }
 
   def dollarsToCents(d: Double): Int = math.round(100 * d).toInt
 
@@ -47,6 +55,11 @@ package object util extends PackagePlatformExtensions {
     // it's not really more concise, but it's more readable / harder to mess up.
     def emptyOr(predicate: A => Boolean): Boolean = a.fold(true)(predicate)
     def nonEmptyAnd(predicate: A => Boolean): Boolean = a.fold(false)(predicate)
+
+    def ifEmpty[B](b: => B): Option[B] = a match {
+      case Some(_) => None
+      case None => Some(b)
+    }
   }
 
   // TODO make this return an option
@@ -63,8 +76,9 @@ package object util extends PackagePlatformExtensions {
     def stdevSample(implicit N: Numeric[A]) = math.sqrt(a.varianceSample)
   }
 
-  implicit class RichList[A](val a: List[A]) extends AnyVal {
-    def remove(i: Int) = a.take(i) ++ a.drop(i + 1)
+  implicit class RichList[A](val as: List[A]) extends AnyVal {
+    def remove(i: Int) = as.take(i) ++ as.drop(i + 1)
+    def tailOption: Option[List[A]] = if(as.nonEmpty) Some(as.tail) else None
   }
 
   implicit class RichValForOptions[A](val a: A) extends AnyVal {

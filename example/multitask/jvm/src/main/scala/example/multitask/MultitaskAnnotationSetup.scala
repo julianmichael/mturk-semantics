@@ -51,7 +51,7 @@ import upickle.default._
 class MultitaskAnnotationSetup(implicit config: TaskConfig) {
 
   implicit object SentenceIdHasTokens extends HasTokens[SentenceId] {
-    def getTokens(id: SentenceId): Vector[String] = PTB.getSentence(id).tokens
+    def getTokens(id: SentenceId): Vector[String] = PTB3.getSentence(id).tokens
   }
 
   import java.nio.file.{Paths, Path, Files}
@@ -92,7 +92,7 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
   val resourcePath = java.nio.file.Paths.get("resources")
 
   // ignore file system errors.. the service should always succeed
-  val PTB = {
+  val PTB3 = {
     val getTry = new (Try ~> Id) {
       def apply[A](a: Try[A]): Id[A] = a.get
     }
@@ -105,17 +105,28 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
     resourcePath.resolve("wiktionary")
   )
 
-  lazy val allIds = {
-    val allPaths = PTB.getAllPaths
-    val eligibleBrownPaths = allPaths.collect {
-      case p @ BrownPath("CK", number) if number > 3 => p
-    }
-    val eligibleSentencePaths = for {
-      path <- eligibleBrownPaths
-      sentence <-  PTB.getFile(path).sentences
-    } yield sentence.path
-    eligibleSentencePaths.toVector.take(100)
-  }
+  val QASRL = new qasrl.QASRLFileSystemService(
+    resourcePath.resolve("qasrl"),
+    new nlpdata.datasets.ptb.PTBFileSystemService(resourcePath.resolve("ptb"))
+  )
+
+  val ptb3QASRLPaths = QASRL.allQASRLPaths.flatMap(PTB3SentencePath.fromPTBSentencePath)
+
+  // for Brown sentences
+  // lazy val allIds = {
+  //   val allPaths = PTB3.getAllPaths
+  //   val eligibleBrownPaths = allPaths.collect {
+  //     case p @ BrownPath("CK", number) if number > 3 => p
+  //   }
+  //   val eligibleSentencePaths = for {
+  //     path <- eligibleBrownPaths
+  //     sentence <-  PTB3.getFile(path).sentences
+  //   } yield sentence.path
+  //   eligibleSentencePaths.toVector.take(100)
+  // }
+
+  // just 100 PTB sentences that overlap with QA-SRL
+  lazy val allIds = ptb3QASRLPaths.drop(100).take(100)
 
   implicit lazy val inflections = {
     val tokens = for {

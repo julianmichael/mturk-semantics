@@ -2,6 +2,7 @@ package turksem.qasrl
 
 import scala.collection.mutable
 
+import cats.Order
 import cats.Monoid
 import cats.Applicative
 import cats.data.NonEmptyList
@@ -75,8 +76,13 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   import MultiSpanHighlightableSentenceComponent._
 
-  sealed trait QAState
-  case object Complete extends QAState
+  sealed trait QAState {
+    final def isComplete: Boolean = this match {
+      case Complete(_) => true
+      case _ => false
+    }
+  }
+  case class Complete(frames: Set[(Frame, ArgumentSlot)]) extends QAState
   case object InProgress extends QAState
   case object Invalid extends QAState
   case object Redundant extends QAState
@@ -91,7 +97,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   @Lenses case class QAGroup(
     verbIndex: Int,
-    template: QASRLTemplate,
+    template: QASRLStatefulTemplate,
     qas: List[QAPair]) {
     def withNewEmptyQA: QAGroup = copy(qas = this.qas :+ (QAPair.empty))
   }
@@ -106,8 +112,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
       case QASRLGenerationApiResponse(_, sentence, indicesWithTemplates) =>
         val qaGroups = indicesWithTemplates.map {
           case IndexWithInflectedForms(verbIndex, forms) =>
-            val slots = new Slots(sentence, forms)
-            val template = new QASRLTemplate(slots)
+            val slots = new TemplateStateMachine(sentence, forms)
+            val template = new QASRLStatefulTemplate(slots)
             QAGroup(verbIndex, template, List(QAPair.empty))
         }
         State(qaGroups, None)
@@ -125,15 +131,15 @@ class QASRLGenerationClient[SID : Reader : Writer](
   def qaStateLens(groupIndex: Int, qaIndex: Int) = qaLens(groupIndex, qaIndex)
     .composeLens(QAPair.state)
 
-  def getQAState(template: QASRLTemplate, qa: QAPair): QAState =
-    template.processStringFully(qa.question) match {
-      case Left(QASRLTemplate.AggregatedInvalidState(_, numGoodCharacters)) => Invalid
-      case Right(validStates) => if(validStates.exists(_.isComplete)) Complete else InProgress
-    }
+  // def getQAState(template: QASRLStatefulTemplate, qa: QAPair): QAState =
+  //   template.processStringFully(qa.question) match {
+  //     case Left(QASRLStatefulTemplate.AggregatedInvalidState(_, numGoodCharacters)) => Invalid
+  //     case Right(validStates) => if(validStates.exists(_.isComplete)) Complete else InProgress
+  //   }
 
-  def isQuestionComplete(qa: QAPair): Boolean = qa.state == Complete
+  def isQuestionComplete(qa: QAPair): Boolean = qa.state.isComplete
 
-  def isComplete(qa: QAPair): Boolean = qa.state == Complete && qa.answers.nonEmpty
+  def isComplete(qa: QAPair): Boolean = qa.state.isComplete && qa.answers.nonEmpty
 
   def getCompleteQAPairs(group: QAGroup): List[VerbQA] = for {
     qa <- group.qas
@@ -164,14 +170,21 @@ class QASRLGenerationClient[SID : Reader : Writer](
       val question = group.qas(qaIndex).question
 
       template.processStringFully(question) match {
-        case Left(QASRLTemplate.AggregatedInvalidState(_, _)) =>
+        case Left(QASRLStatefulTemplate.AggregatedInvalidState(_, _)) =>
           qaStateLens(groupIndex, qaIndex).set(Invalid)(s)
         case Right(goodStates) =>
           if(goodStates.exists(_.isComplete)) {
             if(group.qas.map(_.question).indexOf(question) < qaIndex) {
               qaStateLens(groupIndex, qaIndex).set(Redundant)(s)
             } else {
-              qaStateLens(groupIndex, qaIndex).set(Complete)(s)
+              val frames = goodStates.toList.collect {
+                case QASRLStatefulTemplate.Complete(
+                  _, TemplateStateMachine.FrameState(Some(whWord), prepOpt, answerSlotOpt, frame)
+                ) if (prepOpt.nonEmpty == frame.args.get(Obj2).nonEmptyAnd(_.isPrep)) &&
+                    (!Set("who", "what").map(_.lowerCase).contains(whWord) || answerSlotOpt.nonEmpty) =>
+                  (frame, answerSlotOpt.getOrElse(Adv(whWord)))
+              }.toSet
+              qaStateLens(groupIndex, qaIndex).set(Complete(frames))(s)
             }
           }
           else qaStateLens(groupIndex, qaIndex).set(InProgress)(s)
@@ -244,22 +257,49 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
         // NOTE this is empty iff question is complete/valid
         val autocompleteStateOpt = if(!isFocused) None else {
-          import QASRLTemplate._
-          def createSuggestion(ips: InProgressState): Suggestion =
+          import turksem.qasrl.{QASRLStatefulTemplate => Template}
+          def createSuggestion(ips: Template.InProgressState): Suggestion =
             Suggestion(ips.fullText, template.isAlmostComplete(ips))
 
           // technically maybe should collapse together by full text in case there are two (one complete, one not)
-          def makeList(goodStates: NonEmptyList[ValidState]) = NonEmptyList.fromList(
-            goodStates.toList.collect { case ips @ InProgressState(_, _, _) => createSuggestion(ips) }
+          // but that should never happen anyway
+          def makeList(goodStates: NonEmptyList[Template.ValidState]) = NonEmptyList.fromList(
+            goodStates.toList.collect { case ips @ Template.InProgressState(_, _, _, _) => createSuggestion(ips) }
               .toSet.toList
               .sortBy((vs: Suggestion) => vs.fullText)
           )
 
+          val allLowercaseQuestionStrings = s.qaGroups.flatMap(_.qas).map(_.question.lowerCase).toSet
+
           template.processStringFully(question) match {
-            case Left(AggregatedInvalidState(lastGoodStates, badStartIndex)) =>
+            case Left(Template.AggregatedInvalidState(lastGoodStates, badStartIndex)) =>
               makeList(lastGoodStates).map(options => AutocompleteState(options, Some(badStartIndex)))
             case Right(goodStates) =>
-              makeList(goodStates).map(options => AutocompleteState(options, None))
+              val framesWithAnswerSlots = s.qaGroups.flatMap(_.qas).map(_.state).collect {
+                case Complete(framesWithSlots) => framesWithSlots
+              }.flatten
+              val frameCounts = counts(framesWithAnswerSlots.map(_._1))
+              val frameToFilledAnswerSlots = framesWithAnswerSlots.foldLeft(Map.empty[Frame, Set[ArgumentSlot]].withDefaultValue(Set.empty[ArgumentSlot])) {
+                case (acc, (frame, slot)) => acc.updated(frame, acc(frame) + slot)
+              }
+              val framesByCountDecreasing = frameCounts.keys.toList.sortBy(f => -10 * frameCounts(f) + math.abs(f.args.size - 2))
+              val allQuestions = framesByCountDecreasing.flatMap { frame =>
+                val unAnsweredSlots = frame.args.keys.toSet -- frameToFilledAnswerSlots(frame)
+                val coreArgQuestions = unAnsweredSlots.toList.flatMap(frame.questionsForSlot)
+                val advQuestions = ArgumentSlot.allAdvSlots
+                  .filterNot(frameToFilledAnswerSlots(frame).contains)
+                  .flatMap(frame.questionsForSlot)
+                coreArgQuestions ++ advQuestions
+              }.filter(_.toLowerCase.startsWith(question.toLowerCase)).filterNot(q => allLowercaseQuestionStrings.contains(q.lowerCase)).distinct
+              val questionSuggestions = allQuestions.flatMap(q =>
+                template.processStringFully(q) match {
+                  case Right(goodStates) if goodStates.exists(_.isComplete) => Some(Suggestion(q, true))
+                  case _ => None
+                }
+              ).take(4) // number of suggested questions capped at 4 to filter out crowd of bad ones
+              makeList(goodStates).map { options =>
+                AutocompleteState(NonEmptyList.fromList(questionSuggestions).fold(options)(sugg => (sugg ++ options.toList).distinct(Order.by[Suggestion, String](_.fullText))), None)
+              }
           }
         }
 
@@ -284,7 +324,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                     case KeyCode.Tab => setBlurEnabled(true)
                   }
                   val menuHandlers =
-                    if(qaState == Complete) {
+                    if(qaState.isComplete) {
                       CallbackOption.keyCodeSwitch(e) {
                         case KeyCode.Enter => setBlurEnabled(true) >> moveToNextQuestion >> e.preventDefaultCB
                       }
@@ -305,7 +345,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                 }
 
                 val bgStyle = qaState match {
-                  case Complete if answers.nonEmpty => ^.backgroundColor := "rgba(0, 255, 0, 0.3)"
+                  case Complete(_) if answers.nonEmpty => ^.backgroundColor := "rgba(0, 255, 0, 0.3)"
                   case Redundant => ^.backgroundColor := "rgba(255, 255, 0, 0.3)"
                   case Invalid if !isFocused => ^.backgroundColor := "rgba(255, 0, 0, 0.3)"
                   case _ => EmptyVdom
@@ -528,7 +568,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         <.hr(),
                         questionsPerVerbOpt.whenDefined(questionsPerVerb =>
                           <.p(
-                            """Your current stats: """,
+                            """So far, you have written """,
                             <.span(
                               if(questionsPerVerb <= QASRLSettings.generationCoverageQuestionsPerVerbThreshold) {
                                 Styles.badRed
@@ -539,8 +579,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
                               },
                               f"$questionsPerVerb%.1f"
                             ),
-                            " questions per verb ",
-                            s" ($remainingInGracePeriod verbs until end of grace period) ".when(remainingInGracePeriod > 0)
+                            " questions per verb. This must remain above 2.0",
+                            if(remainingInGracePeriod > 0) s" after the end of the grace period ($remainingInGracePeriod verbs remaining)."
+                            else "."
                           )
                         ),
                         <.div(

@@ -77,7 +77,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           "Who refused to do something?",
           "local officials / they",
           true,
-          """List all of the phrases in the sentence that refer to the correct answer, including pronouns like "they"."""),
+          """When answering, list all of the phrases in the sentence that refer to the correct answer, including pronouns like "they"."""),
         generationExample(
           "What did someone refuse to do?",
           "promise that they would resume the investigation before year's end",
@@ -86,21 +86,21 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           "What did someone refuse to do?",
           "promise that they would resume the investigation",
           false,
-          "This answer is not specific enough: specifically, local officials refused to promise to do it before year's end, but the sentence doesn't say they refused to promise to do it altogether."),
+          """The answer is not specific enough: it should include "before year's end" because that was part of what they were refusing to promise."""),
+        generationExample(
+          "What did someone refuse to do?",
+          "resume the investigation before year's end",
+          false,
+          """This answer is also bad: you should instead choose the more literal answer above."""),
         generationExample(
           "When did someone refuse to do something?",
           "today",
           true),
         generationExample(
-          "What did someone refuse to do?",
-          "resume the investigation before year's end",
-          false,
-          """ Your questions and answers should only address what is explicitly stated in the sentence. The sentence says they refuse to promise this, not that they refuse to do it. """),
-        generationExample(
           "Who didn't refuse to do something?",
           "Protesters",
           false,
-          """ Your questions should only address things explicitly stated in the sentence. Even if the protesters were not refusing anything, the sentence does not say anything about this, so this question is bad.""")
+          """The sentence does not say anything about protesters refusing or not refusing, so this question is invalid.""")
       ),
 
       <.blockquote(
@@ -111,7 +111,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           "Who didn't promise something?",
           "local officials / they",
           true,
-          "Ask negated questions when the sentence is indicating that the event or state expressed by the verb did not happen."),
+          "Negated questions work when the sentence is indicating that the event or state expressed by the verb did not happen."),
         generationExample(
           "What didn't someone promise?",
           "that they would resume the investigation before year's end",
@@ -121,7 +121,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           "before year's end",
           false,
           """ This question is bad because "before year's end" refers to the timeframe of resuming the investigation, not the timeframe of the promise being made.
-            Make sure all such questions pertain to the time/place of the chosen verb. """)
+            All such questions must pertain to the time/place of the chosen verb. """)
       ),
 
       <.blockquote(
@@ -132,7 +132,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           "Who might resume something?",
           "local officials / they",
           true,
-          """When the sentence doesn't clearly indicate whether the event did or didn't happen, just hedge your question with "might" or "would"."""),
+          """Words like "might" or "would" are appropriate when the sentence doesn't clearly indicate whether something actually happened."""),
         generationExample(
           "What might someone resume?",
           "the investigation",
@@ -151,19 +151,19 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           "Who should someone let do something?",
           "'s",
           true,
-          """ This is a slightly tricky case: you should read 's as the word it stands for: "us".
+          """Here, you should read 's as the word it stands for: "us".
             So by substituting back into the question, we get "someone should let us do something",
             which is what someone is suggesting when they say "Let's go". """),
         generationExample(
           "What should someone let us do?",
           "go up to the counter and ask",
           true,
-          """ While "go up to the counter" and "ask" could be two different answers, please collapse them into one when possible. """),
+          """It would also be acceptable to mark "go up to the counter" and "ask" as two different answers. """),
         generationExample(
           "Where should someone let someone do something?",
           "the counter",
           false,
-          """ Please only write questions specifically about the verb: "letting" is not happening at the counter. """)
+          """Questions should only concern the targeted verb: "letting" is not happening at the counter.""")
       ),
 
       <.blockquote(
@@ -183,13 +183,15 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
   )
 
   override val generationPreTaskInstructions =
-    <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin, """),
+    <.p(<.span(Styles.badRed, """Please read the detailed instructions at the bottom before you begin """),
         """ so you can maximize your bonuses and avoid losing your qualification. """,
-        """ To begin working on this HIT, please request the question-answer writing accuracy qualification.
-                                It is auto-granted. Right now we are doing a trial run of these HITs,
-                                but many of them will be posted soon.
-                                We would appreciate any feedback on the task design.
-                            """)
+        """ To begin working on this HIT, please request the question-answer writing accuracy qualification
+            and the qualification for the number of questions asked per verb.
+            They are both auto-granted.
+            Right now we are doing a trial run of these HITs, but many of them will be posted soon.
+            We would appreciate any feedback on the task design.
+            (Instructions last updated Sept 13, 2017.)
+        """)
 
   override val generationPostTaskInstructions = <.div(
     <.h2("""Task Summary"""),
@@ -217,14 +219,16 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.ol(
       <.li("They must follow a strict format centered around the verb. (This is enforced by the interface, which can help with writing questions.)"),
       <.li("They must be grammatical."),
-      <.li("You must write as many questions as possible."),
+      <.li(Styles.bolded, f"""You must write as many questions as possible. Each HIT will require you to write at least one question,
+           and across all HITs you must average at least ${QASRLSettings.generationCoverageQuestionsPerVerbThreshold}%.1f questions per verb or you will lose your qualification.
+           Rewards also increase as you write more questions so it is worth your time to do so."""),
       <.li("None of your questions' answers may overlap. (This is enforced by the interface.)")),
-    <.p(""" To determine whether a question is grammatical, the litmus test is turning it into a sentence by substituting its answer in.
+    <.p("""To determine whether a question is grammatical, the litmus test is turning it into a sentence by substituting its answer in.
         For example: """, <.span(Styles.bolded, " Who blamed? --> Protesters"), """ would be wrong, because by substituting the answer back in, we get
         """, <.span(Styles.bolded, "Protesters blamed"), """, which is not a grammatical sentence.
         There also may be more than one way to write a question: for example, you may ask """, <.span(Styles.bolded, "Who was blamed for something?"), """ instead of """,
         <.span(Styles.bolded, "Who did someone blame something on?"), """ In these cases, either way is fine, but you can't ask both since they have the same answer."""),
-    <.p(" Occasionally, you may get a bolded word that isn't a verb, or is hard or impossible to write questions about. ",
+    <.p("Occasionally, you may get a bolded word that isn't a verb, or is hard or impossible to write questions about. ",
         " In this case, please do your best to come up with one question, even if it is nonsensical. ",
         " While it will count against your accuracy, this case is rare enough that it shouldn't matter. "),
     <.h4("Answers"),
@@ -234,7 +238,8 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
       <.li("Include only the words relevant for answering the question, but if all else is equal, prefer longer answers.")),
     <.p(
       """ To determine if an answer is good, again use the litmus test of substituting it back into the question.
-      It should form a grammatical sentence that is true according to the sentence.
+      It should form a grammatical sentence that is explicitly true according to the sentence.
+      When you are highlighting multiple answers, be sure to click a new answer slot for each one.
       """),
     <.p(" Please read through the examples at the bottom for a complete explanation. "),
 
@@ -260,12 +265,19 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
 
     <.h2("""Using the Interface"""),
     <.ul(
-      <.li(""" You can use the mouse, the up and down arrow keys, and the enter key to navigate the autocomplete menu.
+      <.li("""You can use the mouse, the up and down arrow keys, and the enter key to navigate the autocomplete menu.
         We suggest starting off using the mouse and clicking on the autocomplete options to write your questions.
         Once you get used to the question format, it might be fastest to type all of the questions
         (with autocomplete checking your work) and then fill in the answers.
         You can use tab and shift+tab to switch between questions quickly."""),
-      <.li(""" You may highlight words for your answers by clicking or by dragging on words in the sentence.
+      <.li("""Once you have written at least one question, the autocomplete dropdown will start proposing complete questions.
+        completions of your question. These can significantly speed up your question writing,
+        though keep in mind that the suggestions will not always be grammatical or answerable.
+        The suggestions are based on the structure of your previous questions, so to get the most out of the
+        autocomplete suggestions, write questions with more structure (e.g., "Who looked at someone?") rather than
+        less (e.g., "Who looked?").
+        """),
+      <.li("""You may highlight words for your answers by clicking or by dragging on words in the sentence.
         To erase highlights, click or start dragging on a word that is already highlighted.
         To add a new answer, just click on the open slot next to the current answer;
         and click on a previous answer to edit it.
@@ -282,21 +294,16 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     ),
 
     <.h2("""Conditions & Bonuses"""),
-    <.p(s"""For each HIT, you will be shown a sentence with a highlighted word.
-          Please write as many different question-answer pairs as possible about this word.
-          If no sensible questions are possible, just write one as close as you can and move on;
-          this will count slightly against your accuracy but these cases should be rare enough that it doesn't matter.
-          After your first, each successive question-answer pair will earn you a bonus:
+    <.p(s"""Each question-answer pair after the first will earn you a bonus:
           5c for the second question, 6c for the third, then 7c, etc.
-          On average, it should take less than 30 seconds per question-answer pair,
-          and with some practice you should be able to go much quicker.
+          While at least one is required to submit the HIT,
+          you will need to write more than two questions on average in order to stay qualified.
+          On average, it should take less than 30 seconds per question-answer pair, and much quicker with practice.
           """),
-    <.p("""Your work will be evaluated by other workers according to criteria described in these instructions. """,
-        <.b("""You will only be awarded bonuses for your good, non-redundant question-answer pairs, """),
-        s""" as judged by other workers.
-          This means the "total potential bonus" indicator is just an upper bound on what you may receive,
-          which will depend on the quality of your responses.
-          Your bonus will be awarded as soon as validators have checked all of your question-answer pairs,
+    <.p("""Your questions will be evaluated by other annotators, and """,
+        <.b(""" you will only be awarded bonuses for your valid question-answer pairs. """),
+        s""" (However, your questions-per-verb average will include invalid questions.)
+          The bonus will be awarded as soon as validators have checked all of your question-answer pairs,
           which will happen shortly after you submit (but will vary depending on worker availability).
           Your accuracy qualification value for this HIT will be updated to match your current accuracy
           as your questions are validated.
@@ -305,13 +312,11 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           There is a grace period of several HITs before your score is allowed to drop too low;
           if your score is exactly ${(100 * generationAccuracyBlockingThreshold).toInt}
           it may be that your real accuracy is lower but you are in the grace period.
-          The first time your score gets near or below the threshold, you will be sent a notification,
-          but you can check it at any time in your qualifications.
-          (Note, however, that the validators will sometimes make mistakes,
+          (Note that the validators will sometimes make mistakes,
           so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)"""),
 
     <.p("""If you have any questions, concerns, or points of confusion,
-        please share them in the "Feedback" field."""),
+        feel free to share them in the "Feedback" field."""),
 
     <.h2("Examples"),
     examples
@@ -320,8 +325,8 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
   override val validationPreTaskInstructions =
     <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
         """ To begin working on this HIT, please request the question answering agreement qualification
-                                (it is auto-granted). Also, while there may be few HITs available at any one time,
-                                more will be uploaded as other workers write questions for you to validate. """)
+            (it is auto-granted). Also, while there may be few HITs available at any one time,
+            more will be uploaded as other workers write questions for you to validate. """)
 
   override val validationPostTaskInstructions = <.div(
     <.h2("""Task Summary"""),
@@ -365,7 +370,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.p("""A question should be marked invalid if either of the following are true:"""),
     <.ul(
       <.li("It is not a grammatical English question."),
-      <.li("It does not have a correct answer expressed in the sentence.")
+      <.li("It does not have a correct answer directly expressed in the sentence.")
     ),
     <.p(""" To determine whether a question is grammatical, again use the litmus test above.
         For example: """, <.span(Styles.bolded, " Who blamed? --> Protesters"), """ would be wrong, because by substituting the answer back in, we get
