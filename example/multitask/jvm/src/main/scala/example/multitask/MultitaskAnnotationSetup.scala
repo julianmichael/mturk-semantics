@@ -130,7 +130,7 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
   // }
 
   // just 100 PTB sentences that overlap with QA-SRL
-  lazy val allIds = ptb3QASRLPaths.drop(100).take(100)
+  lazy val allIds = ptb3QASRLPaths.drop(100).take(100).toVector
 
   implicit lazy val inflections = {
     val tokens = for {
