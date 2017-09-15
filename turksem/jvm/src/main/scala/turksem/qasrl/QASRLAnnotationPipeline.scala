@@ -532,9 +532,9 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       val numQs = numQsOpt.getOrElse("")
       val acc = accOpt.foldMap(pct => f"$pct%.2f")
       val numAs = numAsOpt.getOrElse("")
-      val pctBad = pctBadOpt.foldMap(pct => f"$pct%.2f")
+      val pctBad = pctBadOpt.foldMap(pct => f"$pct%4.2f")
       val agr = agrOpt.foldMap(pct => f"$pct%.2f")
-      println(f"$wid%14s  $numQs%5s  $acc%4s  $numAs%5s  $pctBad%4s  $agr%4s  $earnings%.2f")
+      println(f"$wid%14s  $numQs%5s  $acc%4s  $numAs%5s  $pctBad%5s  $agr%4s  $earnings%.2f")
     }
   }
 

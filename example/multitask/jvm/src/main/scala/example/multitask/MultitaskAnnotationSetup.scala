@@ -62,7 +62,7 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
   }
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  val staticDataPath = Paths.get("static-data/multitask-exp2")
+  val staticDataPath = Paths.get("static-data/multitask/exp2")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
     val directory = staticDataPath.resolve("out")
@@ -105,31 +105,17 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
     )
   }
 
-  val Wiktionary = new wiktionary.WiktionaryFileSystemService(
+  lazy val Wiktionary = new wiktionary.WiktionaryFileSystemService(
     resourcePath.resolve("wiktionary")
   )
 
-  val QASRL = new qasrl.QASRLFileSystemService(
+  lazy val QASRL = new qasrl.QASRLFileSystemService(
     resourcePath.resolve("qasrl"),
     new nlpdata.datasets.ptb.PTBFileSystemService(resourcePath.resolve("ptb"))
   )
 
-  val ptb3QASRLPaths = QASRL.allQASRLPaths.flatMap(PTB3SentencePath.fromPTBSentencePath)
+  lazy val ptb3QASRLPaths = QASRL.allQASRLPaths.flatMap(PTB3SentencePath.fromPTBSentencePath)
 
-  // for Brown sentences
-  // lazy val allIds = {
-  //   val allPaths = PTB3.getAllPaths
-  //   val eligibleBrownPaths = allPaths.collect {
-  //     case p @ BrownPath("CK", number) if number > 3 => p
-  //   }
-  //   val eligibleSentencePaths = for {
-  //     path <- eligibleBrownPaths
-  //     sentence <-  PTB3.getFile(path).sentences
-  //   } yield sentence.path
-  //   eligibleSentencePaths.toVector.take(100)
-  // }
-
-  // just 100 PTB sentences that overlap with QA-SRL
   lazy val allIds = ptb3QASRLPaths.drop(100).take(100).toVector
 
   implicit lazy val inflections = {

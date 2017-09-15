@@ -106,6 +106,7 @@ object ArgumentSlot {
   private[this] def modalTokens(modal: LowerCaseString) =
     if(isNegated) {
       if(modal.toString == "will") NonEmptyList.of("won't")
+      else if(modal.toString == "can") NonEmptyList.of("can't")
       else if(modal.toString == "might") NonEmptyList.of("might", "not")
       else NonEmptyList.of(s"${modal}n't")
     } else {

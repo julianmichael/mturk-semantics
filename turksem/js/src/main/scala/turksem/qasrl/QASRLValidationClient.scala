@@ -246,7 +246,12 @@ class QASRLValidationClient[SID : Writer : Reader](
                       val highlightedAnswers = AnswerWordIndex.getAnswerSpans(spans)
                       val curAnswerSpans = highlightedAnswers(curQuestion).spans
                       val curAnswerSpan = curAnswerSpans.lift(curAnswer).foldK
-                      val otherAnswerSpans = curAnswerSpans.take(curAnswer) ++ curAnswerSpans.drop(curAnswer + 1)
+
+                      val allOtherAnswerSpans =
+                        (highlightedAnswers - curQuestion).toList.flatMap(_._2.spans) ++
+                          curAnswerSpans.take(curAnswer) ++
+                          curAnswerSpans.drop(curAnswer + 1)
+
                       val isCurrentInvalid = answers(curQuestion).isInvalid
                       def touchWord(i: Int) = touchElement(AnswerWordIndex(curQuestion, curAnswer, i))
                       <.div(
@@ -276,12 +281,12 @@ class QASRLValidationClient[SID : Writer : Reader](
                             MultiSpanHighlightableSentenceProps(
                               sentence = sentence,
                               styleForIndex = i => TagMod(Styles.specialWord, Styles.niceBlue).when(i == curVerbIndex),
-                              highlightedSpans = (curAnswerSpan, ^.backgroundColor := "#FFFF00") :: otherAnswerSpans.map(
+                              highlightedSpans = (curAnswerSpan, ^.backgroundColor := "#FFFF00") :: allOtherAnswerSpans.map(
                                 (_, ^.backgroundColor := "#DDDDDD")
                               ),
                               startHighlight = startHighlight,
                               startErase = startErase,
-                              touchWord = touchWord,
+                              touchWord = (i: Int) => if(allOtherAnswerSpans.exists(_.contains(i))) Callback.empty else touchWord(i),
                               render = (elements =>
                                 <.blockquote(
                                   ^.classSet1("blockquote"),

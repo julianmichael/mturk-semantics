@@ -64,7 +64,10 @@ package object util extends PackagePlatformExtensions {
 
   // TODO make this return an option
   implicit class RichSeq[A](val a: Seq[A]) extends AnyVal {
-    def mean(implicit N: Numeric[A]): Double = N.toDouble(a.sum) / a.size
+    def mean(implicit N: Numeric[A]): Double =
+      N.toDouble(a.sum) / a.size
+    def meanOpt(implicit N: Numeric[A]): Option[Double] =
+      if(a.isEmpty) None else Some(N.toDouble(a.sum) / a.size)
     def sse(implicit N: Numeric[A]): Double = {
       val m = a.mean
       a.map(x => math.pow(N.toDouble(x) - m, 2)).sum

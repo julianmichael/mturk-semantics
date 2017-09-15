@@ -69,7 +69,8 @@ object TemplateStateMachine {
   // neither of these should contain "to", which is handled specially
 
   val mostCommonPrepositions = Set(
-    "by", "for", "with", "about",
+    "by", "for", "with",
+    // "about", // too many spurious questions from this
     "in", "from", "to", "as" // added my own on this line
   ).map(_.lowerCase)
 
@@ -385,12 +386,14 @@ class TemplateStateMachine(
   def infNegContraction(subjRequired: Boolean) = negContraction(subjRequired, infinitiveVerb)
 
   def modalAux(subjRequired: Boolean) = {
-    val infSubj = if(subjRequired) subj(infinitiveVerb, false) else optionalSubj(infinitiveVerb, false)
+    def infSubj(negate: Boolean) = if(subjRequired) subj(infinitiveVerb, negate) else optionalSubj(infinitiveVerb, negate)
     val infNegContraction = negContraction(subjRequired, infinitiveVerb)
     progress(
-      " won't" -> modFrame(Frame.tense.set(Modal("will".lowerCase)) andThen Frame.isNegated.set(true)).as(infSubj),
-      " will" -> modFrame(Frame.tense.set(Modal("will".lowerCase))).as(infSubj),
-      " might" -> modFrame(Frame.tense.set(Modal("might".lowerCase))).as(infSubj),
+      " can't" -> modFrame(Frame.tense.set(Modal("can".lowerCase)) andThen Frame.isNegated.set(true)).as(infSubj(true)),
+      " can" -> modFrame(Frame.tense.set(Modal("can".lowerCase))).as(infSubj(false)),
+      " won't" -> modFrame(Frame.tense.set(Modal("will".lowerCase)) andThen Frame.isNegated.set(true)).as(infSubj(true)),
+      " will" -> modFrame(Frame.tense.set(Modal("will".lowerCase))).as(infSubj(false)),
+      " might" -> modFrame(Frame.tense.set(Modal("might".lowerCase))).as(infSubj(false)),
       " would" -> modFrame(Frame.tense.set(Modal("would".lowerCase))).as(infNegContraction),
       " should" -> modFrame(Frame.tense.set(Modal("should".lowerCase))).as(infNegContraction)
     )

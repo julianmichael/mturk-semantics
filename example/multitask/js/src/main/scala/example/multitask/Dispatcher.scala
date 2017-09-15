@@ -188,22 +188,20 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         """ To begin working on this HIT, please request the question-answer writing accuracy qualification
             and the qualification for the number of questions asked per verb.
             They are both auto-granted.
-            Right now we are doing a trial run of these HITs, but many of them will be posted soon.
-            We would appreciate any feedback on the task design.
-            (Instructions last updated Sept 13, 2017.)
+            (Task design last updated Sept 13, 2017.)
         """)
 
   override val generationPostTaskInstructions = <.div(
     <.h2("""Task Summary"""),
     <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
-        We wish to deconstruct the meanings of English sentences into lists of questions and answers.
+        We wish to deconstruct the meanings of verbs in English sentences into lists of questions and answers.
         You will be presented with a selection of English text with a verb written in bold."""),
     <.p("""You will write questions about the verb and highlight their answers in the original sentence.
         Questions are required to follow a strict format, which is enforced by autocomplete functionality in the interface. """,
         <.b(""" You will be paid according to how many questions you write. """),
-        """ For each HIT, you should provide all possible questions and all of their correct answers,
+        f""" For each HIT, you should provide all possible questions and all of their correct answers,
             where none of the answers overlap with each other. You are required to write at least one question for each HIT.
-            """, // and at least two questions per HIT on average.
+            and at least ${QASRLSettings.generationCoverageQuestionsPerVerbThreshold}%.1f questions per HIT on average.""",
         """ For example, the prompt below should elicit the following questions and answers: """),
     <.blockquote(
       ^.classSet1("blockquote"),
@@ -215,19 +213,18 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     ),
     <.h2("Guidelines"),
     <.h4("Questions"),
-    <.p("Your questions must satisfy the following criteria:"),
+    <.p("""Your questions must adhere to a strict format, and none of their answers may overlap with each other.
+        This is all enforced by the interface, which includes an autocomplete menu with auto-suggested questions, and lets you highlight answers in the sentence.
+        In addition, your questions must satisfy the following criteria: """),
     <.ol(
-      <.li("They must follow a strict format centered around the verb. (This is enforced by the interface, which can help with writing questions.)"),
-      <.li("They must be grammatical."),
-      <.li(Styles.bolded, f"""You must write as many questions as possible. Each HIT will require you to write at least one question,
+      <.li(<.span(Styles.bolded, """They must be grammatical."""),
+           """ To determine whether a question is grammatical, the litmus test is turning it into a sentence by substituting its answer in.
+           For example: """, <.span(Styles.bolded, " Who blamed? --> Protesters"), """ would be wrong, because by substituting the answer back in, we get
+           """, <.span(Styles.bolded, "Protesters blamed"), """, which is not a grammatical sentence."""),
+      <.li(<.span(Styles.bolded, "You must write as many questions as possible."), f""" Each HIT will require you to write at least one question,
            and across all HITs you must average at least ${QASRLSettings.generationCoverageQuestionsPerVerbThreshold}%.1f questions per verb or you will lose your qualification.
-           Rewards also increase as you write more questions so it is worth your time to do so."""),
-      <.li("None of your questions' answers may overlap. (This is enforced by the interface.)")),
-    <.p("""To determine whether a question is grammatical, the litmus test is turning it into a sentence by substituting its answer in.
-        For example: """, <.span(Styles.bolded, " Who blamed? --> Protesters"), """ would be wrong, because by substituting the answer back in, we get
-        """, <.span(Styles.bolded, "Protesters blamed"), """, which is not a grammatical sentence.
-        There also may be more than one way to write a question: for example, you may ask """, <.span(Styles.bolded, "Who was blamed for something?"), """ instead of """,
-        <.span(Styles.bolded, "Who did someone blame something on?"), """ In these cases, either way is fine, but you can't ask both since they have the same answer."""),
+           Rewards also increase as you write more questions so it is worth your time to do so.""")),
+    <.p(""" If there is more than one question or phrasing that has the same answer, just choose one of them. """),
     <.p("Occasionally, you may get a bolded word that isn't a verb, or is hard or impossible to write questions about. ",
         " In this case, please do your best to come up with one question, even if it is nonsensical. ",
         " While it will count against your accuracy, this case is rare enough that it shouldn't matter. "),
@@ -236,11 +233,9 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.ol(
       <.li("You must highlight every correct answer, including phrases such as pronouns that refer to the correct answer."),
       <.li("Include only the words relevant for answering the question, but if all else is equal, prefer longer answers.")),
-    <.p(
-      """ To determine if an answer is good, again use the litmus test of substituting it back into the question.
+    <.p(""" To determine if an answer is correct, again use the litmus test of substituting it back into the question.
       It should form a grammatical sentence that is explicitly true according to the sentence.
-      When you are highlighting multiple answers, be sure to click a new answer slot for each one.
-      """),
+      When you are highlighting multiple answers, be sure to click a new answer slot for each one. """),
     <.p(" Please read through the examples at the bottom for a complete explanation. "),
 
     <.h2("""Question format"""),
@@ -271,11 +266,11 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         (with autocomplete checking your work) and then fill in the answers.
         You can use tab and shift+tab to switch between questions quickly."""),
       <.li("""Once you have written at least one question,
-        the autocomplete dropdown will start proposing completions of your question.
+        the autocomplete dropdown will start proposing completions of your other questions.
         These can significantly speed up your question writing,
         though keep in mind that the suggestions will not always be grammatical or answerable.
-        The suggestions are based on the structure of your previous questions, so to get the most out of the
-        autocomplete suggestions, write questions with more structure (e.g., "Who looked at someone?") rather than
+        The suggestions are based on the structure of your previous questions, so to get the most out of them,
+        write questions with more structure (e.g., "Who looked at someone?") rather than
         less (e.g., "Who looked?").
         """),
       <.li("""Highlight words for your answers by clicking or by dragging on words in the sentence.
@@ -299,7 +294,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           5c for the second question, 6c for the third, then 7c, etc.
           While at least one is required to submit the HIT,
           you will need to write more than two questions on average in order to stay qualified.
-          On average, it should take less than 30 seconds per question-answer pair, and much quicker with practice.
+          On average, it should take less than 30 seconds per question-answer pair, and be much quicker with practice.
           """),
     <.p("""Your questions will be evaluated by other annotators, and """,
         <.b(""" you will only be awarded bonuses for your valid question-answer pairs. """),
@@ -327,7 +322,8 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
         """ To begin working on this HIT, please request the question answering agreement qualification
             (it is auto-granted). Also, while there may be few HITs available at any one time,
-            more will be uploaded as other workers write questions for you to validate. """)
+            more will be uploaded as other workers write questions for you to validate.
+            (Task design last updated Sept 15, 2017; answers now may not overlap.)""")
 
   override val validationPostTaskInstructions = <.div(
     <.h2("""Task Summary"""),
@@ -345,13 +341,8 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.ul(
       <.li("Who blamed someone? --> ", <.span(Styles.goodGreen, " Protesters ")),
       <.li("Who did someone blame something on? --> ", <.span(Styles.goodGreen, " local officials / they")),
-      <.li("What did someone blame on someone? --> ", <.span(Styles.goodGreen, " the corruption scandal")),
-      <.li("Who refused to do something? --> ", <.span(Styles.goodGreen, " local officials / they")),
-      <.li("What did someone refuse to do? --> ", <.span(Styles.goodGreen, " promise that they would resume the investigation before year's end")),
-      <.li("When did someone refuse to do something? --> ", <.span(Styles.goodGreen, " today"))),
-    <.p(s"""You will be paid in accordance with the number of questions shown to you, with a bonus of
-            ${dollarsToCents(validationBonusPerQuestion)}c per question after the first four
-            that will be paid when the assignment is approved."""),
+      <.li("What did someone blame on someone? --> ", <.span(Styles.goodGreen, " the corruption scandal"))),
+    <.p(s"""You will be paid a ${dollarsToCents(validationBonusPerQuestion)}c bonus per question after the first $validationBonusThreshold questions if there are more than $validationBonusThreshold."""),
     <.h2("""Guidelines"""),
     <.p("""This task is best fit for native speakers of English.
         For each question, you will either """,
@@ -360,13 +351,15 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.p("Your answers will be phrases that you highlight in the sentence. They must satisfy all of the following criteria:"),
     <.ol(
       <.li("You must highlight every correct answer, including phrases such as pronouns that refer to the correct answer."),
+      <.li("None of your answers may overlap with each other. (This is enforced by the interface.)"),
       <.li("Include only the words relevant for answering the question, but if all else is equal, prefer longer answers.")),
     <.p(""" To determine whether an answer is correct, the litmus test is turning it into a sentence by substituting its answer in.
         For example: for the question """, <.span(Styles.bolded, " Who blamed someone?"), """, the answer """, <.span(Styles.bolded, " Protesters "), """ would be correct,
         because the sentence does imply that """, <.span(Styles.bolded, " Protesters blamed someone."), """."""),
-    <.p(""" Each question centers around some verb in the sentence. While that question is selected,
-        the corresponding verb in the sentence will be bolded. Use this to disambiguate in the case of repeat questions in sentences with
-        verbs that appear multiple times."""),
+    <.p("""All of the questions will center around some verb in the sentence, which will be bolded in the sentence.
+        Use this to disambiguate in case the verb appears multiple times."""),
+    <.p("""If all of the possible answers to a question have been taken by previous questions, please mark it invalid.
+        The annotators writing the questions are not supposed to repeat answers."""),
     <.h4("Invalid Questions"),
     <.p("""A question should be marked invalid if either of the following are true:"""),
     <.ul(
@@ -376,7 +369,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.p(""" To determine whether a question is grammatical, again use the litmus test above.
         For example: """, <.span(Styles.bolded, " Who blamed? --> Protesters"), """ would be wrong, because by substituting the answer back in, we get
         """, <.span(Styles.bolded, "Protesters blamed"), """, which is not a grammatical sentence. """),
-    <.p(" Occasionally, you may get questions that are about words that aren't verbs or are impossible to ask questions about. Please mark these invalid. "),
+    <.p(" Occasionally, you may get questions about words that aren't verbs or are impossible to ask questions about. Please mark these invalid. "),
 
     <.p(" Please read through the examples at the bottom for a complete explanation. "),
 
@@ -390,7 +383,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     ),
     <.h2("Conditions and payment"),
     <.p(s"""You will be paid a bonus of ${dollarsToCents(validationBonusPerQuestion)}c
-        for every question beyond $validationBonusThreshold.
+        for every question beyond $validationBonusThreshold, which will be paid when the assignment is approved.
         Your judgments will be cross-checked with other workers,
         and your agreement qualification value for this HIT will be updated to match your total agreement rate.
         If this number drops below ${(100 * validationAgreementBlockingThreshold).toInt}
