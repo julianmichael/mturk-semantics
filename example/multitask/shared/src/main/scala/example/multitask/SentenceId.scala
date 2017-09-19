@@ -1,32 +1,47 @@
-// package example.multitask
+package example.multitask
 
-// import nlpdata.datasets.ptb._
+import nlpdata.datasets.ptb3.PTB3SentencePath
+import nlpdata.datasets.ptb3.PTB3Path
+import nlpdata.datasets.ptb3.WSJPath
+import nlpdata.datasets.ptb3.BrownPath
+import nlpdata.datasets.conll.CoNLLPath
+import nlpdata.datasets.conll.CoNLLSentencePath
 
-// sealed trait SentenceId {
-//   def getPTB = Some(this) collect { case id @ PTBSentenceId(_) => id }
-//   def isPTB = getPTB.nonEmpty
+sealed trait SentenceId {
+  def getPTB = Some(this) collect { case id @ PTBSentenceId(_) => id }
+  def getCoNLL = Some(this) collect { case id @ CoNLLSentenceId(_) => id }
 
-//   def getWiki = Some(this) collect { case id @ WikiSentenceId(path) => id }
-//   def isWiki = getWiki.nonEmpty
-// }
-// case class PTBSentenceId(path: PTBSentencePath) extends SentenceId
+  def isPTB = getPTB.nonEmpty
+  def isCoNLL = getCoNLL.nonEmpty
+}
+case class PTBSentenceId(path: PTB3SentencePath) extends SentenceId
+case class CoNLLSentenceId(path: CoNLLSentencePath) extends SentenceId
 
-// object SentenceId {
+object SentenceId {
 
-//   val PTBMatch = "PTB:([^:]+):([0-9]+)".r
-//   val Wiki1kMatch = "Wiki1k:([^:]+):([^:]+):([0-9]+):([0-9]+)".r
+  // not necessarily used for serialization over the wire, but
+  // used for storing to / reading from  the dataset file.
+  def toString(sid: SentenceId): String = sid match {
+    case PTBSentenceId(PTB3SentencePath(WSJPath(section, number), sentenceNum)) =>
+      f"WSJ:$section%02d$number%02d:$sentenceNum%d"
+    case PTBSentenceId(PTB3SentencePath(BrownPath(domain, number), sentenceNum)) =>
+      f"BROWN:$domain%s$number%02d:$sentenceNum%d"
+    case CoNLLSentenceId(path) => s"CoNLL:${path.filePath.suffix}:${path.sentenceNum}"
+  }
 
-//   // not necessarily used for serialization over the wire, but
-//   // used for storing to / reading from  the dataset file.
-//   def toString(sid: SentenceId): String = sid match {
-//     case PTBSentenceId(path) => s"PTB:${path.filePath.suffix}:${path.sentenceNum}"
-//     case WikiSentenceId(path) => s"Wiki1k:${path.filePath.domain}:${path.filePath.suffix}:${path.paragraphNum}:${path.sentenceNum}"
-//   }
+  private[this] val WSJMatch = "WSJ:([0-9]+){2}([0-9]+){2}:([0-9]+)".r
+  private[this] val BrownMatch = "Brown:([^:]{2})[0-9]{2}:([0-9]+)".r
+  private[this] val CoNLLMatch = "CoNLL:([^:]+):([0-9]+)".r
+  private[this] object int {
+    def unapply(s: String): Option[Int] = scala.util.Try(s.toInt).toOption
+  }
 
-//   def fromString(s: String): SentenceId = s match {
-//     case PTBMatch(suffix, sentenceNum) =>
-//       PTBSentenceId(PTBSentencePath(PTBPath(suffix), sentenceNum.toInt))
-//     case Wiki1kMatch(domain, suffix, paragraphNum, sentenceNum) =>
-//       WikiSentenceId(Wiki1kSentencePath(Wiki1kPath(domain, suffix), paragraphNum.toInt, sentenceNum.toInt))
-//   }
-// }
+  def fromString(s: String): SentenceId = s match {
+    case WSJMatch(int(section), int(number), int(sentenceNum)) =>
+      PTBSentenceId(PTB3SentencePath(WSJPath(section, number), sentenceNum))
+    case BrownMatch(domain, int(number), int(sentenceNum)) =>
+      PTBSentenceId(PTB3SentencePath(BrownPath(domain, number), sentenceNum))
+    case CoNLLMatch(suffix, int(sentenceNum)) =>
+      CoNLLSentenceId(CoNLLSentencePath(CoNLLPath.fromPathSuffix(suffix).get, sentenceNum))
+  }
+}

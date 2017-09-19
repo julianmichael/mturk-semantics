@@ -12,7 +12,7 @@ val domain = "localhost" // change to your domain, or keep localhost for testing
 val projectName = "turksem-multitask" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
 
-val annotationPath = java.nio.file.Paths.get("annotations")
+val annotationPath = java.nio.file.Paths.get("annotations/multitask/final")
 implicit val timeout = akka.util.Timeout(5.seconds)
 implicit val config: TaskConfig = {
   if(isProduction) {

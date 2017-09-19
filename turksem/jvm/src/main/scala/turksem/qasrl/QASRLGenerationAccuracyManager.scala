@@ -143,7 +143,7 @@ object QASRLGenerationAccuracyManager {
     f"""
 Of your question-answer pairs that have been reviewed so far, ${math.round(curAccuracy * 10000.0) / 100.0}%.2f%% were judged valid by validators. $explanatoryText%s
 
-If you are not sure why your score is this low, we recommend reading over the examples in the instructions again. We are still iterating on the task design and we are not yet sure what the common sources of disagreement are. After this batch of HITs, we will reset everyone's qualification values and try again with changes to the instructions and interface.
+If you are not sure why your score is this low, we recommend reading over the examples in the instructions again. Remember to make sure your questions pass the litmus test: if you substitute the answer back into the question to form a complete statement, it should be grammatical and true according to the sentence.
 """.trim
   }
 

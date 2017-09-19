@@ -41,8 +41,8 @@ class Exp2Data {
     )
   }
 
-  implicit object SentenceIdHasTokens extends HasTokens[SentenceId] {
-    def getTokens(id: SentenceId): Vector[String] = PTB.getSentence(id).tokens
+  implicit object PTB3SentencePathHasTokens extends HasTokens[PTB3SentencePath] {
+    def getTokens(id: PTB3SentencePath): Vector[String] = PTB.getSentence(id).tokens
   }
 
   val hitDataService = new FileSystemHITDataService(Paths.get("annotations/multitask-exp2"))
@@ -81,8 +81,8 @@ class Exp2Data {
     Files.lines(path).iterator.asScala.toList
   }
 
-  def allGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SentenceId], List[VerbQA]](genHITTypeId).get
-  def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]](valHITTypeId).get
+  def allGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[PTB3SentencePath], List[VerbQA]](genHITTypeId).get
+  def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[PTB3SentencePath], List[QASRLValidationAnswer]](valHITTypeId).get
 
   lazy val QASRL = new qasrl.QASRLFileSystemService(
     resourcePath.resolve("qasrl"),
@@ -95,8 +95,8 @@ class Exp2Data {
 
   def writeReadableTSV = {
 
-    def writeId(id: SentenceId) = id.toString
-    val tsv = DataIO.makeReadableQAPairTSV[SentenceId](
+    def writeId(id: PTB3SentencePath) = id.toString
+    val tsv = DataIO.makeReadableQAPairTSV[PTB3SentencePath](
       ids = allIds.toList,
       writeId = writeId,
       anonymizeWorker = identity, // TODO
@@ -149,6 +149,44 @@ class Exp2Data {
   case class QASRLComparison(
     sentencePath: PTB3SentencePath,
     verbs: List[VerbComparison])
+
+  def getSomewhatInvalidQuestions(vc: VerbComparison) = {
+    vc.newQAs.filter(_.answers.size == 2)
+  }
+
+  def getVeryInvalidQuestions(vc: VerbComparison) = {
+    vc.newQAs.filter(_.answers.size == 1)
+  }
+
+  def renderSomewhatInvalidQAs(comparison: QASRLComparison) = {
+    val tokens = comparison.sentencePath.tokens
+    val renderedBadQAs = comparison.verbs.flatMap(vc =>
+      getSomewhatInvalidQuestions(vc).map { qa =>
+        val answersString = qa.answers
+          .map(a => a.map(Text.renderSpan(tokens, _)).mkString(" / "))
+          .mkString(" ### ")
+        s"${tokens(vc.verbIndex)} (${vc.verbIndex})\t${qa.question}\t$answersString"
+      }
+    )
+    if(renderedBadQAs.nonEmpty) {
+      Text.render(tokens) + "\n" + renderedBadQAs.mkString("\n") + "\n"
+    } else ""
+  }
+
+  def renderVeryInvalidQAs(comparison: QASRLComparison) = {
+    val tokens = comparison.sentencePath.tokens
+    val renderedBadQAs = comparison.verbs.flatMap(vc =>
+      getVeryInvalidQuestions(vc).map { qa =>
+        val answersString = qa.answers
+          .map(a => a.map(Text.renderSpan(tokens, _)).mkString(" / "))
+          .mkString(" ### ")
+        s"${tokens(vc.verbIndex)} (${vc.verbIndex})\t${qa.question}\t$answersString"
+      }
+    )
+    if(renderedBadQAs.nonEmpty) {
+      Text.render(tokens) + "\n" + renderedBadQAs.mkString("\n") + "\n"
+    } else ""
+  }
 
   lazy val qasrlComparisons = {
     val genInfos = allGenInfos

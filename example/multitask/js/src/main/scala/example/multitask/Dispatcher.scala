@@ -291,7 +291,8 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
 
     <.h2("""Conditions & Bonuses"""),
     <.p(s"""Each question-answer pair after the first will earn you a bonus:
-          5c for the second question, 6c for the third, then 7c, etc.
+          ${dollarsToCents(generationReward)}c for the second question, ${dollarsToCents(generationReward) + 1}c for the third
+          then ${dollarsToCents(generationReward) + 2}c, etc.
           While at least one is required to submit the HIT,
           you will need to write more than two questions on average in order to stay qualified.
           On average, it should take less than 30 seconds per question-answer pair, and be much quicker with practice.

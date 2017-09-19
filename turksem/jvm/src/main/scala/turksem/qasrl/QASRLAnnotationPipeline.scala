@@ -229,7 +229,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       QASRLGenerationApiResponse(stats, tokens, indicesWithInflectedForms)
   }
 
-  lazy val sampleGenPrompt = allPrompts.head
+  lazy val sampleGenPrompt = allPrompts(3)
 
   // validation task definition
 

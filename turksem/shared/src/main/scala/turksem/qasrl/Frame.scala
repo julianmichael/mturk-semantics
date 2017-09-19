@@ -125,8 +125,6 @@ object ArgumentSlot {
     State.modify[NonEmptyList[String]](s :: _)
   private[this] def pushAll(ss: NonEmptyList[String]) =
     State.modify[NonEmptyList[String]](x => ss ++ x.toList)
-  private[this] def peek =
-    State.get[NonEmptyList[String]].map(_.head)
   private[this] def modTop(f: String => String) =
     State.modify[NonEmptyList[String]](l => NonEmptyList(f(l.head), l.tail))
   private[this] def modForm(form: VerbForm) =
@@ -171,9 +169,7 @@ object ArgumentSlot {
   private[this] def append(word: String): StateT[List, List[String], Unit] =
     StateT.modify[List, List[String]](word :: _)
   private[this] def appendAll[F[_]: Foldable](fs: F[String]): StateT[List, List[String], Unit] =
-    fs.foldM[StateT[List, List[String], ?], Unit](()) {
-      case (_, s) => append(s)
-    }
+    fs.foldM[StateT[List, List[String], ?], Unit](()) { case (_, s) => append(s) }
   private[this] def choose[F[_]: Foldable, A](as: F[A]): StateT[List, List[String], A] =
     StateT.lift[List, List[String], A](as.toList)
   private[this] def pass: StateT[List, List[String], Unit] =
@@ -213,22 +209,22 @@ object ArgumentSlot {
     val qStateT = slot match {
       case Subj =>
         renderWhNoun(Subj) >>
-          renderAuxThroughVerb(false) >>
+          renderAuxThroughVerb(includeSubject = false) >>
           renderArgIfPresent(Obj) >>
           renderArgIfPresent(Obj2)
       case Obj =>
         renderWhNoun(Obj) >>
-          renderAuxThroughVerb(true) >>
-          renderGap(Obj2) >>
+          renderAuxThroughVerb(includeSubject = true) >>
+          renderGap(Obj) >>
           renderArgIfPresent(Obj2)
       case Obj2 =>
         renderWhOrAbort(Obj2) >>
-          renderAuxThroughVerb(true) >>
+          renderAuxThroughVerb(includeSubject = true) >>
           renderArgIfPresent(Obj) >>
           renderGap(Obj2)
       case Adv(wh) =>
         append(wh.toString.capitalize) >>
-          renderAuxThroughVerb(true) >>
+          renderAuxThroughVerb(includeSubject = true) >>
           renderArgIfPresent(Obj) >>
           renderArgIfPresent(Obj2)
     }

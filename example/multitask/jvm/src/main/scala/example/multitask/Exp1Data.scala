@@ -36,8 +36,8 @@ class Exp1Data {
     )
   }
 
-  implicit object SentenceIdHasTokens extends HasTokens[SentenceId] {
-    def getTokens(id: SentenceId): Vector[String] = PTB.getSentence(id).tokens
+  implicit object PTB3SentencePathHasTokens extends HasTokens[PTB3SentencePath] {
+    def getTokens(id: PTB3SentencePath): Vector[String] = PTB.getSentence(id).tokens
   }
 
   val annotationPath = java.nio.file.Paths.get("annotations")
@@ -78,11 +78,11 @@ class Exp1Data {
     Files.lines(path).iterator.asScala.toList
   }
 
-  def allSmallGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SentenceId], List[VerbQA]](smallGenHITTypeId).get
-  def allLargeGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SentenceId], List[VerbQA]](largeGenHITTypeId).get
+  def allSmallGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[PTB3SentencePath], List[VerbQA]](smallGenHITTypeId).get
+  def allLargeGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[PTB3SentencePath], List[VerbQA]](largeGenHITTypeId).get
   def allGenInfos = allSmallGenInfos ++ allLargeGenInfos
 
-  def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]](valHITTypeId).get
+  def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[PTB3SentencePath], List[QASRLValidationAnswer]](valHITTypeId).get
 
   def writeReadableTSV = {
     lazy val allIds = {
@@ -97,8 +97,8 @@ class Exp1Data {
       eligibleSentencePaths.toVector.take(100).sorted.toList
     }
 
-    def writeId(id: SentenceId) = id.toString
-    val tsv = DataIO.makeReadableQAPairTSV[SentenceId](
+    def writeId(id: PTB3SentencePath) = id.toString
+    val tsv = DataIO.makeReadableQAPairTSV[PTB3SentencePath](
       ids = allIds,
       writeId = writeId,
       anonymizeWorker = identity, // TODO

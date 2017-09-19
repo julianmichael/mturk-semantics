@@ -12,7 +12,7 @@ import turkey._
 import turkey.tasks._
 
 import nlpdata.structure._
-import nlpdata.datasets.wiki1k._
+import nlpdata.datasets.conll
 import nlpdata.datasets.wiktionary.Inflections
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.util.Text
@@ -41,7 +41,6 @@ import edu.stanford.nlp.process.WordTokenFactory
 import java.io.StringReader
 import java.nio.file.{Files, Path, Paths}
 
-
 import scala.util.Try
 import scala.util.Random
 
@@ -50,19 +49,41 @@ import upickle.default._
 
 class MultitaskAnnotationSetup(implicit config: TaskConfig) {
 
+  val label = "final"
+
+  val resourcePath = java.nio.file.Paths.get("resources")
+
+  // ignore file system errors.. the service should always succeed
+  lazy val PTB = {
+    new InterpretedPTB3Service(
+      λ[Try ~> Id](_.get) compose (new PTB3FileSystemInterpreter(resourcePath.resolve("ptb3")))
+    )
+  }
+
+  lazy val Wiktionary = new wiktionary.WiktionaryFileSystemService(
+    resourcePath.resolve("wiktionary")
+  )
+
+  lazy val CoNLL = new conll.CoNLLFileSystemService(
+    resourcePath.resolve("conll-2012")
+  ).interpretThrough(λ[Try ~> Id](_.get))
+
   implicit object SentenceIdHasTokens extends HasTokens[SentenceId] {
-    def getTokens(id: SentenceId): Vector[String] = PTB3.getSentence(id).tokens
+    def getTokens(id: SentenceId): Vector[String] = id match {
+      case PTBSentenceId(path) => PTB.getSentence(path).tokens
+      case CoNLLSentenceId(path) => CoNLL.getSentence(path).tokens
+    }
   }
 
   import java.nio.file.{Paths, Path, Files}
   private[this] val liveDataPath = if(config.isProduction) {
-    Paths.get("live-data/multitask-exp2/production")
+    Paths.get(s"live-data/multitask/$label/production")
   } else {
-    Paths.get("live-data/multitask-exp2/sandbox")
+    Paths.get(s"live-data/multitask/$label/sandbox")
   }
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  val staticDataPath = Paths.get("static-data/multitask/exp2")
+  val staticDataPath = Paths.get(s"static-data/multitask/$label")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
     val directory = staticDataPath.resolve("out")
@@ -93,30 +114,17 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
     Files.lines(path).iterator.asScala.toList
   }
 
-  val resourcePath = java.nio.file.Paths.get("resources")
-
-  // ignore file system errors.. the service should always succeed
-  val PTB3 = {
-    val getTry = new (Try ~> Id) {
-      def apply[A](a: Try[A]): Id[A] = a.get
+  lazy val allIds: Vector[SentenceId] = {
+    val shuffleRand = new Random(234348765L)
+    val brownPaths = {
+      val unshuffled = for {
+        path @ BrownPath("CK", _) <- PTB.getAllPaths
+        sentence <- PTB.getFile(path).sentences
+      } yield PTBSentenceId(sentence.path)
+      shuffleRand.shuffle(unshuffled.toVector)
     }
-    new InterpretedPTB3Service(
-      getTry compose (new PTB3FileSystemInterpreter(resourcePath.resolve("ptb3")))
-    )
+    brownPaths
   }
-
-  lazy val Wiktionary = new wiktionary.WiktionaryFileSystemService(
-    resourcePath.resolve("wiktionary")
-  )
-
-  lazy val QASRL = new qasrl.QASRLFileSystemService(
-    resourcePath.resolve("qasrl"),
-    new nlpdata.datasets.ptb.PTBFileSystemService(resourcePath.resolve("ptb"))
-  )
-
-  lazy val ptb3QASRLPaths = QASRL.allQASRLPaths.flatMap(PTB3SentencePath.fromPTBSentencePath)
-
-  lazy val allIds = ptb3QASRLPaths.drop(100).take(100).toVector
 
   implicit lazy val inflections = {
     val tokens = for {
