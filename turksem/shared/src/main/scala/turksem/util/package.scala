@@ -1,5 +1,6 @@
 package turksem
 
+import cats.data.NonEmptyList
 import cats.Foldable
 import cats.implicits._
 
@@ -40,9 +41,9 @@ package object util extends PackagePlatformExtensions {
 
   def pctString(num: Int, denom: Int): String =
     f"$num%d (${num * 100.0 / denom}%.2f%%)"
-  def distString[N](iter: Seq[N])(implicit N : Numeric[N]): String =
+  def distString[N](iter: NonEmptyList[N])(implicit N : Numeric[N]): String =
     f"${N.toDouble(iter.sum)}%.2f (${iter.mean}%.2f ± ${iter.stdev}%.4f)"
-  def noSumDistString[N](iter: Seq[N])(implicit N : Numeric[N]): String =
+  def noSumDistString[N](iter: NonEmptyList[N])(implicit N : Numeric[N]): String =
     f"${iter.mean}%.2f ± ${iter.stdev}%.4f"
 
   def const[A](a: A): Any => A = _ => a
@@ -66,21 +67,41 @@ package object util extends PackagePlatformExtensions {
     }
   }
 
-  // TODO make this return an option
-  implicit class RichSeq[A](val a: Seq[A]) extends AnyVal {
+  implicit class RichNonEmptyList[A](val a: NonEmptyList[A]) extends AnyVal {
     def mean(implicit N: Numeric[A]): Double =
       N.toDouble(a.sum) / a.size
-    def meanOpt(implicit N: Numeric[A]): Option[Double] =
-      if(a.isEmpty) None else Some(N.toDouble(a.sum) / a.size)
+
     def sse(implicit N: Numeric[A]): Double = {
       val m = a.mean
       a.map(x => math.pow(N.toDouble(x) - m, 2)).sum
     }
+
     def variance(implicit N: Numeric[A]) = a.sse / a.size
-    def varianceSample(implicit N: Numeric[A]) = a.sse / (a.size - 1)
 
     def stdev(implicit N: Numeric[A]) = math.sqrt(a.variance)
-    def stdevSample(implicit N: Numeric[A]) = math.sqrt(a.varianceSample)
+  }
+
+  implicit class RichFoldable[F[_]: Foldable, A](val fa: F[A]) {
+    def sum(implicit N: Numeric[A]): A = fa.foldLeft(N.fromInt(0))(N.plus)
+
+    def meanOpt(implicit N: Numeric[A]): Option[Double] = {
+      val (sum, count) = fa.foldLeft(N.fromInt(0), N.fromInt(0)) {
+        case ((curSum, curCount), a) => (N.plus(curSum, a), N.plus(curCount, N.fromInt(1)))
+      }
+      if(count == 0) None else Some(N.toDouble(sum) / N.toDouble(count))
+    }
+
+    // TODO other optional versions
+
+    // def sse(implicit N: Numeric[A]): Double = {
+    //   val m = a.mean
+    //   a.map(x => math.pow(N.toDouble(x) - m, 2)).sum
+    // }
+    // def variance(implicit N: Numeric[A]) = a.sse / a.size
+    // def varianceSample(implicit N: Numeric[A]) = a.sse / (a.size - 1)
+
+    // def stdev(implicit N: Numeric[A]) = math.sqrt(a.variance)
+    // def stdevSample(implicit N: Numeric[A]) = math.sqrt(a.varianceSample)
   }
 
   implicit class RichList[A](val as: List[A]) extends AnyVal {

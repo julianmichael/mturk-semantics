@@ -378,7 +378,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
       if hi.assignments.exists(_.workerId == workerId)
       workerAssignment = hi.assignments.find(_.workerId == workerId).get
       nonWorkerAssignments = hi.assignments.filter(_.workerId != workerId)
-      avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(a => ValidationAnswer.numAgreed(workerAssignment.response, a.response)).mean
+      avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(a => ValidationAnswer.numAgreed(workerAssignment.response, a.response)).meanOpt.get
     } yield (HITInfo(hi.hit, workerAssignment :: nonWorkerAssignments), avgNumDisagreed)
     scored.sortBy(_._2).map(_._1)
   }

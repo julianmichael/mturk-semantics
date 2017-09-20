@@ -58,7 +58,7 @@ object QASRLValidationAnswer {
   }
 
   def numValidQuestions(responses: List[List[QASRLValidationAnswer]]) =
-    math.round(responses.map(_.filter(_.isAnswer).size).mean - 0.01).toInt
+    math.round(responses.map(_.filter(_.isAnswer).size).meanOpt.get - 0.01).toInt
 
   // render a validation answer for the purpose of writing to a file
   // (just writes the highlighted indices of the answer; not readable)
