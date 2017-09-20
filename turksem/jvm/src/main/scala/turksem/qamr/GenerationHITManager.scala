@@ -145,7 +145,7 @@ class GenerationHITManager[SID : Reader : Writer](
     case vr: ValidationResult[SID] => vr match {
       case ValidationResult(prompt: GenerationPrompt[SID], hitId, assignmentId, numQAsValid) =>
         val ha = for {
-          hit <- hitDataService.getHIT[GenerationPrompt[SID]](hitTypeId, hitId).toOptionPrinting.toList
+          hit <- hitDataService.getHIT[GenerationPrompt[SID]](hitTypeId, hitId).toOptionLogging(logger).toList
           assignment <- hitDataService.getAssignmentsForHIT[List[WordedQAPair]](hitTypeId, hitId).get
           if assignment.assignmentId == assignmentId
         } yield (hit, assignment)

@@ -46,10 +46,11 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
     }
 
   private[this] def save = {
-    annotationDataService.saveLiveData(
-      workerStatsFilename,
-      write[Map[String, WorkerStats]](allWorkerStats))
-    logger.info("Worker stats data saved.")
+    Try(
+      annotationDataService.saveLiveData(
+        workerStatsFilename,
+        write[Map[String, WorkerStats]](allWorkerStats))
+    ).toOptionLogging(logger).foreach(_ => logger.info("Worker stats data saved."))
   }
 
   override def receive = {
@@ -57,7 +58,7 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
     case vr: QASRLValidationResult[SID] => vr match {
       case QASRLValidationResult(prompt, hitTypeId, hitId, assignmentId, numQAsValid) =>
         val ha = for {
-          hit <- hitDataService.getHIT[GenerationPrompt[SID]](hitTypeId, hitId).toOptionPrinting.toList
+          hit <- hitDataService.getHIT[GenerationPrompt[SID]](hitTypeId, hitId).toOptionLogging(logger).toList
           assignment <- hitDataService.getAssignmentsForHIT[List[VerbQA]](hitTypeId, hitId).get
           if assignment.assignmentId == assignmentId
         } yield (hit, assignment)
@@ -67,11 +68,13 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
           val numSpecialWords = prompt.keywords.size
           val numQAsProvided = assignment.response.size
           val bonusAwarded = generationBonus(numQAsValid)
+          val bonusCents = dollarsToCents(bonusAwarded)
           if(bonusAwarded > 0.0) {
-            service.grantBonus(
-              assignment.workerId, bonusAwarded, assignment.assignmentId,
-              s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
-            ${dollarsToCents(bonusAwarded)}c.""")
+            Try(
+              service.grantBonus(
+                assignment.workerId, bonusAwarded, assignment.assignmentId,
+                s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid, for a bonus of ${bonusCents}c.""")
+            ).toOptionLogging(logger).ifEmpty(logger.error(s"Failed to grant bonus of $bonusCents to worker ${assignment.workerId}"))
           }
 
           val stats = allWorkerStats
@@ -85,29 +88,39 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
           val newStats = stats.warnedAt match {
             case None =>
               // set soft qualification since no warning yet
-              config.service.updateQualificationScore(
-                genQualificationTypeId,
-                assignment.workerId,
-                math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+              val newQualValue = math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt
+              Try(
+                config.service.updateQualificationScore(
+                  genQualificationTypeId,
+                  assignment.workerId,
+                  newQualValue)
+              ).toOptionLogging(logger).ifEmpty(logger.error(s"Failed to update qualification score of worker ${assignment.workerId} to $newQualValue"))
+
               if(stats.accuracy < generationAccuracyWarningThreshold &&
                    stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
 
-                service.notifyWorkers(
-                  "Notification (warning) regarding the question-answer task",
-                  notificationEmailText(stats.accuracy),
-                  Array(assignment.workerId))
+                Try(
+                  service.notifyWorkers(
+                    "Notification (warning) regarding the question-answer task",
+                    notificationEmailText(stats.accuracy),
+                    Array(assignment.workerId))
+                ).toOptionLogging(logger) match {
+                  case Some(_) => logger.info(s"Generation worker ${assignment.workerId} warned at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
+                  case None => logger.error(s"Failed to send warning notification to worker ${assignment.workerId}")
+                }
 
-                logger.info(s"Generation worker ${assignment.workerId} warned at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
                 stats.warned
 
               } else stats
             case Some(numWhenWarned) =>
               if(stats.numAssignmentsCompleted - numWhenWarned >= generationBufferBeforeBlocking) {
 
-                config.service.updateQualificationScore(
-                  genQualificationTypeId,
-                  assignment.workerId,
-                  math.ceil(100 * stats.accuracy).toInt)
+                Try(
+                  config.service.updateQualificationScore(
+                    genQualificationTypeId,
+                    assignment.workerId,
+                    math.ceil(100 * stats.accuracy).toInt)
+                )
 
                 if(math.ceil(stats.accuracy).toInt < generationAccuracyBlockingThreshold) {
                   logger.info(s"Generation worker ${assignment.workerId} DQ'd at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
@@ -116,10 +129,12 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
 
               } else {
                 // set soft qualification since still in buffer zone
-                config.service.updateQualificationScore(
-                  genQualificationTypeId,
-                  assignment.workerId,
-                  math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+                Try(
+                  config.service.updateQualificationScore(
+                    genQualificationTypeId,
+                    assignment.workerId,
+                    math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+                )
                 stats
               }
           }
