@@ -10,10 +10,12 @@ object QASRLSettings {
 
   // annotation pipeline hyperparameters
 
-  val generationReward = 0.07
+  val generationRewardCents = 7
+  val generationReward = generationRewardCents * 0.01
 
   final def generationBonus(nValidQAs: Int) = {
-    val cents = math.max(0, (0 until nValidQAs).map(_ + generationReward - 1).sum - generationReward)
+    // no bonus for the first question, hence -1
+    val cents = (0 until (nValidQAs - 1)).map(_ + generationRewardCents).sum
     cents * 0.01
   }
 
