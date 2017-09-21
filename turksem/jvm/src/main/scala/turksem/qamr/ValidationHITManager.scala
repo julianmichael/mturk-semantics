@@ -13,8 +13,9 @@ import upickle.default.Reader
 
 import akka.actor.ActorRef
 
-import com.amazonaws.mturk.requester.AssignmentStatus
-import com.amazonaws.mturk.requester.HITStatus
+import com.amazonaws.services.mturk.model.AssociateQualificationWithWorkerRequest
+import com.amazonaws.services.mturk.model.SendBonusRequest
+import com.amazonaws.services.mturk.model.NotifyWorkersRequest
 
 import upickle.default._
 
@@ -159,17 +160,21 @@ class ValidationHITManager[SID : Reader : Writer] private (
     else worker.warnedAt match {
       case None =>
         // set soft qualification since no warning yet
-        config.service.updateQualificationScore(
-          valQualificationTypeId,
-          worker.workerId,
-          math.ceil(100 * math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
+        config.service.associateQualificationWithWorker(
+          new AssociateQualificationWithWorkerRequest()
+            .withQualificationTypeId(valQualificationTypeId)
+            .withWorkerId(worker.workerId)
+            .withIntegerValue(math.ceil(100 * math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
+            .withSendNotification(false))
+
         if(worker.agreement < validationAgreementWarningThreshold &&
              worker.numAssignmentsCompleted >= validationBufferBeforeWarning) {
 
           service.notifyWorkers(
-            "Notification (warning + tips) regarding the question answering task",
-            notificationEmailText(worker.agreement),
-            Array(worker.workerId))
+            new NotifyWorkersRequest()
+              .withSubject("Notification (warning + tips) regarding the question answering task")
+              .withMessageText(notificationEmailText(worker.agreement))
+              .withWorkerIds(worker.workerId))
 
           logger.info(s"Validation worker ${worker.workerId} warned at ${worker.numAssignmentsCompleted} with accuracy ${worker.agreement}")
           worker.warned
@@ -177,10 +182,13 @@ class ValidationHITManager[SID : Reader : Writer] private (
         } else worker
       case Some(numWhenWarned) =>
         if(worker.numAssignmentsCompleted - numWhenWarned >= validationBufferBeforeBlocking) {
-          config.service.updateQualificationScore(
-            valQualificationTypeId,
-            worker.workerId,
-            math.ceil(100 * worker.agreement).toInt)
+          config.service.associateQualificationWithWorker(
+            new AssociateQualificationWithWorkerRequest()
+              .withQualificationTypeId(valQualificationTypeId)
+              .withWorkerId(worker.workerId)
+              .withIntegerValue(math.ceil(100 * worker.agreement).toInt)
+              .withSendNotification(false))
+
           if(math.ceil(worker.agreement).toInt < validationAgreementBlockingThreshold) {
 
             logger.info(s"Validation worker ${worker.workerId} DQ'd at ${worker.numAssignmentsCompleted} with accuracy ${worker.agreement}")
@@ -188,10 +196,12 @@ class ValidationHITManager[SID : Reader : Writer] private (
           } else worker
         } else {
           // set soft qualification since still in buffer zone
-          config.service.updateQualificationScore(
-            valQualificationTypeId,
-            worker.workerId,
-            math.ceil(100 * math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
+          config.service.associateQualificationWithWorker(
+            new AssociateQualificationWithWorkerRequest()
+              .withQualificationTypeId(valQualificationTypeId)
+              .withWorkerId(worker.workerId)
+              .withIntegerValue(math.ceil(100 * math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
+              .withSendNotification(false))
           worker
         }
     }
@@ -211,9 +221,12 @@ class ValidationHITManager[SID : Reader : Writer] private (
     val numQuestions = hit.prompt.qaPairs.size
     val totalBonus = validationBonus(numQuestions)
     if(totalBonus > 0.0) {
-      service.grantBonus(
-        workerId, totalBonus, assignment.assignmentId,
-        s"Bonus of ${dollarsToCents(totalBonus)}c awarded for validating $numQuestions questions."
+      service.sendBonus(
+        new SendBonusRequest()
+          .withWorkerId(workerId)
+          .withBonusAmount(f"$totalBonus%.2f")
+          .withAssignmentId(assignment.assignmentId)
+          .withReason(s"Bonus of ${dollarsToCents(totalBonus)}c awarded for validating $numQuestions questions.")
       )
     }
 

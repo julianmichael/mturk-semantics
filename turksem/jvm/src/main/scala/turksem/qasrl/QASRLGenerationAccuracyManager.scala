@@ -17,8 +17,11 @@ import upickle.default.Reader
 
 import akka.actor.{Actor, ActorRef}
 
-import com.amazonaws.mturk.requester.AssignmentStatus
-import com.amazonaws.mturk.requester.HITStatus
+import com.amazonaws.services.mturk.model.AssignmentStatus
+import com.amazonaws.services.mturk.model.HITStatus
+import com.amazonaws.services.mturk.model.SendBonusRequest
+import com.amazonaws.services.mturk.model.NotifyWorkersRequest
+import com.amazonaws.services.mturk.model.AssociateQualificationWithWorkerRequest
 
 import upickle.default._
 
@@ -71,9 +74,13 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
           val bonusCents = dollarsToCents(bonusAwarded)
           if(bonusAwarded > 0.0) {
             Try(
-              service.grantBonus(
-                assignment.workerId, bonusAwarded, assignment.assignmentId,
-                s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid, for a bonus of ${bonusCents}c.""")
+              service.sendBonus(
+                new SendBonusRequest()
+                  .withWorkerId(assignment.workerId)
+                  .withBonusAmount(f"$bonusAwarded%.2f")
+                  .withAssignmentId(assignment.assignmentId)
+                  .withReason(
+                  s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid, for a bonus of ${bonusCents}c."""))
             ).toOptionLogging(logger).ifEmpty(logger.error(s"Failed to grant bonus of $bonusCents to worker ${assignment.workerId}"))
           }
 
@@ -90,10 +97,11 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
               // set soft qualification since no warning yet
               val newQualValue = math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt
               Try(
-                config.service.updateQualificationScore(
-                  genQualificationTypeId,
-                  assignment.workerId,
-                  newQualValue)
+                config.service.associateQualificationWithWorker(
+                  new AssociateQualificationWithWorkerRequest()
+                    .withQualificationTypeId(genQualificationTypeId)
+                    .withWorkerId(assignment.workerId)
+                    .withIntegerValue(newQualValue))
               ).toOptionLogging(logger).ifEmpty(logger.error(s"Failed to update qualification score of worker ${assignment.workerId} to $newQualValue"))
 
               if(stats.accuracy < generationAccuracyWarningThreshold &&
@@ -101,9 +109,10 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
 
                 Try(
                   service.notifyWorkers(
-                    "Notification (warning) regarding the question-answer task",
-                    notificationEmailText(stats.accuracy),
-                    Array(assignment.workerId))
+                    new NotifyWorkersRequest()
+                      .withSubject("Notification (warning) regarding the question-answer task")
+                      .withMessageText(notificationEmailText(stats.accuracy))
+                      .withWorkerIds(assignment.workerId))
                 ).toOptionLogging(logger) match {
                   case Some(_) => logger.info(s"Generation worker ${assignment.workerId} warned at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
                   case None => logger.error(s"Failed to send warning notification to worker ${assignment.workerId}")
@@ -116,10 +125,11 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
               if(stats.numAssignmentsCompleted - numWhenWarned >= generationBufferBeforeBlocking) {
 
                 Try(
-                  config.service.updateQualificationScore(
-                    genQualificationTypeId,
-                    assignment.workerId,
-                    math.ceil(100 * stats.accuracy).toInt)
+                  config.service.associateQualificationWithWorker(
+                    new AssociateQualificationWithWorkerRequest()
+                      .withQualificationTypeId(genQualificationTypeId)
+                      .withWorkerId(assignment.workerId)
+                      .withIntegerValue(math.ceil(100 * stats.accuracy).toInt))
                 )
 
                 if(math.ceil(stats.accuracy).toInt < generationAccuracyBlockingThreshold) {
@@ -130,10 +140,11 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
               } else {
                 // set soft qualification since still in buffer zone
                 Try(
-                  config.service.updateQualificationScore(
-                    genQualificationTypeId,
-                    assignment.workerId,
-                    math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+                  config.service.associateQualificationWithWorker(
+                    new AssociateQualificationWithWorkerRequest()
+                      .withQualificationTypeId(genQualificationTypeId)
+                      .withWorkerId(assignment.workerId)
+                      .withIntegerValue(math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt))
                 )
                 stats
               }

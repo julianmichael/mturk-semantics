@@ -19,8 +19,7 @@ import upickle.default.Reader
 
 import akka.actor.ActorRef
 
-import com.amazonaws.mturk.requester.AssignmentStatus
-import com.amazonaws.mturk.requester.HITStatus
+import com.amazonaws.services.mturk.model.AssociateQualificationWithWorkerRequest
 
 import upickle.default._
 
@@ -61,13 +60,11 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
   private[this] def flagBadSentence(id: SID) = {
     badSentences = badSentences + id
     save
-    service.searchAllHITs.iterator
-      .filter(hit => hit.getHITTypeId == hitTypeId)
-      .map(_.getHITId)
-      .map(hitDataService.getHIT[GenerationPrompt[SID]](hitTypeId, _).get)
-      .filter(_.prompt.id == id)
-      .map(_.hitId)
-      .foreach(service.disableHIT)
+    for {
+      (prompt, hitInfos) <- activeHITInfosByPromptIterator
+      if prompt.id == id
+      HITInfo(hit, _) <- hitInfos
+    } yield helper.expireHIT(hit)
   }
 
   val coverageStatsFilename = "coverageStats"
@@ -115,10 +112,11 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
       questionsPerVerb
     }
     val newQualValue = math.floor(clampedQsPerVerb * 10).toInt
-    config.service.updateQualificationScore(
-      coverageQualificationTypeId,
-      assignment.workerId,
-      newQualValue)
+    config.service.associateQualificationWithWorker(
+      new AssociateQualificationWithWorkerRequest()
+        .withQualificationTypeId(coverageQualificationTypeId)
+        .withWorkerId(assignment.workerId)
+        .withIntegerValue(newQualValue))
     val validationPrompt = QASRLValidationPrompt(hit.prompt, hit.hitTypeId, hit.hitId, assignment.assignmentId, assignment.response)
     validationActor ! validationHelper.Message.AddPrompt(validationPrompt)
     // sentenceTrackingActor ! ValidationBegun(validationPrompt)

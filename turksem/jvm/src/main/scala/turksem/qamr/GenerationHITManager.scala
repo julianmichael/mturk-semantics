@@ -13,9 +13,9 @@ import upickle.default.Reader
 
 import akka.actor.ActorRef
 
-import com.amazonaws.mturk.requester.AssignmentStatus
-import com.amazonaws.mturk.requester.HITStatus
-
+import com.amazonaws.services.mturk.model.AssociateQualificationWithWorkerRequest
+import com.amazonaws.services.mturk.model.SendBonusRequest
+import com.amazonaws.services.mturk.model.NotifyWorkersRequest
 import upickle.default._
 
 import com.typesafe.scalalogging.StrictLogging
@@ -82,13 +82,11 @@ class GenerationHITManager[SID : Reader : Writer](
   private[this] def flagBadSentence(id: SID) = {
     badSentences = badSentences + id
     save
-    service.searchAllHITs.iterator
-      .filter(hit => hit.getHITTypeId == hitTypeId)
-      .map(_.getHITId)
-      .map(hitDataService.getHIT[GenerationPrompt[SID]](hitTypeId, _).get)
-      .filter(_.prompt.id == id)
-      .map(_.hitId)
-      .foreach(service.disableHIT)
+    for {
+      (prompt, hitInfos) <- activeHITInfosByPromptIterator
+      if prompt.id == id
+      HITInfo(hit, _) <- hitInfos
+    } yield helper.expireHIT(hit)
   }
 
   val workerStatsFilename = "generationWorkerStats"
@@ -156,11 +154,15 @@ class GenerationHITManager[SID : Reader : Writer](
           val numQAsProvided = assignment.response.size
           val bonusAwarded = generationBonus(numSpecialWords, numQAsValid)
           if(bonusAwarded > 0.0) {
-            service.grantBonus(
-              assignment.workerId, bonusAwarded, assignment.assignmentId,
-              s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
-            where at least $numSpecialWords were required, for a bonus of
-            ${dollarsToCents(bonusAwarded)}c.""")
+            service.sendBonus(
+              new SendBonusRequest()
+                .withWorkerId(assignment.workerId)
+                .withBonusAmount(f"$bonusAwarded%.2f")
+                .withAssignmentId(assignment.assignmentId)
+                .withReason(s"""$numQAsValid out of $numQAsProvided question-answer pairs were judged to be valid,
+                  where at least $numSpecialWords were required, for a bonus of
+                  ${dollarsToCents(bonusAwarded)}c.""".replace("\\s+", " "))
+            )
           }
 
           val stats = allWorkerStats
@@ -174,17 +176,20 @@ class GenerationHITManager[SID : Reader : Writer](
           val newStats = stats.warnedAt match {
             case None =>
               // set soft qualification since no warning yet
-              config.service.updateQualificationScore(
-                genQualificationTypeId,
-                assignment.workerId,
-                math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+              config.service.associateQualificationWithWorker(
+                new AssociateQualificationWithWorkerRequest()
+                  .withQualificationTypeId(genQualificationTypeId)
+                  .withWorkerId(assignment.workerId)
+                  .withIntegerValue(math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+                  .withSendNotification(false))
               if(stats.accuracy < generationAccuracyWarningThreshold &&
                    stats.numAssignmentsCompleted >= generationBufferBeforeWarning) {
 
                 service.notifyWorkers(
-                  "Notification (warning + tips) regarding the question-answer task",
-                  notificationEmailText(stats.accuracy),
-                  Array(assignment.workerId))
+                  new NotifyWorkersRequest()
+                    .withSubject("Notification (warning + tips) regarding the question-answer task")
+                    .withMessageText(notificationEmailText(stats.accuracy))
+                    .withWorkerIds(assignment.workerId))
 
                 logger.info(s"Generation worker ${assignment.workerId} warned at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
                 stats.warned
@@ -193,10 +198,12 @@ class GenerationHITManager[SID : Reader : Writer](
             case Some(numWhenWarned) =>
               if(stats.numAssignmentsCompleted - numWhenWarned >= generationBufferBeforeBlocking) {
 
-                config.service.updateQualificationScore(
-                  genQualificationTypeId,
-                  assignment.workerId,
-                  math.ceil(100 * stats.accuracy).toInt)
+                config.service.associateQualificationWithWorker(
+                  new AssociateQualificationWithWorkerRequest()
+                    .withQualificationTypeId(genQualificationTypeId)
+                    .withWorkerId(assignment.workerId)
+                    .withIntegerValue(math.ceil(100 * stats.accuracy).toInt)
+                    .withSendNotification(false))
 
                 if(math.ceil(stats.accuracy).toInt < generationAccuracyBlockingThreshold) {
                   logger.info(s"Generation worker ${assignment.workerId} DQ'd at ${stats.numAssignmentsCompleted} with accuracy ${stats.accuracy}")
@@ -205,10 +212,13 @@ class GenerationHITManager[SID : Reader : Writer](
 
               } else {
                 // set soft qualification since still in buffer zone
-                config.service.updateQualificationScore(
-                  genQualificationTypeId,
-                  assignment.workerId,
-                  math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+                config.service.associateQualificationWithWorker(
+                  new AssociateQualificationWithWorkerRequest()
+                    .withQualificationTypeId(genQualificationTypeId)
+                    .withWorkerId(assignment.workerId)
+                    .withIntegerValue(math.ceil(100 * math.max(stats.accuracy, generationAccuracyBlockingThreshold)).toInt)
+                    .withSendNotification(false))
+
                 stats
               }
           }

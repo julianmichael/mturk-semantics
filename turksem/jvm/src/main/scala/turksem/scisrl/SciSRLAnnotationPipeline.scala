@@ -4,8 +4,7 @@ import cats.implicits._
 
 import akka.actor.Props
 import akka.stream.scaladsl.{Flow, Source}
-import com.amazonaws.mturk.requester.QualificationRequirement
-import com.amazonaws.mturk.service.axis.RequesterService
+import com.amazonaws.services.mturk.model.QualificationRequirement
 
 import nlpdata.util.Text
 import nlpdata.util.HasTokens
@@ -145,7 +144,7 @@ class SciSRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     genActor ! Stop
   }
   def disable() = {
-    genActor ! Disable
+    genActor ! Delete
   }
   def expire() = {
     genActor ! Expire

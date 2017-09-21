@@ -4,8 +4,12 @@ import cats.implicits._
 
 import akka.actor._
 import akka.stream.scaladsl.{Flow, Source}
-import com.amazonaws.mturk.requester._
-import com.amazonaws.mturk.service.axis.RequesterService
+
+import com.amazonaws.services.mturk.model.QualificationRequirement
+import com.amazonaws.services.mturk.model.QualificationTypeStatus
+import com.amazonaws.services.mturk.model.Locale
+import com.amazonaws.services.mturk.model.ListQualificationTypesRequest
+import com.amazonaws.services.mturk.model.CreateQualificationTypeRequest
 
 import nlpdata.util.Text
 import nlpdata.util.HasTokens
@@ -21,6 +25,8 @@ import upickle.default._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+
+import scala.collection.JavaConverters._
 
 class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
@@ -49,91 +55,105 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   import config.hitDataService
 
-  val approvalRateRequirement = new QualificationRequirement(
-    RequesterService.APPROVAL_RATE_QUALIFICATION_TYPE_ID,
-    Comparator.GreaterThanOrEqualTo, 95,
-    null, true)
+  val approvalRateQualificationTypeID = "000000000000000000L0"
+  val approvalRateRequirement = new QualificationRequirement()
+    .withQualificationTypeId(approvalRateQualificationTypeID)
+    .withComparator("GreaterThanOrEqualTo")
+    .withIntegerValues(95)
+    .withRequiredToPreview(false)
 
-  val locationRequirement = new QualificationRequirement(
-    RequesterService.LOCALE_QUALIFICATION_TYPE_ID,
-    Comparator.EqualTo, null,
-    new Locale("US"), true)
+  val localeQualificationTypeID = "00000000000000000071"
+  val localeRequirement = new QualificationRequirement()
+    .withQualificationTypeId(localeQualificationTypeID)
+    .withComparator("EqualTo")
+    .withLocaleValues(new Locale().withCountry("US"))
+    .withRequiredToPreview(false)
 
   val genAccQualTypeLabelString = generationAccuracyQualTypeLabel.fold("")(x => s"[$x] ")
   val genAccQualTypeName = s"${genAccQualTypeLabelString}Question-answer writing accuracy % (auto-granted)"
-  val genAccQualType = config.service.searchQualificationTypes(
-    genAccQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
-  ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == genAccQualTypeName)).getOrElse {
+  val genAccQualType = config.service.listQualificationTypes(
+    new ListQualificationTypesRequest()
+      .withQuery(genAccQualTypeName)
+      .withMustBeOwnedByCaller(true)
+      .withMustBeRequestable(false)
+  ).getQualificationTypes.asScala.toList.find(_.getName == genAccQualTypeName).getOrElse {
     System.out.println("Generating generation qualification type...")
     config.service.createQualificationType(
-      genAccQualTypeName,
-      "language,english,question answering",
-      """The rate at which questions provided for our
-       question-answer generation task were judged
-       valid and non-redundant, using the input of validators.""".replaceAll("\\s+", " "),
-      QualificationTypeStatus.Active,
-      null, // retry delay (seconds)
-      null, null, null, // these 3 are for a test/answer key
-      true, // auto granted
-      101 // auto granted value
-    )
+      new CreateQualificationTypeRequest()
+        .withName(genAccQualTypeName)
+        .withKeywords("language,english,question answering")
+        .withDescription("""The rate at which questions provided for our
+          question-answer generation task were judged
+          valid and non-redundant, using the input of validators.""".replaceAll("\\s+", " "))
+        .withQualificationTypeStatus(QualificationTypeStatus.Active)
+        .withAutoGranted(true)
+        .withAutoGrantedValue(101)
+    ).getQualificationType
   }
   val genAccQualTypeId = genAccQualType.getQualificationTypeId
-  val genAccuracyRequirement = new QualificationRequirement(
-    genAccQualTypeId,
-    Comparator.GreaterThanOrEqualTo, (math.round(generationAccuracyBlockingThreshold * 100.0).toInt),
-    null, false)
+  val genAccuracyRequirement = new QualificationRequirement()
+    .withQualificationTypeId(genAccQualTypeId)
+    .withComparator("GreaterThanOrEqualTo")
+    .withIntegerValues(math.round(generationAccuracyBlockingThreshold * 100.0).toInt)
+    .withRequiredToPreview(false)
 
   val valAgrQualTypeLabelString = validationAgreementQualTypeLabel.fold("")(x => s"[$x] ")
   val valAgrQualTypeName = s"${valAgrQualTypeLabelString}Question answering agreement % (auto-granted)"
-  val valAgrQualType = config.service.searchQualificationTypes(
-    valAgrQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
-  ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == valAgrQualTypeName)).getOrElse {
+  val valAgrQualType = config.service.listQualificationTypes(
+    new ListQualificationTypesRequest()
+      .withQuery(valAgrQualTypeName)
+      .withMustBeOwnedByCaller(true)
+      .withMustBeRequestable(false)
+  ).getQualificationTypes.asScala.toList.find(_.getName == genAccQualTypeName).getOrElse {
     System.out.println("Generating validation qualification type...")
     config.service.createQualificationType(
-      valAgrQualTypeName,
-      "language,english,question answering",
-      """The rate at which answers and validity judgments
-       in our question answering task agreed with other validators.""".replaceAll("\\s+", " "),
-      QualificationTypeStatus.Active,
-      null, // retry delay (seconds)
-      null, null, null, // these 3 are for a test/answer key
-      true, // auto granted
-      101 // auto granted value
-    )
+      new CreateQualificationTypeRequest()
+        .withName(valAgrQualTypeName)
+        .withKeywords("language,english,question answering")
+        .withDescription("""The rate at which answers and validity judgments
+          in our question answering task agreed with other validators.""".replaceAll("\\s+", " "))
+        .withQualificationTypeStatus(QualificationTypeStatus.Active)
+        .withAutoGranted(true)
+        .withAutoGrantedValue(101)
+    ).getQualificationType
   }
   val valAgrQualTypeId = valAgrQualType.getQualificationTypeId
-  val valAgreementRequirement = new QualificationRequirement(
-    valAgrQualTypeId,
-    Comparator.GreaterThanOrEqualTo, (math.round(validationAgreementBlockingThreshold * 100.0).toInt),
-    null, false)
+  val valAgreementRequirement = new QualificationRequirement()
+    .withQualificationTypeId(valAgrQualTypeId)
+    .withComparator("GreaterThanOrEqualTo")
+    .withIntegerValues(math.round(validationAgreementBlockingThreshold * 100.0).toInt)
+    .withRequiredToPreview(false)
 
   val valTestQualTypeLabelString = validationTestQualTypeLabel.fold("")(x => s"[$x] ")
   val valTestQualTypeName = if(config.isProduction) s"${valTestQualTypeLabelString}Question answering test score (%)"
                             else "Sandbox test score qual"
-  val valTestQualType = config.service.searchQualificationTypes(
-    valTestQualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
-  ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == valTestQualTypeName)).getOrElse {
+  val valTestQualType = config.service.listQualificationTypes(
+    new ListQualificationTypesRequest()
+      .withQuery(valTestQualTypeName)
+      .withMustBeOwnedByCaller(true)
+      .withMustBeRequestable(false)
+  ).getQualificationTypes.asScala.toList.find(_.getName == valTestQualTypeName).getOrElse {
     System.out.println("Generating validation test qualification type...")
     config.service.createQualificationType(
-      valTestQualTypeName,
-      "language,english,question answering",
-      """Score on the qualification test for the question answering task,
-         as a test of your understanding of the instructions.""".replaceAll("\\s+", " "),
-      QualificationTypeStatus.Active,
-      300L, // retry delay (seconds) --- 5 minutes
-      qualTest.testString, // test: QuestionForm
-      qualTest.answerKeyString, // AnswerKey
-      1200L, // test time limit (seconds) --- 30 minutes
-      false, // auto granted
-      null // auto granted value
-    )
+      new CreateQualificationTypeRequest()
+        .withName(valTestQualTypeName)
+        .withKeywords("language,english,question answering")
+        .withDescription("""Score on the qualification test for the question answering task,
+          as a test of your understanding of the instructions.""".replaceAll("\\s+", " "))
+        .withQualificationTypeStatus(QualificationTypeStatus.Active)
+        .withRetryDelayInSeconds(300L)
+        .withTest(qualTest.testString)
+        .withAnswerKey(qualTest.answerKeyString)
+        .withTestDurationInSeconds(1200L)
+        .withAutoGranted(false)
+    ).getQualificationType
   }
   val valTestQualTypeId = valTestQualType.getQualificationTypeId
-  val valTestRequirement = new QualificationRequirement(
-    valTestQualTypeId,
-    Comparator.GreaterThanOrEqualTo, 75,
-    null, false)
+  val valTestRequirement = new QualificationRequirement()
+    .withQualificationTypeId(valTestQualTypeId)
+    .withComparator("GreaterThanOrEqualTo")
+    .withIntegerValues(75)
+    .withRequiredToPreview(false)
 
   val genHITType = HITType(
     title = s"Write question-answer pairs about a sentence's meaning",
@@ -146,7 +166,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
     reward = generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement, genAccuracyRequirement
+      approvalRateRequirement, localeRequirement, genAccuracyRequirement
     ))
 
   lazy val genApiFlow = Flow[GenerationApiRequest[SID]].map {
@@ -173,7 +193,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
     reward = validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, locationRequirement, valAgreementRequirement, valTestRequirement
+      approvalRateRequirement, localeRequirement, valAgreementRequirement, valTestRequirement
     ))
 
   lazy val valApiFlow = Flow[ValidationApiRequest[SID]].map {
@@ -340,9 +360,9 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
     valActor ! Stop
     stopSaves
   }
-  def disable() = {
-    genActor ! Disable
-    valActor ! Disable
+  def delete() = {
+    genActor ! Delete
+    valActor ! Delete
   }
   def expire() = {
     genActor ! Expire
