@@ -42,7 +42,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   annotationDataService: AnnotationDataService,
   generationAccuracyDisqualTypeLabel: Option[String] = None,
   generationCoverageDisqualTypeLabel: Option[String] = None,
-  validationAgreementQualTypeLabel: Option[String] = None)(
+  validationAgreementDisqualTypeLabel: Option[String] = None)(
   implicit config: TaskConfig,
   inflections: Inflections) {
 
@@ -98,7 +98,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withRequiredToPreview(false)
 
   val genAccDisqualTypeLabelString = generationAccuracyDisqualTypeLabel.fold("")(x => s"[$x] ")
-  val genAccDisqualTypeName = s"${genAccDisqualTypeLabelString}Question-answer writing accuracy disqualification"
+  val genAccDisqualTypeName = s"${genAccDisqualTypeLabelString}Question-answer writing accuracy too low"
   val genAccDisqualType = config.service.listQualificationTypes(
     new ListQualificationTypesRequest()
       .withQuery(genAccDisqualTypeName)
@@ -121,7 +121,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withRequiredToPreview(false)
 
   val genCoverageDisqualTypeLabelString = generationCoverageDisqualTypeLabel.fold("")(x => s"[$x] ")
-  val genCoverageDisqualTypeName = s"${genCoverageDisqualTypeLabelString} Too few questions asked per verb"
+  val genCoverageDisqualTypeName = s"${genCoverageDisqualTypeLabelString} Questions asked per verb too low"
   val genCoverageDisqualType = config.service.listQualificationTypes(
     new ListQualificationTypesRequest()
       .withQuery(genCoverageDisqualTypeName)
@@ -133,12 +133,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       new CreateQualificationTypeRequest()
         .withName(genCoverageDisqualTypeName)
         .withKeywords("language,english,question answering")
-        .withDescription(""" The number of questions that you ask for each verb
-          in our question-answer pair generation task,
-          on average, times 10.""".replaceAll("\\s+", " "))
+        .withDescription("""Number of questions asked for each verb
+          in our question-answer pair generation task is too low.""".replaceAll("\\s+", " "))
         .withQualificationTypeStatus(QualificationTypeStatus.Active)
-        .withAutoGranted(true)
-        .withAutoGrantedValue(20)
+        .withAutoGranted(false)
     ).getQualificationType
   }
   val genCoverageDisqualTypeId = genCoverageDisqualType.getQualificationTypeId
@@ -147,48 +145,32 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withComparator("DoesNotExist")
     .withRequiredToPreview(false)
 
-  val valAgrQualTypeLabelString = validationAgreementQualTypeLabel.fold("")(x => s"[$x] ")
-  val valAgrQualTypeName = s"${valAgrQualTypeLabelString}Question answering agreement % (auto-granted)"
-  val valAgrQualType = config.service.listQualificationTypes(
+  val valAgrDisqualTypeLabelString = validationAgreementDisqualTypeLabel.fold("")(x => s"[$x] ")
+  val valAgrDisqualTypeName = s"${valAgrDisqualTypeLabelString}Question answering agreement too low"
+  val valAgrDisqualType = config.service.listQualificationTypes(
     new ListQualificationTypesRequest()
-      .withQuery(valAgrQualTypeName)
+      .withQuery(valAgrDisqualTypeName)
       .withMustBeOwnedByCaller(true)
       .withMustBeRequestable(false)
-  ).getQualificationTypes.asScala.toList.find(_.getName == valAgrQualTypeName).getOrElse {
-    System.out.println("Generating validation qualification type...")
+  ).getQualificationTypes.asScala.toList.find(_.getName == valAgrDisqualTypeName).getOrElse {
+    System.out.println("Generating validation disqualification type...")
     config.service.createQualificationType(
       new CreateQualificationTypeRequest()
-        .withName(valAgrQualTypeName)
+        .withName(valAgrDisqualTypeName)
         .withKeywords("language,english,question answering")
-        .withDescription("""The rate at which answers and validity judgments
-          in our question answering task agreed with other validators.""".replaceAll("\\s+", " "))
+        .withDescription("""Agreement with other annotators on answers and validity judgments
+          in our question answering task is too low.""".replaceAll("\\s+", " "))
         .withQualificationTypeStatus(QualificationTypeStatus.Active)
-        .withAutoGranted(true)
-        .withAutoGrantedValue(101)
+        .withAutoGranted(false)
     ).getQualificationType
   }
-  val valAgrQualTypeId = valAgrQualType.getQualificationTypeId
+  val valAgrDisqualTypeId = valAgrDisqualType.getQualificationTypeId
   val valAgreementRequirement = new QualificationRequirement()
-    .withQualificationTypeId(valAgrQualTypeId)
-    .withComparator("GreaterThanOrEqualTo")
-    .withIntegerValues(math.round(QASRLSettings.validationAgreementBlockingThreshold * 100.0).toInt)
+    .withQualificationTypeId(valAgrDisqualTypeId)
+    .withComparator("DoesNotExist")
     .withRequiredToPreview(false)
 
   def resetAllQualificationValues = {
-    def setQualToValueForAllWorkers(qualTypeId: String, value: Int) = {
-      val quals = config.service.listWorkersWithQualificationType(
-        new ListWorkersWithQualificationTypeRequest()
-          .withQualificationTypeId(qualTypeId)
-      ).getQualifications.asScala.toList
-      quals.foreach(qual =>
-        config.service.associateQualificationWithWorker(
-          new AssociateQualificationWithWorkerRequest()
-            .withQualificationTypeId(qualTypeId)
-            .withWorkerId(qual.getWorkerId)
-            .withIntegerValue(value)
-        )
-      )
-    }
     def revokeAllWorkerQuals(qualTypeId: String) = {
       val quals = config.service.listWorkersWithQualificationType(
         new ListWorkersWithQualificationTypeRequest()
@@ -204,7 +186,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     }
     revokeAllWorkerQuals(genAccDisqualTypeId)
     revokeAllWorkerQuals(genCoverageDisqualTypeId)
-    setQualToValueForAllWorkers(valAgrQualTypeId, 101)
+    revokeAllWorkerQuals(valAgrDisqualTypeId)
   }
 
   lazy val (taskPageHeadLinks, taskPageBodyLinks) = {
@@ -375,7 +357,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       Props {
         valManagerPeek = QASRLValidationHITManager(
           valHelper,
-          valAgrQualTypeId,
+          valAgrDisqualTypeId,
           accuracyTracker,
           // sentenceTracker,
           _ => 2, 50)
@@ -386,7 +368,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       Props {
         valManagerPeek = QASRLValidationHITManager(
           valHelper,
-          valAgrQualTypeId,
+          valAgrDisqualTypeId,
           accuracyTracker,
           // sentenceTracker,
           _ => 1, 3)

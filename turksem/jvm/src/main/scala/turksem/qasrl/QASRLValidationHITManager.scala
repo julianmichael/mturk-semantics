@@ -28,7 +28,7 @@ import com.typesafe.scalalogging.StrictLogging
 object QASRLValidationHITManager {
   def apply[SID : Reader : Writer](
     helper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
-    valQualificationTypeId: String,
+    valDisqualificationTypeId: String,
     accuracyStatsActor: ActorRef,
     // sentenceTrackingActor: ActorRef,
     numAssignmentsForPrompt: QASRLValidationPrompt[SID] => Int,
@@ -37,7 +37,7 @@ object QASRLValidationHITManager {
   ) = {
 
     new QASRLValidationHITManager[SID](
-      helper, valQualificationTypeId, accuracyStatsActor, /*sentenceTrackingActor,*/
+      helper, valDisqualificationTypeId, accuracyStatsActor, /*sentenceTrackingActor,*/
       numAssignmentsForPrompt, initNumHITsToKeepActive,
       loadPrompts[SID].iterator)
   }
@@ -49,27 +49,11 @@ object QASRLValidationHITManager {
   ) = annotationDataService.loadLiveData(validationPromptsFilename)
     .toOption
     .fold(List.empty[QASRLValidationPrompt[SID]])(lines => read[List[QASRLValidationPrompt[SID]]](lines.mkString))
-
-  def notificationEmailText(curAgreement: Double): String = {
-    import QASRLSettings._
-    val explanatoryText = if(curAgreement < validationAgreementBlockingThreshold) {
-      s"""There will be a grace period of several more assignments (${validationBufferBeforeBlocking} more after this calculation was done), and after that, if your agreement rate remains below ${math.round(validationAgreementBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. Note that your qualification value may not accurately reflect your agreement rate: it will be prevented from going below ${math.round(validationAgreementBlockingThreshold * 100).toInt} until the grace period is over."""
-    } else {
-      s"""If this drops below ${math.round(validationAgreementBlockingThreshold * 100).toInt}%, you will no longer qualify for the task. There will be a grace period (${validationBufferBeforeBlocking} more assignments after this calculation was done) during which your qualification value will be prevented from dropping below ${math.round(validationAgreementBlockingThreshold * 100).toInt}."""
-    }
-
-    f"""
-The answer judgments that you have provided so far agree with other annotators ${math.round(curAgreement * 10000.0) / 100.0}%.2f%% of the time. $explanatoryText%s
-
-If you are not sure why your score is this low, we recommend reading over the examples in the instructions again. Remember to judge questions according to the litmus test: you should be able to answer it with a phrase that, when substituted back into the question to form a full sentence, results in a grammatical statement that is true according to the sentence.
-
-""".trim
-  }
 }
 
 class QASRLValidationHITManager[SID : Reader : Writer] private (
   helper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
-  valQualificationTypeId: String,
+  valDisqualificationTypeId: String,
   accuracyStatsActor: ActorRef,
   // sentenceTrackingActor: ActorRef,
   numAssignmentsForPrompt: QASRLValidationPrompt[SID] => Int,
@@ -153,55 +137,18 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
       List.empty[Assignment[List[QASRLValidationAnswer]]]
     }
 
-  def tryWarnOrBlock(worker: QASRLValidationWorkerInfo): QASRLValidationWorkerInfo = {
-    if(worker.agreement.isNaN) worker // this means no comparisons have been done yet
-    else worker.warnedAt match {
-      case None =>
-        // set soft qualification since no warning yet
+  def blockIfNecessary(worker: QASRLValidationWorkerInfo): Unit = {
+    if(!worker.agreement.isNaN &&
+         worker.agreement < QASRLSettings.validationAgreementBlockingThreshold &&
+         worker.numAssignmentsCompleted > QASRLSettings.validationAgreementGracePeriod) {
+      Try(
         config.service.associateQualificationWithWorker(
           new AssociateQualificationWithWorkerRequest()
-            .withQualificationTypeId(valQualificationTypeId)
+            .withQualificationTypeId(valDisqualificationTypeId)
             .withWorkerId(worker.workerId)
-            .withIntegerValue(math.ceil(100 * math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
-            .withSendNotification(false))
-
-        if(worker.agreement < validationAgreementWarningThreshold &&
-             worker.numAssignmentsCompleted >= validationBufferBeforeWarning) {
-
-          service.notifyWorkers(
-            new NotifyWorkersRequest()
-              .withSubject("Notification (warning + tips) regarding the question answering task")
-              .withMessageText(notificationEmailText(worker.agreement))
-              .withWorkerIds(worker.workerId))
-
-          logger.info(s"Validation worker ${worker.workerId} warned at ${worker.numAssignmentsCompleted} with accuracy ${worker.agreement}")
-          worker.warned
-
-        } else worker
-      case Some(numWhenWarned) =>
-        if(worker.numAssignmentsCompleted - numWhenWarned >= validationBufferBeforeBlocking) {
-          config.service.associateQualificationWithWorker(
-            new AssociateQualificationWithWorkerRequest()
-              .withQualificationTypeId(valQualificationTypeId)
-              .withWorkerId(worker.workerId)
-              .withIntegerValue(math.ceil(100 * worker.agreement).toInt)
-              .withSendNotification(false))
-
-          if(math.ceil(worker.agreement).toInt < validationAgreementBlockingThreshold) {
-
-            logger.info(s"Validation worker ${worker.workerId} DQ'd at ${worker.numAssignmentsCompleted} with accuracy ${worker.agreement}")
-            worker.blocked
-          } else worker
-        } else {
-          // set soft qualification since still in buffer zone
-          config.service.associateQualificationWithWorker(
-            new AssociateQualificationWithWorkerRequest()
-              .withQualificationTypeId(valQualificationTypeId)
-              .withWorkerId(worker.workerId)
-              .withIntegerValue(math.ceil(100 * math.max(worker.agreement, validationAgreementBlockingThreshold)).toInt)
-              .withSendNotification(false))
-          worker
-        }
+            .withIntegerValue(1)
+            .withSendNotification(true))
+      )
     }
   }
 
@@ -241,14 +188,13 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
       // update current worker with comparison
       newWorkerInfo = newWorkerInfo
         .addComparison(numQuestions, nAgreed)
-      // update the other one and put back in data structure (warning/blocking if necessary)
-      val otherWorkerInfo = tryWarnOrBlock(
-        allWorkerInfo(otherWorkerId).addComparison(numQuestions, nAgreed)
-      )
+      // update the other one and put back in data structure (blocking if necessary)
+      val otherWorkerInfo = allWorkerInfo(otherWorkerId).addComparison(numQuestions, nAgreed)
+      blockIfNecessary(otherWorkerInfo)
       allWorkerInfo = allWorkerInfo.updated(otherWorkerId, otherWorkerInfo)
     }
-    // now try just once warning or blocking the current worker before adding everything in
-    newWorkerInfo = tryWarnOrBlock(newWorkerInfo)
+    // now blocking the current worker if necessary before adding everything in
+    blockIfNecessary(newWorkerInfo)
     allWorkerInfo = allWorkerInfo.updated(workerId, newWorkerInfo)
     promptToAssignments = promptToAssignments.updated(
       hit.prompt,

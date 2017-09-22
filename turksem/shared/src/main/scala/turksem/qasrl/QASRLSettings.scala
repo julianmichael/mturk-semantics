@@ -33,8 +33,6 @@ object QASRLSettings {
   val generationAccuracyBlockingThreshold = 0.75
   val generationAccuracyGracePeriod = 15
 
-  val validationAgreementWarningThreshold = 0.75
   val validationAgreementBlockingThreshold = 0.70
-  val validationBufferBeforeWarning = 10
-  val validationBufferBeforeBlocking = 15
+  val validationAgreementGracePeriod = 15
 }
