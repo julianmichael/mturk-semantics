@@ -97,7 +97,8 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
                 new AssociateQualificationWithWorkerRequest()
                   .withQualificationTypeId(genDisqualificationTypeId)
                   .withWorkerId(assignment.workerId)
-                  .withIntegerValue(1))
+                  .withIntegerValue(1)
+                  .withSendNotification(true))
             )
           }
 

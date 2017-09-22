@@ -31,7 +31,7 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
   helper: HITManager.Helper[GenerationPrompt[SID], List[VerbQA]],
   validationHelper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
   validationActor: ActorRef,
-  coverageQualificationTypeId: String,
+  coverageDisqualificationTypeId: String,
   // sentenceTrackingActor: ActorRef,
   numAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   initNumHITsToKeepActive: Int,
@@ -106,17 +106,15 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
     coverageStats = coverageStats.updated(assignment.workerId, newQuestionRecord)
     val verbsCompleted = newQuestionRecord.size
     val questionsPerVerb = newQuestionRecord.sum.toDouble / verbsCompleted
-    val clampedQsPerVerb = if(verbsCompleted <= generationCoverageGracePeriod) {
-      math.max(questionsPerVerb, generationCoverageQuestionsPerVerbThreshold)
-    } else {
-      questionsPerVerb
+    if(questionsPerVerb < QASRLSettings.generationCoverageGracePeriod &&
+         verbsCompleted > generationCoverageGracePeriod) {
+      config.service.associateQualificationWithWorker(
+        new AssociateQualificationWithWorkerRequest()
+          .withQualificationTypeId(coverageDisqualificationTypeId)
+          .withWorkerId(assignment.workerId)
+          .withIntegerValue(1)
+          .withSendNotification(true))
     }
-    val newQualValue = math.floor(clampedQsPerVerb * 10).toInt
-    config.service.associateQualificationWithWorker(
-      new AssociateQualificationWithWorkerRequest()
-        .withQualificationTypeId(coverageQualificationTypeId)
-        .withWorkerId(assignment.workerId)
-        .withIntegerValue(newQualValue))
     val validationPrompt = QASRLValidationPrompt(hit.prompt, hit.hitTypeId, hit.hitId, assignment.assignmentId, assignment.response)
     validationActor ! validationHelper.Message.AddPrompt(validationPrompt)
     // sentenceTrackingActor ! ValidationBegun(validationPrompt)

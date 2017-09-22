@@ -41,7 +41,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
   generationAccuracyDisqualTypeLabel: Option[String] = None,
-  generationCoverageQualTypeLabel: Option[String] = None,
+  generationCoverageDisqualTypeLabel: Option[String] = None,
   validationAgreementQualTypeLabel: Option[String] = None)(
   implicit config: TaskConfig,
   inflections: Inflections) {
@@ -97,29 +97,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withLocaleValues(new Locale().withCountry("US"))
     .withRequiredToPreview(false)
 
-  // val genAccDisqualTypeLabelString = generationAccuracyQualTypeLabel.fold("")(x => s"[$x] ")
-  // val genAccDisqualTypeName = s"${genAccQualTypeLabelString}Question-answer writing accuracy disqualification"
-  // val genAccDisqualType = config.service.searchQualificationTypes(
-  //   genAccDisqualTypeName, false, true, SortDirection.Ascending, SearchQualificationTypesSortProperty.Name, 1, 10
-  // ).getQualificationType.wrapNullable.flatMap(_.find(_.getName == genAccDisqualTypeName)).getOrElse {
-  //   System.out.println("Generating generation qualification type...")
-  //   config.service.createQualificationType(
-  //     genAccDisqualTypeName,
-  //     "language,english,question answering",
-  //     """Accuracy on the question-answer writing task was too low.""".replaceAll("\\s+", " "),
-  //     QualificationTypeStatus.Active,
-  //     null, // retry delay (seconds)
-  //     null, null, null, // these 3 are for a test/answer key
-  //     false, // auto granted
-  //     0 // auto granted value
-  //   )
-  // }
-  // val genAccDisqualTypeId = genAccDisqualType.getQualificationTypeId
-  // val genAccDisqualificationRequirement = new QualificationRequirement(
-  //   genAccDisqualTypeId,
-  //   Comparator.GreaterThanOrEqualTo, null,
-  //   null, false)
-
   val genAccDisqualTypeLabelString = generationAccuracyDisqualTypeLabel.fold("")(x => s"[$x] ")
   val genAccDisqualTypeName = s"${genAccDisqualTypeLabelString}Question-answer writing accuracy disqualification"
   val genAccDisqualType = config.service.listQualificationTypes(
@@ -128,7 +105,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       .withMustBeOwnedByCaller(true)
       .withMustBeRequestable(false)
   ).getQualificationTypes.asScala.toList.find(_.getName == genAccDisqualTypeName).getOrElse {
-    System.out.println("Generating generation qualification type...")
+    System.out.println("Generating generation accuracy disqualification type...")
     config.service.createQualificationType(
       new CreateQualificationTypeRequest()
         .withName(genAccDisqualTypeName)
@@ -143,18 +120,18 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withComparator("DoesNotExist")
     .withRequiredToPreview(false)
 
-  val genCoverageQualTypeLabelString = generationCoverageQualTypeLabel.fold("")(x => s"[$x] ")
-  val genCoverageQualTypeName = s"${genCoverageQualTypeLabelString}Avg. number of questions asked (x10) per verb (auto-granted)"
-  val genCoverageQualType = config.service.listQualificationTypes(
+  val genCoverageDisqualTypeLabelString = generationCoverageDisqualTypeLabel.fold("")(x => s"[$x] ")
+  val genCoverageDisqualTypeName = s"${genCoverageDisqualTypeLabelString} Too few questions asked per verb"
+  val genCoverageDisqualType = config.service.listQualificationTypes(
     new ListQualificationTypesRequest()
-      .withQuery(genCoverageQualTypeName)
+      .withQuery(genCoverageDisqualTypeName)
       .withMustBeOwnedByCaller(true)
       .withMustBeRequestable(false)
-  ).getQualificationTypes.asScala.toList.find(_.getName == genCoverageQualTypeName).getOrElse {
-    System.out.println("Generating generation coverage qualification type...")
+  ).getQualificationTypes.asScala.toList.find(_.getName == genCoverageDisqualTypeName).getOrElse {
+    System.out.println("Generating generation coverage disqualification type...")
     config.service.createQualificationType(
       new CreateQualificationTypeRequest()
-        .withName(genCoverageQualTypeName)
+        .withName(genCoverageDisqualTypeName)
         .withKeywords("language,english,question answering")
         .withDescription(""" The number of questions that you ask for each verb
           in our question-answer pair generation task,
@@ -164,11 +141,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
         .withAutoGrantedValue(20)
     ).getQualificationType
   }
-  val genCoverageQualTypeId = genCoverageQualType.getQualificationTypeId
+  val genCoverageDisqualTypeId = genCoverageDisqualType.getQualificationTypeId
   val genCoverageRequirement = new QualificationRequirement()
-    .withQualificationTypeId(genCoverageQualTypeId)
-    .withComparator("GreaterThanOrEqualTo")
-    .withIntegerValues(math.floor(QASRLSettings.generationCoverageBlockingThreshold).toInt)
+    .withQualificationTypeId(genCoverageDisqualTypeId)
+    .withComparator("DoesNotExist")
     .withRequiredToPreview(false)
 
   val valAgrQualTypeLabelString = validationAgreementQualTypeLabel.fold("")(x => s"[$x] ")
@@ -227,7 +203,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       )
     }
     revokeAllWorkerQuals(genAccDisqualTypeId)
-    setQualToValueForAllWorkers(genCoverageQualTypeId, 101)
+    revokeAllWorkerQuals(genCoverageDisqualTypeId)
     setQualToValueForAllWorkers(valAgrQualTypeId, 101)
   }
 
@@ -435,7 +411,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             helper,
             valHelper,
             valManager,
-            genCoverageQualTypeId,
+            genCoverageDisqualTypeId,
             // sentenceTracker,
             numGenerationAssignmentsForPrompt, 30, prompts.iterator)
           setPeek(manager)
@@ -449,7 +425,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             helper,
             valHelper,
             valManager,
-            genCoverageQualTypeId,
+            genCoverageDisqualTypeId,
             // sentenceTracker,
             (_: GenerationPrompt[SID]) => 1, 3, prompts.iterator)
           setPeek(manager)
