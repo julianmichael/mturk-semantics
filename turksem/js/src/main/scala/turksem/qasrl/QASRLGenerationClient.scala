@@ -492,11 +492,18 @@ class QASRLGenerationClient[SID : Reader : Writer](
           render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
-            case Loaded(QASRLGenerationApiResponse(GenerationStatSummary(numVerbsCompleted, numQuestionsWritten), sentence, _), _) =>
+            case Loaded(QASRLGenerationApiResponse(GenerationStatSummary(numVerbsCompleted, numQuestionsWritten, workerStatsOpt), sentence, _), _) =>
               val questionsPerVerbOpt = if(numVerbsCompleted == 0) None else Some(
                 numQuestionsWritten.toDouble / numVerbsCompleted
               )
-              val remainingInGracePeriod = QASRLSettings.generationCoverageGracePeriod - numVerbsCompleted
+              val remainingInCoverageGracePeriod = QASRLSettings.generationCoverageGracePeriod - numVerbsCompleted
+
+              val accuracyOpt = workerStatsOpt.map(_.accuracy)
+              val remainingInAccuracyGracePeriodOpt = for {
+                workerStats <- workerStatsOpt
+                warnedAt <- workerStats.warnedAt
+              } yield math.max(0, QASRLSettings.generationBufferBeforeBlocking + warnedAt - workerStats.numAssignmentsCompleted)
+
               Highlighting(
                 HighlightingProps(
                   isEnabled = !isNotAssigned,
@@ -580,8 +587,28 @@ class QASRLGenerationClient[SID : Reader : Writer](
                               f"$questionsPerVerb%.1f"
                             ),
                             " questions per verb. This must remain above 2.0",
-                            if(remainingInGracePeriod > 0) s" after the end of the grace period ($remainingInGracePeriod verbs remaining)."
+                            if(remainingInCoverageGracePeriod > 0) s" after the end of the grace period ($remainingInCoverageGracePeriod verbs remaining)."
                             else "."
+                          )
+                        ),
+                        accuracyOpt.whenDefined(accuracy =>
+                          <.p(
+                            """Of your questions that have been validated, """,
+                            <.span(
+                              if(accuracy <= QASRLSettings.generationAccuracyBlockingThreshold) {
+                                Styles.badRed
+                              } else if(accuracy <= QASRLSettings.generationAccuracyWarningThreshold) {
+                                TagMod(Styles.uncomfortableOrange, Styles.bolded)
+                              } else {
+                                Styles.goodGreen
+                              },
+                              f"${accuracy * 100.0}%.1f%%"
+                            ),
+                            f""" were judged valid by other annotators. This must remain above ${QASRLSettings.generationAccuracyBlockingThreshold * 100.0}%.1f%%""",
+                            remainingInAccuracyGracePeriodOpt.fold(".")(remaining =>
+                              if(remaining > 0) s" after the end of a grace period ($remaining verbs remaining)."
+                              else " (no grace period remaining)."
+                            )
                           )
                         ),
                         <.div(

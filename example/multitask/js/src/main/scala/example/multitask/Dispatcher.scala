@@ -302,15 +302,12 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         s""" (However, your questions-per-verb average will include invalid questions.)
           The bonus will be awarded as soon as validators have checked all of your question-answer pairs,
           which will happen shortly after you submit (but will vary depending on worker availability).
-          Your accuracy qualification value for this HIT will be updated to match your current accuracy
-          as your questions are validated.
-          If this number drops below ${(100 * generationAccuracyBlockingThreshold).toInt},
-          you will no longer qualify for the task.
-          There is a grace period of several HITs before your score is allowed to drop too low;
-          if your score is exactly ${(100 * generationAccuracyBlockingThreshold).toInt}
-          it may be that your real accuracy is lower but you are in the grace period.
+          Your accuracy will be updated as your questions are validated
+          and shown to you just below the task interface.
           (Note that the validators will sometimes make mistakes,
-          so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)"""),
+          so there is an element of randomness to it: don't read too deeply into small changes in your accuracy.)
+          If this number drops below ${(100 * generationAccuracyBlockingThreshold).toInt},
+          you will be disqualified from this task. """),
 
     <.p("""If you have any questions, concerns, or points of confusion,
         feel free to share them in the "Feedback" field."""),

@@ -2,11 +2,14 @@ package turksem
 
 import nlpdata.datasets.wiktionary.InflectedForms
 
+import turksem.qamr.WorkerStats
+
 package object qasrl {
 
   case class GenerationStatSummary(
-    numVerbsCompleted: Int,
-    numQuestionsWritten: Int)
+    numVerbsCompleted: Int, // before validation: used to calculate coverage
+    numQuestionsWritten: Int, // before validation: "
+    workerStatsOpt: Option[WorkerStats])
 
   case class QASRLGenerationApiRequest[SID](
     workerId: Option[String],

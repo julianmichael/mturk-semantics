@@ -9,10 +9,6 @@ import scala.util.{Try, Success, Failure}
 
 import scala.language.implicitConversions
 
-import com.typesafe.scalalogging.Logger
-import java.io.StringWriter
-import java.io.PrintWriter
-
 /** Provides miscellaneous utility classes and methods, primarily for data analysis. */
 package object util extends PackagePlatformExtensions {
 
@@ -125,19 +121,6 @@ package object util extends PackagePlatformExtensions {
       case Some((head, tailToGo)) => head :: tailToGo.unfoldList(f)
     }
     def unfoldList[B](f: PartialFunction[A, (B, A)]): List[B] = a.unfoldList(f.lift)
-  }
-
-  implicit class RichTry[A](val t: Try[A]) extends AnyVal {
-    def toOptionLogging(logger: Logger): Option[A] = t match {
-      case Success(a) =>
-        Some(a)
-      case Failure(e) =>
-        val sw = new StringWriter()
-        val pw = new PrintWriter(sw, true)
-        e.printStackTrace(pw)
-        logger.error(e.getLocalizedMessage + "\n" + sw.getBuffer.toString)
-        None
-    }
   }
 
   implicit class RichIterator[A](val t: Iterator[A]) extends AnyVal {
