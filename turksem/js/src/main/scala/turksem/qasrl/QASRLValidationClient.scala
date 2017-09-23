@@ -31,8 +31,7 @@ import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
 class QASRLValidationClient[SID : Writer : Reader](
-  preTaskInstructions: VdomTag,
-  postTaskInstructions: VdomTag)(
+  instructions: VdomTag)(
   implicit promptReader: Reader[QASRLValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[QASRLValidationAnswer]] // same as above
 ) extends TaskClient[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]] {
@@ -62,7 +61,7 @@ class QASRLValidationClient[SID : Writer : Reader](
       ).toMap
   }
 
-  val WebsocketLoadableComponent = new WebsocketLoadableComponent[ValidationApiRequest[SID], ValidationApiResponse]
+  val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLValidationApiRequest[SID], QASRLValidationApiResponse]
   import WebsocketLoadableComponent._
   val HighlightingComponent = new HighlightingComponent[AnswerWordIndex] // question, answer, word
   import HighlightingComponent._
@@ -147,8 +146,6 @@ class QASRLValidationClient[SID : Writer : Reader](
         <.div(
           Styles.unselectable,
           ^.float := "left",
-          ^.margin := "1px",
-          ^.padding := "1px",
           ^.minHeight := "1px",
           ^.border := "1px solid",
           ^.borderRadius := "2px",
@@ -223,11 +220,18 @@ class QASRLValidationClient[SID : Writer : Reader](
     def render(state: State) = {
       WebsocketLoadable(
         WebsocketLoadableProps(
-          websocketURI = websocketUri, request = ValidationApiRequest(prompt.id), render = {
+          websocketURI = websocketUri, request = QASRLValidationApiRequest(workerIdOpt, prompt.id), render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
-            case Loaded(ValidationApiResponse(sentence), _) =>
+            case Loaded(QASRLValidationApiResponse(workerInfoOpt, sentence), _) =>
               import state._
+
+              val agreementOpt = workerInfoOpt.map(_.agreement)
+              val remainingInAgreementGracePeriodOpt = workerInfoOpt
+                .map(info => QASRLSettings.validationAgreementGracePeriod - info.numAssignmentsCompleted)
+                .filter(_ > 0)
+              val numAssignmentsCompleted = workerInfoOpt.fold(0)(_.numAssignmentsCompleted)
+
               Highlighting(
                 HighlightingProps(
                   isEnabled = !isNotAssigned && answers(curQuestion).isAnswer,
@@ -258,9 +262,37 @@ class QASRLValidationClient[SID : Writer : Reader](
                         ^.classSet1("container-fluid"),
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
-                        preTaskInstructions,
-                        <.hr(),
                         <.div(
+                          instructions,
+                          ^.margin := "5px"
+                        ),
+                        agreementOpt.whenDefined(agreement =>
+                          <.div(
+                            ^.classSet1("card"),
+                            ^.margin := "5px",
+                            <.p(
+                              """Your responses agree with others """,
+                              <.span(
+                                if(agreement <= QASRLSettings.validationAgreementBlockingThreshold) {
+                                  Styles.badRed
+                                } else if(agreement <= QASRLSettings.validationAgreementBlockingThreshold + 0.05) {
+                                  TagMod(Styles.uncomfortableOrange, Styles.bolded)
+                                } else {
+                                  Styles.goodGreen
+                                },
+                                f"${agreement * 100.0}%.1f%%"
+                              ),
+                              f""" of the time. This must remain above ${QASRLSettings.validationAgreementBlockingThreshold * 100.0}%.1f%%""",
+                              remainingInAgreementGracePeriodOpt.fold(".")(remaining =>
+                                s" after the end of a grace period ($remaining verbs remaining)."
+                              )
+                            )
+                          )
+                        ),
+                        <.div(
+                          ^.classSet1("card"),
+                          ^.margin := "5px",
+                          ^.padding := "5px",
                           ^.tabIndex := 0,
                           ^.onFocus --> scope.modState(State.isInterfaceFocused.set(true)),
                           ^.onBlur --> scope.modState(State.isInterfaceFocused.set(false)),
@@ -288,8 +320,8 @@ class QASRLValidationClient[SID : Writer : Reader](
                               startErase = startErase,
                               touchWord = (i: Int) => if(allOtherAnswerSpans.exists(_.contains(i))) Callback.empty else touchWord(i),
                               render = (elements =>
-                                <.blockquote(
-                                  ^.classSet1("blockquote"),
+                                <.p(
+                                  Styles.largeText,
                                   Styles.unselectable,
                                   elements.toVdomArray)
                               ))
@@ -303,23 +335,27 @@ class QASRLValidationClient[SID : Writer : Reader](
                           ),
                           <.p(s"Bonus: ${dollarsToCents(validationBonus(questions.size))}c")
                         ),
-                        <.p(
-                          <.input(
-                            ^.`type` := "text",
+                        <.div(
+                          ^.classSet1("form-group"),
+                          ^.margin := "5px",
+                          <.textarea(
+                            ^.classSet1("form-control"),
                             ^.name := FieldLabels.feedbackLabel,
-                            ^.placeholder := "Feedback? (Optional)",
-                            ^.margin := "1px",
-                            ^.padding := "1px",
-                            ^.width := "484px"
+                            ^.rows := 3,
+                            ^.placeholder := "Feedback? (Optional)"
                           )
                         ),
                         <.input(
-                          ^.classSet1("btn btn-primary"),
+                          ^.classSet1("btn btn-primary btn-lg btn-block"),
+                          ^.margin := "5px",
                           ^.`type` := "submit",
                           ^.disabled := !state.answers.forall(_.isComplete),
                           ^.id := FieldLabels.submitButtonLabel,
-                          ^.value := "submit"),
-                        postTaskInstructions
+                          ^.value := (
+                            if(isNotAssigned) "You must accept the HIT to submit results"
+                            else if(!state.answers.forall(_.isComplete)) "You must respond to all questions to submit results"
+                            else "Submit"
+                          ))
                       )
                   }
                 )

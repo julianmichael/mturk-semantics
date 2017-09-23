@@ -44,17 +44,10 @@ import japgolly.scalajs.react.MonocleReact._
 import japgolly.scalajs.react.CatsReact._
 
 class QASRLGenerationClient[SID : Reader : Writer](
-  preTaskInstructions: VdomTag,
-  postTaskInstructions: VdomTag)(
+  instructions: VdomTag)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[VerbQA]] // same as above
 ) extends TaskClient[GenerationPrompt[SID], List[VerbQA]] {
-
-  // TODO put in TaskClient
-  lazy val workerIdOpt: Option[String] = {
-    import scala.scalajs.js.Dynamic.global
-    Option(global.turkGetParam("workerId", "UNASSIGNED").asInstanceOf[String]).filter(_ != "UNASSIGNED")
-  }
 
   // for monoid on Callback
   implicit def appMonoid[F[_]: Applicative, A: Monoid] = Applicative.monoid[F, A]
@@ -363,7 +356,6 @@ class QASRLGenerationClient[SID : Reader : Writer](
                           if(qaIndex == 0) ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\" (required)")
                           else ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\"" + s" (+${math.round(100 * nextPotentialBonus).toInt}c)")
                         ),
-                        ^.margin := s"1px",
                         ^.padding := s"1px",
                         ^.width := "480px",
                         ^.onKeyDown ==> handleKey,
@@ -385,9 +377,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                ref <- allInputRefs.get((groupIndex, qaIndex)) // refOpt
                              } yield {
                                val rect = ref.getBoundingClientRect
-                               val left = dom.window.pageXOffset + math.round(rect.left)
-                               val bottom = dom.window.pageYOffset + math.round(rect.bottom)
                                val width = math.round(rect.width)
+                               val bottom = math.round(ref.offsetTop + rect.height)
+                               val left = math.round(ref.offsetLeft)
 
                                def itemBgStyle(tokenIndex: Int, isCompletion: Boolean) =
                                  if(tokenIndex == highlightedIndex && isCompletion) Some(^.backgroundColor := "rgba(0, 255, 0, 0.7)")
@@ -408,7 +400,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                  ^.padding := "2px 0",
                                  ^.fontSize := "90%",
                                  ^.overflow := "auto",
-                                 ^.maxHeight := "50%",
+                                 ^.maxHeight := "600px",
                                  ^.onMouseMove --> setBlurEnabled(false),
                                  ^.onMouseLeave --> setBlurEnabled(true),
                                  suggestions.zipWithIndex.toList.toVdomArray {
@@ -496,13 +488,16 @@ class QASRLGenerationClient[SID : Reader : Writer](
               val questionsPerVerbOpt = if(numVerbsCompleted == 0) None else Some(
                 numQuestionsWritten.toDouble / numVerbsCompleted
               )
-              val remainingInCoverageGracePeriod = QASRLSettings.generationCoverageGracePeriod - numVerbsCompleted
+              val remainingInCoverageGracePeriodOpt = questionsPerVerbOpt
+                .as(QASRLSettings.generationCoverageGracePeriod - numVerbsCompleted)
+                .filter(_ > 0)
 
               val accuracyOpt = workerStatsOpt.map(_.accuracy)
               val remainingInAccuracyGracePeriodOpt = for {
                 workerStats <- workerStatsOpt
-                warnedAt <- workerStats.warnedAt
-              } yield math.max(0, QASRLSettings.generationBufferBeforeBlocking + warnedAt - workerStats.numAssignmentsCompleted)
+                remaining = QASRLSettings.generationAccuracyGracePeriod - workerStats.numAssignmentsCompleted
+                if remaining > 0
+              } yield remaining
 
               Highlighting(
                 HighlightingProps(
@@ -571,47 +566,57 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         ^.onMouseUp --> stopHighlight,
                         ^.onMouseDown --> startHighlight,
                         Styles.mainContent,
-                        preTaskInstructions,
-                        <.hr(),
-                        questionsPerVerbOpt.whenDefined(questionsPerVerb =>
-                          <.p(
-                            """So far, you have written """,
-                            <.span(
-                              if(questionsPerVerb <= QASRLSettings.generationCoverageQuestionsPerVerbThreshold) {
-                                Styles.badRed
-                              } else if(questionsPerVerb <= (QASRLSettings.generationCoverageQuestionsPerVerbThreshold * 1.1)) {
-                                TagMod(Styles.uncomfortableOrange, Styles.bolded)
-                              } else {
-                                Styles.goodGreen
-                              },
-                              f"$questionsPerVerb%.1f"
-                            ),
-                            " questions per verb. This must remain above 2.0",
-                            if(remainingInCoverageGracePeriod > 0) s" after the end of the grace period ($remainingInCoverageGracePeriod verbs remaining)."
-                            else "."
-                          )
+                        <.div(
+                          ^.margin := "5px",
+                          instructions
                         ),
-                        accuracyOpt.whenDefined(accuracy =>
-                          <.p(
-                            """Of your questions that have been validated, """,
-                            <.span(
-                              if(accuracy <= QASRLSettings.generationAccuracyBlockingThreshold) {
-                                Styles.badRed
-                              } else if(accuracy <= QASRLSettings.generationAccuracyWarningThreshold) {
-                                TagMod(Styles.uncomfortableOrange, Styles.bolded)
-                              } else {
-                                Styles.goodGreen
-                              },
-                              f"${accuracy * 100.0}%.1f%%"
+                        questionsPerVerbOpt.whenDefined(questionsPerVerb =>
+                          <.div(
+                            ^.classSet1("card"),
+                            ^.margin := "5px",
+                            ^.padding := "5px",
+                            <.p(
+                              """So far, you have written """,
+                              <.span(
+                                if(questionsPerVerb <= QASRLSettings.generationCoverageQuestionsPerVerbThreshold) {
+                                  Styles.badRed
+                                } else if(questionsPerVerb <= (QASRLSettings.generationCoverageQuestionsPerVerbThreshold * 1.1)) {
+                                  TagMod(Styles.uncomfortableOrange, Styles.bolded)
+                                } else {
+                                  Styles.goodGreen
+                                },
+                                f"$questionsPerVerb%.1f"
+                              ),
+                              " questions per verb. This must remain above 2.0",
+                              remainingInCoverageGracePeriodOpt.fold(".")(remaining =>
+                                s" after the end of the grace period ($remaining verbs remaining)."
+                              )
                             ),
-                            f""" were judged valid by other annotators. This must remain above ${QASRLSettings.generationAccuracyBlockingThreshold * 100.0}%.1f%%""",
-                            remainingInAccuracyGracePeriodOpt.fold(".")(remaining =>
-                              if(remaining > 0) s" after the end of a grace period ($remaining verbs remaining)."
-                              else " (no grace period remaining)."
+                            accuracyOpt.whenDefined(accuracy =>
+                              <.p(
+                                """Of your questions that have been validated, """,
+                                <.span(
+                                  if(accuracy <= QASRLSettings.generationAccuracyBlockingThreshold) {
+                                    Styles.badRed
+                                  } else if(accuracy <= QASRLSettings.generationAccuracyBlockingThreshold + 0.05) {
+                                    TagMod(Styles.uncomfortableOrange, Styles.bolded)
+                                  } else {
+                                    Styles.goodGreen
+                                  },
+                                  f"${accuracy * 100.0}%.1f%%"
+                                ),
+                                f""" were judged valid by other annotators. This must remain above ${QASRLSettings.generationAccuracyBlockingThreshold * 100.0}%.1f%%""",
+                                remainingInAccuracyGracePeriodOpt.fold(".")(remaining =>
+                                  s" after the end of the grace period ($remaining verbs remaining)."
+                                )
+                              )
                             )
                           )
                         ),
                         <.div(
+                          ^.classSet1("card"),
+                          ^.margin := "5px",
+                          ^.padding := "5px",
                           (0 until s.qaGroups.size).toVdomArray(groupIndex =>
                             <.div(
                               ^.marginBottom := "20px",
@@ -633,8 +638,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                     <.div(
                                       ^.onMouseEnter --> setBlurEnabled(false),
                                       ^.onMouseLeave --> setBlurEnabled(true),
-                                      <.blockquote(
-                                        ^.classSet1("blockquote"),
+                                      <.p(
+                                        Styles.largeText,
                                         Styles.unselectable,
                                         elements.toVdomArray)
                                     )
@@ -650,34 +655,39 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                 )
                               )
                             )
+                          ),
+                          <.p(
+                            ^.marginTop := "5px",
+                            "Potential bonus so far: ",
+                            <.span(
+                              Styles.goodGreen.when(curPotentialBonus > 0),
+                              Styles.bolded.when(curPotentialBonus > 0),
+                              s"${math.round(100 * curPotentialBonus).toInt}c"
+                            )
                           )
                         ),
-                        <.p(
-                          ^.marginTop := "20px",
-                          "Potential bonus so far: ",
-                          <.span(
-                            Styles.goodGreen.when(curPotentialBonus > 0),
-                            Styles.bolded.when(curPotentialBonus > 0),
-                            s"${math.round(100 * curPotentialBonus).toInt}c"
-                          )
-                        ),
-                        <.p(
-                          <.input(
-                            ^.`type` := "text",
+                        <.div(
+                          ^.classSet1("form-group"),
+                          ^.margin := "5px",
+                          <.textarea(
+                            ^.classSet1("form-control"),
                             ^.name := FieldLabels.feedbackLabel,
-                            ^.placeholder := "Feedback? (Optional)",
-                            ^.margin := "1px",
-                            ^.padding := "1px",
-                            ^.width := "484px"
+                            ^.rows := 3,
+                            ^.placeholder := "Feedback? (Optional)"
                           )
                         ),
                         <.input(
-                          ^.classSet1("btn btn-primary"),
+                          ^.classSet1("btn btn-primary btn-lg btn-block"),
+                          ^.margin := "5px",
                           ^.`type` := "submit",
-                          ^.disabled := !s.qaGroups.forall(getCompleteQAPairs(_).size > 0),
+                          ^.disabled := isNotAssigned || !s.qaGroups.forall(getCompleteQAPairs(_).size > 0),
                           ^.id := FieldLabels.submitButtonLabel,
-                          ^.value := "submit"),
-                        postTaskInstructions
+                          ^.value := (
+                            if(isNotAssigned) "You must accept the HIT to submit results"
+                            else if(!s.qaGroups.forall(getCompleteQAPairs(_).size > 0)) "You must write and answer at least one question to submit results"
+                            else "Submit"
+                          )
+                        )
                       )
                   }))
           }))

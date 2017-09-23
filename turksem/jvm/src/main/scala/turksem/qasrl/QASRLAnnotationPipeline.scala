@@ -203,6 +203,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
         attr("integrity") := "sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n",
         attr("crossorigin") := "anonymous"),
       script(
+        src := "https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js",
+        attr("integrity") := "sha256-1A78rJEdiWTzco6qdn3igTBv9VupN3Q1ozZNTR4WE/Y=",
+        attr("crossorigin") := "anonymous"),
+      script(
         src := "https://cdnjs.cloudflare.com/ajax/libs/tether/1.4.0/js/tether.min.js",
         attr("integrity") := "sha384-DztdAPBWPRXSA/3eYEEUWrWCy7G5KFbe8fFjk5JAIxUYHKkDx6Qin1DkWx51bBrb",
         attr("crossorigin") := "anonymous"),
@@ -273,9 +277,15 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       approvalRateRequirement, localeRequirement, valAgreementRequirement // TODO maybe another requirement
     ))
 
-  lazy val valApiFlow = Flow[ValidationApiRequest[SID]].map {
-    case ValidationApiRequest(id) =>
-      ValidationApiResponse(id.tokens)
+  lazy val valApiFlow = Flow[QASRLValidationApiRequest[SID]].map {
+    case QASRLValidationApiRequest(workerIdOpt, id) =>
+      val workerInfoOpt = for {
+        valManagerP <- Option(valManagerPeek)
+        workerId <- workerIdOpt
+        info <- valManagerP.allWorkerInfo.get(workerId)
+      } yield info
+
+      QASRLValidationApiResponse(workerInfoOpt, id.tokens)
   }
 
   lazy val sampleValPrompt = QASRLValidationPrompt[SID](
@@ -284,7 +294,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
          VerbQA(1, "Who looked at someone?", List(Set(0, 1))),
          VerbQA(1, "How did someone look at someone?", List(Set(5)))))
 
-  lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
+  lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationApiRequest[SID], QASRLValidationApiResponse](
     QASRLSettings.validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks)

@@ -12,7 +12,7 @@ package object qasrl {
     workerStatsOpt: Option[WorkerStats])
 
   case class QASRLGenerationApiRequest[SID](
-    workerId: Option[String],
+    workerIdOpt: Option[String],
     prompt: qamr.GenerationPrompt[SID]
   )
 
@@ -24,6 +24,14 @@ package object qasrl {
     stats: GenerationStatSummary,
     tokens: Vector[String],
     templates: List[IndexWithInflectedForms])
+
+  case class QASRLValidationApiRequest[SID](
+    workerIdOpt: Option[String],
+    id: SID)
+
+  case class QASRLValidationApiResponse(
+    workerInfoOpt: Option[QASRLValidationWorkerInfo],
+    sentence: Vector[String])
 
   import nlpdata.util.LowerCaseStrings._
 

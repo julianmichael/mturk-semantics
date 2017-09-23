@@ -121,4 +121,8 @@ object Styles extends StyleSheet.Inline {
   val underlined = style(
     textDecoration := "underline"
   )
+
+  val largeText = style(
+    fontSize(20 pt)
+  )
 }
