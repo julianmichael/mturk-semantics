@@ -63,38 +63,40 @@ class QASRLValidationClient[SID : Writer : Reader](
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLValidationApiRequest[SID], QASRLValidationApiResponse]
   import WebsocketLoadableComponent._
-  val HighlightingComponent = new HighlightingComponent[AnswerWordIndex] // question, answer, word
-  import HighlightingComponent._
+  val SpanHighlightingComponent = new SpanHighlightingComponent[Int] // question
+  import SpanHighlightingComponent._
 
-  import MultiSpanHighlightableSentenceComponent._
+  import MultiContigSpanHighlightableSentenceComponent._
 
   lazy val questions = prompt.qaPairs.map(_.question)
 
   @Lenses case class State(
     curQuestion: Int,
-    curAnswer: Int,
     isInterfaceFocused: Boolean,
     answers: List[QASRLValidationAnswer])
   object State {
-    def initial = State(0, 0, false, questions.map(_ => Answer(List.empty[Set[Int]])))
+    def initial = State(0, false, questions.map(_ => Answer(List.empty[Set[Int]])))
   }
+
+  def answerSpanOptics(questionIndex: Int) =
+    State.answers
+      .composeOptional(Optics.index(questionIndex))
+      .composePrism(QASRLValidationAnswer.answer)
+      .composeLens(Answer.spans)
 
   class FullUIBackend(scope: BackendScope[Unit, State]) {
     def updateResponse: Callback = scope.state.map { state =>
       setResponse(state.answers)
     }
 
-    def updateHighlights(hs: HighlightingState) = {
-      val highlightedAnswers = AnswerWordIndex.getAnswerSpans(hs.span)
-      scope.modState(
-        State.answers.modify(
-          _.zipWithIndex.map {
-            case (Answer(_), questionIndex) => highlightedAnswers(questionIndex)
-            case (invalidOrRedundant, _) => invalidOrRedundant
-          }
+    def updateCurrentAnswers(highlightingState: SpanHighlightingState) =
+      scope.state >>= (st =>
+        scope.modState(
+          answerSpanOptics(st.curQuestion).set(
+            highlightingState.spans(st.curQuestion).map(_.indices)
+          )
         )
       )
-    }
 
     def toggleInvalidAtIndex(highlightedAnswers: Map[Int, Answer])(questionIndex: Int) =
       scope.modState(
@@ -107,22 +109,8 @@ class QASRLValidationClient[SID : Writer : Reader](
       )
 
     def handleKey(highlightedAnswers: Map[Int, Answer])(e: ReactKeyboardEvent): Callback = {
-      def nextQuestion = scope.modState(State.curQuestion.modify(i => (i + 1) % questions.size) andThen State.curAnswer.set(0))
-      def prevQuestion = scope.modState(State.curQuestion.modify(i => (i + questions.size - 1) % questions.size) andThen State.curAnswer.set(0))
-      def nextAnswer   = scope.modState(s =>
-        State.curAnswer.set {
-          s.answers(s.curQuestion).getAnswer.fold(s.curAnswer) {
-            case Answer(spans) => (s.curAnswer + 1) % (spans.size + 1)
-          }
-        }(s)
-      )
-      def prevAnswer   = scope.modState(s =>
-        State.curAnswer.set {
-          s.answers(s.curQuestion).getAnswer.fold(s.curAnswer) {
-            case Answer(spans) => (s.curAnswer + spans.size) % (spans.size + 1)
-          }
-        }(s)
-      )
+      def nextQuestion = scope.modState(State.curQuestion.modify(i => (i + 1) % questions.size))
+      def prevQuestion = scope.modState(State.curQuestion.modify(i => (i + questions.size - 1) % questions.size))
       def toggleInvalid = scope.zoomStateL(State.curQuestion).state >>= toggleInvalidAtIndex(highlightedAnswers)
 
       if(isNotAssigned) {
@@ -130,8 +118,6 @@ class QASRLValidationClient[SID : Writer : Reader](
       } else CallbackOption.keyCodeSwitch(e) {
         case KeyCode.Up | KeyCode.W => prevQuestion
         case KeyCode.Down | KeyCode.S => nextQuestion
-        case KeyCode.Left | KeyCode.A => prevAnswer
-        case KeyCode.Right | KeyCode.D => nextAnswer
         case KeyCode.Space => toggleInvalid
       } >> e.preventDefaultCB
     }
@@ -139,7 +125,6 @@ class QASRLValidationClient[SID : Writer : Reader](
     def qaField(s: State, sentence: Vector[String], highlightedAnswers: Map[Int, Answer])(index: Int) = {
       val isFocused = s.curQuestion == index
       val answer = s.answers(index)
-      val answerChoiceFocusedOpt = isFocused.option(s.curAnswer)
 
       <.div(
         ^.overflow := "hidden",
@@ -162,7 +147,7 @@ class QASRLValidationClient[SID : Writer : Reader](
           ^.float := "left",
           ^.margin := "1px",
           ^.padding := "1px",
-          ^.onClick --> scope.modState(State.curQuestion.set(index) andThen State.curAnswer.set(0)),
+          ^.onClick --> scope.modState(State.curQuestion.set(index)),
           questions(index)
         ),
         <.div(
@@ -190,27 +175,14 @@ class QASRLValidationClient[SID : Writer : Reader](
                 ^.color := "#CCCCCC",
                 "Highlight answer above, move with arrow keys or mouse")
             case Answer(spans) if isFocused => // spans nonempty
-              (spans.zipWithIndex.flatMap {
-                 case (span, index) =>
-                   List(
-                     <.span(
-                       (^.backgroundColor := "#FFFF00").when(answerChoiceFocusedOpt.nonEmptyAnd(_ == index)),
-                       Text.renderSpan(sentence, span)
-                     ),
-                     <.span(" / ")
-                   )
-               } ++ List(
-                 <.span(
-                   if(answerChoiceFocusedOpt.nonEmptyAnd(_ == spans.size)) TagMod(
-                     ^.backgroundColor := "#FFFF00",
-                     ^.color := "#CCCCCC",
-                     "Highlight new answer"
-                   ) else TagMod(
-                     ^.color := "#CCCCCC",
-                     "Use left/right arrow keys to cycle between answers")
-                   )
+              (spans.flatMap { span =>
+                 List(
+                   <.span(
+                     Text.renderSpan(sentence, span)
+                   ),
+                   <.span(" / ")
                  )
-               ).toVdomArray
+               } ++ List(<.span(^.color := "#CCCCCC", "Highlight to add an answer"))).toVdomArray
             case Answer(spans) => spans.map(Text.renderSpan(sentence, _)).mkString(" / ")
           }
         )
@@ -232,36 +204,26 @@ class QASRLValidationClient[SID : Writer : Reader](
                 .filter(_ > 0)
               val numAssignmentsCompleted = workerInfoOpt.fold(0)(_.numAssignmentsCompleted)
 
-              Highlighting(
-                HighlightingProps(
+              SpanHighlighting(
+                SpanHighlightingProps(
                   isEnabled = !isNotAssigned && answers(curQuestion).isAnswer,
-                  preUpdate = HighlightingState.span.modify(
-                    span => span.map(_.questionIndex).flatMap { questionIndex =>
-                      span.collect {
-                        case AnswerWordIndex(`questionIndex`, answerIndex, wordIndex) => (answerIndex, wordIndex)
-                      }.groupBy(_._1).toList.sortBy(_._1).map(_._2.map(p => p._2)).zipWithIndex.flatMap {
-                        case (wordIndices, newAnswerIndex) => wordIndices.map(AnswerWordIndex(questionIndex, newAnswerIndex, _))
-                      }.toSet
-                    }
-                  ),
-                  update = updateHighlights, render = {
-                    case (hs @ HighlightingState(spans, status), HighlightingContext(_, startHighlight, startErase, stopHighlight, touchElement)) =>
+                  update = updateCurrentAnswers, render = {
+                    case (hs @ SpanHighlightingState(spans, status), SpanHighlightingContext(_, hover, touch, cancelHighlight)) =>
                       val curVerbIndex = prompt.qaPairs(curQuestion).verbIndex
-                      val highlightedAnswers = AnswerWordIndex.getAnswerSpans(spans)
-                      val curAnswerSpans = highlightedAnswers(curQuestion).spans
-                      val curAnswerSpan = curAnswerSpans.lift(curAnswer).foldK
-
-                      val allOtherAnswerSpans =
-                        (highlightedAnswers - curQuestion).toList.flatMap(_._2.spans) ++
-                          curAnswerSpans.take(curAnswer) ++
-                          curAnswerSpans.drop(curAnswer + 1)
+                      val inProgressAnswerOpt = SpanHighlightingStatus.highlighting.getOption(status).map {
+                        case Highlighting(_, anchor, endpoint) => ContiguousSpan(anchor, endpoint)
+                      }
+                      val curAnswers = spans(curQuestion)
+                      val otherAnswers = (spans - curQuestion).values.flatten
+                      val highlightedAnswers = prompt.qaPairs.indices.map(i =>
+                        i -> Answer(spans(i).map(_.indices))
+                      ).toMap
 
                       val isCurrentInvalid = answers(curQuestion).isInvalid
-                      def touchWord(i: Int) = touchElement(AnswerWordIndex(curQuestion, curAnswer, i))
+                      val touchWord = touch(curQuestion) // TODO check that this works
                       <.div(
                         ^.classSet1("container-fluid"),
-                        ^.onMouseUp --> stopHighlight,
-                        ^.onMouseDown --> startHighlight,
+                        ^.onClick --> cancelHighlight, // TODO stop propagation with actual highlighting clicks
                         <.div(
                           instructions,
                           ^.margin := "5px"
@@ -296,7 +258,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                           ^.tabIndex := 0,
                           ^.onFocus --> scope.modState(State.isInterfaceFocused.set(true)),
                           ^.onBlur --> scope.modState(State.isInterfaceFocused.set(false)),
-                          ^.onKeyDown ==> handleKey(highlightedAnswers),
+                          ^.onKeyDown ==> ((e: ReactKeyboardEvent) => handleKey(highlightedAnswers)(e) >> cancelHighlight),
                           ^.position := "relative",
                           <.div(
                             ^.position := "absolute",
@@ -309,16 +271,16 @@ class QASRLValidationClient[SID : Writer : Reader](
                             ^.fontSize := "48pt",
                             (if(isNotAssigned) "Accept assignment to start" else "Click here to start")
                           ).when(!isInterfaceFocused),
-                          MultiSpanHighlightableSentence(
-                            MultiSpanHighlightableSentenceProps(
+                          MultiContigSpanHighlightableSentence(
+                            MultiContigSpanHighlightableSentenceProps(
                               sentence = sentence,
                               styleForIndex = i => TagMod(Styles.specialWord, Styles.niceBlue).when(i == curVerbIndex),
-                              highlightedSpans = (curAnswerSpan, ^.backgroundColor := "#FFFF00") :: allOtherAnswerSpans.map(
-                                (_, ^.backgroundColor := "#DDDDDD")
-                              ),
-                              startHighlight = startHighlight,
-                              startErase = startErase,
-                              touchWord = (i: Int) => if(allOtherAnswerSpans.exists(_.contains(i))) Callback.empty else touchWord(i),
+                              highlightedSpans = (
+                                inProgressAnswerOpt.map(_ -> (^.backgroundColor := "#FF8000")) ::
+                                (curAnswers.map(_ -> (^.backgroundColor := "#FFFF00")) ++
+                                otherAnswers.map(_ -> (^.backgroundColor := "#CCCCCC"))).map(Some(_))).flatten,
+                              hover = hover(state.curQuestion),
+                              touch = touch(state.curQuestion),
                               render = (elements =>
                                 <.p(
                                   Styles.largeText,

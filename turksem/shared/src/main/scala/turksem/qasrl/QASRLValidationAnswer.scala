@@ -5,6 +5,9 @@ import cats.implicits._
 import nlpdata.util.Text
 import turksem.util._
 
+import monocle._
+import monocle.macros._
+
 /** Represents a validator response about a question:
   * either it has an answer, is invalid, or is redundant with another question.
   */
@@ -33,10 +36,14 @@ sealed trait QASRLValidationAnswer {
   }
 }
 case object InvalidQuestion extends QASRLValidationAnswer
-case class Redundant(other: Int) extends QASRLValidationAnswer
-case class Answer(spans: List[Set[Int]]) extends QASRLValidationAnswer
+@Lenses case class Redundant(other: Int) extends QASRLValidationAnswer
+@Lenses case class Answer(spans: List[Set[Int]]) extends QASRLValidationAnswer
 
 object QASRLValidationAnswer {
+  val invalidQuestion = GenPrism[QASRLValidationAnswer, InvalidQuestion.type]
+  val redundant = GenPrism[QASRLValidationAnswer, Redundant]
+  val answer = GenPrism[QASRLValidationAnswer, Answer]
+
   def resolveRedundancy(va: QASRLValidationAnswer, answers: List[QASRLValidationAnswer]) =
     va.getRedundant.fold(va)(r => answers(r.other))
 

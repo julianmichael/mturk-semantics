@@ -103,6 +103,15 @@ package object util extends PackagePlatformExtensions {
   implicit class RichList[A](val as: List[A]) extends AnyVal {
     def remove(i: Int) = as.take(i) ++ as.drop(i + 1)
     def tailOption: Option[List[A]] = if(as.nonEmpty) Some(as.tail) else None
+    def indexOpt(a: A): Option[Int] = Some(as.indexOf(a)).filter(_ >= 0)
+    def collectFirstWithIndex[B](p: PartialFunction[A, B]): Option[(B, Int)] =
+      as.zipWithIndex.collect {
+        case (a, i) if p.isDefinedAt(a) => (p(a), i)
+      }.headOption
+    def findIndex(p: A => Boolean): Option[Int] = as.zipWithIndex.find(pair => p(pair._1)).map(_._2)
+    // TODO doesn't short circuit when it finds the guy
+    def indicesYielding[B](f: A => Option[B]): Seq[(Int, B)] =
+      as.zipWithIndex.flatMap(pair => f(pair._1).map(b => (pair._2, b)))
   }
 
   implicit class RichValForOptions[A](val a: A) extends AnyVal {

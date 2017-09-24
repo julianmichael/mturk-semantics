@@ -29,12 +29,11 @@ object InstructionsComponent {
       <.div(
         ^.classSet1("card"),
         <.div(
-          ^.classSet1("card-header card-inverse card-primary"),
+          ^.classSet1("card-header card-inverse card-secondary"),
           <.h4(
             <.a(
               dataToggle := "collapse",
               ^.href := s"#${props.instructionsId}",
-              ^.color := "white",
               "Instructions ",
               <.span(^.id := "collapse-text")
             )

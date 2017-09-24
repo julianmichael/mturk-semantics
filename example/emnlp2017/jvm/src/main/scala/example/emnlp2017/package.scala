@@ -397,20 +397,4 @@ package object emnlp2017 {
     def minOption(implicit o: Ordering[A]): Option[A] = if(a.isEmpty) None else Some(a.min)
     def maxOption(implicit o: Ordering[A]): Option[A] = if(a.isEmpty) None else Some(a.max)
   }
-
-  implicit class RichSeq[A](val as: Seq[A]) extends AnyVal {
-    def indexOpt(a: A): Option[Int] = Some(as.indexOf(a)).filter(_ >= 0)
-    def collectFirstWithIndex[B](p: PartialFunction[A, B]): Option[(B, Int)] =
-      as.zipWithIndex.collect {
-        case (a, i) if p.isDefinedAt(a) => (p(a), i)
-      }.headOption
-    def indexFind(p: A => Boolean): Option[Int] = as.zipWithIndex.find(pair => p(pair._1)).map(_._2)
-    // TODO doesn't short circuit when it finds the guy
-    def indicesYielding[B](f: A => Option[B]): Seq[(Int, B)] =
-      as.zipWithIndex.flatMap(pair => f(pair._1).map(b => (pair._2, b)))
-  }
-
-  implicit class RichList[A](val as: List[A]) extends AnyVal {
-    def tailOption: Option[List[A]] = if(as.nonEmpty) Some(as.tail) else None
-  }
 }
