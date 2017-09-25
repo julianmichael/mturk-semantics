@@ -7,8 +7,49 @@ import turkey.tasks._
 import akka.pattern.ask
 import scala.concurrent.duration._
 
+import com.amazonaws.services.mturk._
+import com.amazonaws.services.mturk.model._
+
+def yesterday = {
+  val cal = java.util.Calendar.getInstance
+  cal.add(java.util.Calendar.DATE, -1)
+  cal.getTime
+}
+
+import scala.collection.JavaConverters._
+
+def expireHITById(hitId: String) = {
+  config.service.updateExpirationForHIT(
+    (new UpdateExpirationForHITRequest)
+      .withHITId(hitId)
+      .withExpireAt(yesterday))
+}
+
+def approveAllAssignmentsByHITId(hitId: String) = for {
+  mTurkAssignment <- config.service.listAssignmentsForHIT(
+    new ListAssignmentsForHITRequest()
+      .withHITId(hitId)
+      .withAssignmentStatuses(AssignmentStatus.Submitted)
+    ).getAssignments.asScala.toList
+} yield config.service.approveAssignment(
+  new ApproveAssignmentRequest()
+    .withAssignmentId(mTurkAssignment.getAssignmentId)
+    .withRequesterFeedback(""))
+
+def deleteHITById(hitId: String) =
+  config.service.deleteHIT((new DeleteHITRequest).withHITId(hitId))
+
+def disableHITById(hitId: String) = {
+  expireHITById(hitId)
+  deleteHITById(hitId)
+}
+
+def getActiveHITIds = {
+  config.service.listHITs(new ListHITsRequest).getHITs.asScala.toList.map(_.getHITId)
+}
+
 val isProduction = false // sandbox. change to true for production
-val domain = "localhost" // change to your domain, or keep localhost for testing
+val domain = "nlp.cs.washington.edu" // change to your domain, or keep localhost for testing
 val projectName = "turksem-multitask" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
 
@@ -23,6 +64,14 @@ implicit val config: TaskConfig = {
     SandboxTaskConfig(projectName, domain, hitDataService)
   }
 }
+
+// use with caution... intended mainly for sandbox
+def deleteAll = {
+  exp.setGenHITsActiveEach(0)
+  exp.expire
+  exp.delete
+}
+
 def exit = {
   // actor system has to be terminated for JVM to be able to terminate properly upon :q
   config.actorSystem.terminate
