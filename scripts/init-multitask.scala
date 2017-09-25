@@ -44,6 +44,8 @@ exp.server
 // use with caution... intended mainly for sandbox
 def deleteAll = {
   exp.setGenHITsActiveEach(0)
+  exp.setValHITsActive(0)
+  Thread.sleep(200)
   exp.expire
   exp.delete
 }
