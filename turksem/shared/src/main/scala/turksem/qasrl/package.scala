@@ -6,6 +6,10 @@ import turksem.qamr.WorkerStats
 
 package object qasrl {
 
+  case class QASRLGenerationPrompt[SID](
+    id: SID,
+    verbIndex: Int)
+
   case class GenerationStatSummary(
     numVerbsCompleted: Int, // before validation: used to calculate coverage
     numQuestionsWritten: Int, // before validation: "

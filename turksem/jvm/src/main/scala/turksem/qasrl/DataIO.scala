@@ -9,6 +9,7 @@ import nlpdata.util.HasTokens
 import nlpdata.util.Text
 
 import turksem.qamr.GenerationPrompt
+import turksem.util.ContiguousSpan
 
 object DataIO {
 
@@ -50,7 +51,7 @@ object DataIO {
               sentenceSB.append(s"${Text.normalizeToken(sentenceTokens(wqa.verbIndex))} (${wqa.verbIndex})\t")
               sentenceSB.append(wqa.question + "\t") // question string written by worker
               sentenceSB.append(
-                ((Answer(wqa.answers)) :: valResponses.map(_._2)).map { valAnswer =>
+                ((Answer(wqa.answers.map(ContiguousSpan.fromSet))) :: valResponses.map(_._2)).map { valAnswer =>
                   QASRLValidationAnswer.render(sentenceTokens, valAnswer, genAssignment.response)
                 }.mkString("\t")
               )

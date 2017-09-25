@@ -19,7 +19,7 @@ lazy val commonSettings = Seq(
   libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.10.0",
   libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
-  libraryDependencies += "com.lihaoyi" %%% "upickle" % "0.4.1",
+  libraryDependencies += "com.lihaoyi" %%% "upickle" % "0.4.3",
   libraryDependencies += "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
   libraryDependencies += "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
 )

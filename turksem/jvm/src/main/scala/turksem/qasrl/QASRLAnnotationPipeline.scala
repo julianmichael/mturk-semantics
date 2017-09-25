@@ -523,7 +523,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       Text.render(sentence) + "\n" +
         info.hit.prompt.qaPairs.zip(assignment.response).map {
           case (VerbQA(kwIndex, question, answers), valAnswer) =>
-            val answerString = answers.map(Text.renderSpan(sentence, _)).mkString(" / ")
+            val answerString = answers.map(s => Text.renderSpan(sentence, s)).mkString(" / ")
             val validationString = QASRLValidationAnswer.render(sentence, valAnswer, info.hit.prompt.qaPairs)
             s"\t$question --> $answerString \t|$validationString"
         }.mkString("\n")

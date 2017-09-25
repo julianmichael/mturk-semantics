@@ -43,24 +43,6 @@ class QASRLValidationClient[SID : Writer : Reader](
     FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
-  case class AnswerWordIndex(
-    questionIndex: Int,
-    answerIndex: Int,
-    wordIndex: Int)
-  object AnswerWordIndex {
-    def getAnswerSpans(indices: Set[AnswerWordIndex]): Map[Int, Answer] =
-      prompt.qaPairs.indices
-        .map(qi =>
-        qi -> Answer(
-          indices
-            .filter(_.questionIndex == qi)
-            .groupBy(_.answerIndex)
-            .toList
-            .sortBy(_._1)
-            .map(_._2.map(awi => awi.wordIndex).toSet))
-      ).toMap
-  }
-
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLValidationApiRequest[SID], QASRLValidationApiResponse]
   import WebsocketLoadableComponent._
   val SpanHighlightingComponent = new SpanHighlightingComponent[Int] // question
@@ -75,7 +57,7 @@ class QASRLValidationClient[SID : Writer : Reader](
     isInterfaceFocused: Boolean,
     answers: List[QASRLValidationAnswer])
   object State {
-    def initial = State(0, false, questions.map(_ => Answer(List.empty[Set[Int]])))
+    def initial = State(0, false, questions.map(_ => Answer(List.empty[ContiguousSpan])))
   }
 
   def answerSpanOptics(questionIndex: Int) =
@@ -93,7 +75,7 @@ class QASRLValidationClient[SID : Writer : Reader](
       scope.state >>= (st =>
         scope.modState(
           answerSpanOptics(st.curQuestion).set(
-            highlightingState.spans(st.curQuestion).map(_.indices)
+            highlightingState.spans(st.curQuestion)
           )
         )
       )
@@ -178,12 +160,12 @@ class QASRLValidationClient[SID : Writer : Reader](
               (spans.flatMap { span =>
                  List(
                    <.span(
-                     Text.renderSpan(sentence, span)
+                     Text.renderSpan(sentence, span.indices)
                    ),
                    <.span(" / ")
                  )
                } ++ List(<.span(^.color := "#CCCCCC", "Highlight to add an answer"))).toVdomArray
-            case Answer(spans) => spans.map(Text.renderSpan(sentence, _)).mkString(" / ")
+            case Answer(spans) => spans.map(s => Text.renderSpan(sentence, s.indices)).mkString(" / ")
           }
         )
       )
@@ -216,7 +198,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                       val curAnswers = spans(curQuestion)
                       val otherAnswers = (spans - curQuestion).values.flatten
                       val highlightedAnswers = prompt.qaPairs.indices.map(i =>
-                        i -> Answer(spans(i).map(_.indices))
+                        i -> Answer(spans(i))
                       ).toMap
 
                       val isCurrentInvalid = answers(curQuestion).isInvalid

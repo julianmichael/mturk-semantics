@@ -19,25 +19,6 @@ import monocle._
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
-sealed trait ContiguousSpan {  // inclusive
-  def begin: Int
-  def end: Int
-
-  def length = end - begin + 1
-  def indices = (begin to end).toSet
-  def contains(i: Int) = begin <= i && i <= end
-  def containsSpaceBefore(i: Int) = begin <= (i - 1) && i <= end
-}
-object ContiguousSpan {
-  private[this] case class ContiguousSpanImpl(
-    override val begin: Int,
-    override val end: Int) extends ContiguousSpan {
-    override def toString = s"ContiguousSpan($begin, $end)"
-  }
-  def apply(x: Int, y: Int): ContiguousSpan = ContiguousSpanImpl(math.min(x, y), math.max(x, y))
-  def unapply(cs: ContiguousSpan): Option[(Int, Int)] = ContiguousSpanImpl.unapply(cs.asInstanceOf[ContiguousSpanImpl])
-}
-
 class SpanHighlightingComponent[Index] {
 
   sealed trait SpanHighlightingStatus

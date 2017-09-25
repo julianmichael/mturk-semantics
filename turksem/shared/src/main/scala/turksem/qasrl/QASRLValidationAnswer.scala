@@ -32,12 +32,12 @@ sealed trait QASRLValidationAnswer {
   def isComplete = this match {
     case InvalidQuestion => true
     case Redundant(_) => true
-    case Answer(indices) => indices.exists(_.nonEmpty)
+    case Answer(indices) => indices.nonEmpty
   }
 }
 case object InvalidQuestion extends QASRLValidationAnswer
 @Lenses case class Redundant(other: Int) extends QASRLValidationAnswer
-@Lenses case class Answer(spans: List[Set[Int]]) extends QASRLValidationAnswer
+@Lenses case class Answer(spans: List[ContiguousSpan]) extends QASRLValidationAnswer
 
 object QASRLValidationAnswer {
   val invalidQuestion = GenPrism[QASRLValidationAnswer, InvalidQuestion.type]
@@ -57,7 +57,7 @@ object QASRLValidationAnswer {
       case (Answer(spans1), Answer(spans2)) =>
         spans1.exists(span1 =>
           spans2.exists(span2 =>
-            span1.intersect(span2).nonEmpty
+            span1.indices.intersect(span2.indices).nonEmpty
           )
         )
       case _ => false
@@ -74,7 +74,7 @@ object QASRLValidationAnswer {
   ): String = va match {
     case InvalidQuestion => "Invalid"
     case Redundant(i) => s"Redundant: $i"
-    case Answer(spans) => spans.map(_.toVector.sorted.mkString(" ")).mkString("/")
+    case Answer(spans) => spans.map { case ContiguousSpan(begin, end) => s"$begin-$end" }.mkString(" / ")
   }
 
   val RedundantMatch = "Redundant: ([0-9]*)".r
@@ -86,8 +86,11 @@ object QASRLValidationAnswer {
     case "Invalid" => InvalidQuestion
     case RedundantMatch(i) => Redundant(i.toInt)
     case other => Answer(
-      other.split("/").toList.map(is =>
-        is.split(" ").map(_.toInt).toSet
+      other.split(" / ").toList.map(is =>
+        is.split("-").map(_.toInt).toList match {
+          case begin :: end :: Nil => ContiguousSpan(begin, end)
+          case _ => ??? // should not happen
+        }
       )
     )
   }
@@ -100,6 +103,6 @@ object QASRLValidationAnswer {
   ): String = va match {
     case InvalidQuestion => "<Invalid>"
     case Redundant(i) => s"<Redundant with ${referenceQAs(i).question}>"
-    case Answer(spans) => spans.map(Text.renderSpan(sentence, _)).mkString(" / ")
+    case Answer(spans) => spans.map(span => Text.renderSpan(sentence, span.indices)).mkString(" / ")
   }
 }
