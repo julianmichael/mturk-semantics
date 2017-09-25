@@ -24,49 +24,16 @@ import upickle.default._
 
 import com.typesafe.scalalogging.StrictLogging
 
-object QASRLValidationHITManager {
-  def apply[SID : Reader : Writer](
-    helper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
-    valDisqualificationTypeId: String,
-    accuracyStatsActor: ActorRef,
-    // sentenceTrackingActor: ActorRef,
-    numAssignmentsForPrompt: QASRLValidationPrompt[SID] => Int,
-    initNumHITsToKeepActive: Int)(
-    implicit annotationDataService: AnnotationDataService
-  ) = {
-
-    new QASRLValidationHITManager[SID](
-      helper, valDisqualificationTypeId, accuracyStatsActor, /*sentenceTrackingActor,*/
-      numAssignmentsForPrompt, initNumHITsToKeepActive,
-      loadPrompts[SID].iterator)
-  }
-
-  val validationPromptsFilename = "validationPrompts"
-
-  def loadPrompts[SID : Reader](
-    implicit annotationDataService: AnnotationDataService
-  ) = annotationDataService.loadLiveData(validationPromptsFilename)
-    .toOption
-    .fold(List.empty[QASRLValidationPrompt[SID]])(lines => read[List[QASRLValidationPrompt[SID]]](lines.mkString))
-}
-
-class QASRLValidationHITManager[SID : Reader : Writer] private (
+class QASRLValidationHITManager[SID : Reader : Writer](
   helper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
   valDisqualificationTypeId: String,
   accuracyStatsActor: ActorRef,
   // sentenceTrackingActor: ActorRef,
   numAssignmentsForPrompt: QASRLValidationPrompt[SID] => Int,
-  initNumHITsToKeepActive: Int,
-  _promptSource: Iterator[QASRLValidationPrompt[SID]])(
+  initNumHITsToKeepActive: Int)(
   implicit annotationDataService: AnnotationDataService
 ) extends NumAssignmentsHITManager[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](
-  helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource) {
-
-  import QASRLValidationHITManager._
-  import helper._
-  import config._
-  import taskSpec.hitTypeId
-  import QASRLSettings._
+  helper, numAssignmentsForPrompt, initNumHITsToKeepActive, List.empty[QASRLValidationPrompt[SID]].iterator) {
 
   override lazy val receiveAux2: PartialFunction[Any, Unit] = {
     case SaveData => save
@@ -81,15 +48,22 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
     promptToAssignments = promptToAssignments - prompt
   }
 
-  private[this] var allPrompts = loadPrompts[SID]
-
   override def addPrompt(prompt: QASRLValidationPrompt[SID]): Unit = {
     super.addPrompt(prompt)
     allPrompts = prompt :: allPrompts
   }
 
+  val validationPromptsFilename = "validationPrompts"
   val workerInfoFilename = "validationWorkerInfo"
   val promptToAssignmentsFilename = "promptToAssignments"
+
+  private[this] var allPrompts = {
+    val prompts = annotationDataService.loadLiveData(validationPromptsFilename)
+      .toOption
+      .fold(List.empty[QASRLValidationPrompt[SID]])(lines => read[List[QASRLValidationPrompt[SID]]](lines.mkString))
+    prompts.reverse.foreach(addPrompt) // add them back in after loading
+    prompts
+  }
 
   private[this] def save = {
     annotationDataService.saveLiveData(
@@ -141,7 +115,7 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
          worker.agreement < QASRLSettings.validationAgreementBlockingThreshold &&
          worker.numAssignmentsCompleted > QASRLSettings.validationAgreementGracePeriod) {
       Try(
-        config.service.associateQualificationWithWorker(
+        helper.config.service.associateQualificationWithWorker(
           new AssociateQualificationWithWorkerRequest()
             .withQualificationTypeId(valDisqualificationTypeId)
             .withWorkerId(worker.workerId)
@@ -153,7 +127,7 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
 
   // override for more interesting review policy
   override def reviewAssignment(hit: HIT[QASRLValidationPrompt[SID]], assignment: Assignment[List[QASRLValidationAnswer]]): Unit = {
-    evaluateAssignment(hit, startReviewing(assignment), Approval(""))
+    helper.evaluateAssignment(hit, helper.startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
       feedbacks = assignment :: feedbacks
       logger.info(s"Feedback: ${assignment.feedback}")
@@ -163,9 +137,9 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
 
     // grant bonus as appropriate
     val numQuestions = hit.prompt.qaPairs.size
-    val totalBonus = validationBonus(numQuestions)
+    val totalBonus = QASRLSettings.validationBonus(numQuestions)
     if(totalBonus > 0.0) {
-      service.sendBonus(
+      helper.config.service.sendBonus(
         new SendBonusRequest()
           .withWorkerId(workerId)
           .withBonusAmount(f"$totalBonus%.2f")
@@ -179,7 +153,7 @@ class QASRLValidationHITManager[SID : Reader : Writer] private (
       .getOrElse(QASRLValidationWorkerInfo.empty(workerId))
       .addAssignment(assignment.response,
                      assignment.submitTime - assignment.acceptTime,
-                     taskSpec.hitType.reward + totalBonus)
+                     helper.taskSpec.hitType.reward + totalBonus)
     // do comparisons with other workers
     promptToAssignments.get(hit.prompt).getOrElse(Nil).foreach { otherAssignment =>
       val otherWorkerId = otherAssignment.workerId

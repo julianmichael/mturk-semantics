@@ -96,7 +96,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withRequiredToPreview(false)
 
   val genAccDisqualTypeLabelString = generationAccuracyDisqualTypeLabel.fold("")(x => s"[$x] ")
-  val genAccDisqualTypeName = s"${genAccDisqualTypeLabelString}Question-answer writing accuracy too low"
+  val genAccDisqualTypeName = s"${genAccDisqualTypeLabelString}Question-answer writing accuracy disqualification"
   val genAccDisqualType = config.service.listQualificationTypes(
     new ListQualificationTypesRequest()
       .withQuery(genAccDisqualTypeName)
@@ -119,7 +119,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withRequiredToPreview(false)
 
   val genCoverageDisqualTypeLabelString = generationCoverageDisqualTypeLabel.fold("")(x => s"[$x] ")
-  val genCoverageDisqualTypeName = s"${genCoverageDisqualTypeLabelString} Questions asked per verb too low"
+  val genCoverageDisqualTypeName = s"${genCoverageDisqualTypeLabelString} Questions asked per verb disqualification"
   val genCoverageDisqualType = config.service.listQualificationTypes(
     new ListQualificationTypesRequest()
       .withQuery(genCoverageDisqualTypeName)
@@ -144,7 +144,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withRequiredToPreview(false)
 
   val valAgrDisqualTypeLabelString = validationAgreementDisqualTypeLabel.fold("")(x => s"[$x] ")
-  val valAgrDisqualTypeName = s"${valAgrDisqualTypeLabelString}Question answering agreement too low"
+  val valAgrDisqualTypeName = s"${valAgrDisqualTypeLabelString}Question answering agreement disqualification"
   val valAgrDisqualType = config.service.listQualificationTypes(
     new ListQualificationTypesRequest()
       .withQuery(valAgrDisqualTypeName)
@@ -361,7 +361,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   lazy val valManager: ActorRef = if(config.isProduction) {
     actorSystem.actorOf(
       Props {
-        valManagerPeek = QASRLValidationHITManager(
+        valManagerPeek = new QASRLValidationHITManager(
           valHelper,
           valAgrDisqualTypeId,
           accuracyTracker,
@@ -372,7 +372,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   } else {
     actorSystem.actorOf(
       Props {
-        valManagerPeek = QASRLValidationHITManager(
+        valManagerPeek = new QASRLValidationHITManager(
           valHelper,
           valAgrDisqualTypeId,
           accuracyTracker,

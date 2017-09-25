@@ -429,7 +429,6 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         and your agreement rate will be shown to you in the interface.
         If this number drops below ${(100 * validationAgreementBlockingThreshold).toInt}
         you will no longer qualify for the task.
-        There is a grace period of several HITs before your score is allowed to drop too low.
         (Note that other validators will sometimes make mistakes,
         so there is an element of randomness to it: don't read too deeply into small changes in your agreement rate.)
         Your work will be approved and the bonus will be paid within an hour.""")
