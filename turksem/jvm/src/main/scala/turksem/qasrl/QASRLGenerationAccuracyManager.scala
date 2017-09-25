@@ -5,7 +5,6 @@ import turkey.tasks._
 
 import turksem._
 import turksem.util._
-import turksem.qamr.GenerationPrompt
 import turksem.qamr.WorkerStats
 import turksem.qamr.Pring
 import turksem.qamr.SaveData
@@ -60,14 +59,13 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
     case vr: QASRLValidationResult[SID] => vr match {
       case QASRLValidationResult(prompt, hitTypeId, hitId, assignmentId, numQAsValid) =>
         val ha = for {
-          hit <- hitDataService.getHIT[GenerationPrompt[SID]](hitTypeId, hitId).toOptionLogging(logger).toList
+          hit <- hitDataService.getHIT[QASRLGenerationPrompt[SID]](hitTypeId, hitId).toOptionLogging(logger).toList
           assignment <- hitDataService.getAssignmentsForHIT[List[VerbQA]](hitTypeId, hitId).get
           if assignment.assignmentId == assignmentId
         } yield (hit, assignment)
 
         ha.foreach { case (hit, assignment) =>
           // award bonuses
-          val numSpecialWords = prompt.keywords.size
           val numQAsProvided = assignment.response.size
           val bonusAwarded = generationBonus(numQAsValid)
           val bonusCents = dollarsToCents(bonusAwarded)

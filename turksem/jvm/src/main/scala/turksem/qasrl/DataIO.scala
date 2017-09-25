@@ -8,7 +8,6 @@ import nlpdata.util.HasTokens.ops._
 import nlpdata.util.HasTokens
 import nlpdata.util.Text
 
-import turksem.qamr.GenerationPrompt
 import turksem.util.ContiguousSpan
 
 object DataIO {
@@ -17,7 +16,7 @@ object DataIO {
     ids: List[SID],
     writeId: SID => String, // serialize sentence ID for distribution in data file
     anonymizeWorker: String => String, // anonymize worker IDs so they can't be tied back to workers on Turk
-    genInfos: List[HITInfo[GenerationPrompt[SID], List[VerbQA]]],
+    genInfos: List[HITInfo[QASRLGenerationPrompt[SID], List[VerbQA]]],
     valInfos: List[HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]],
     keepQA: (SID, VerbQA, List[QASRLValidationAnswer]) => Boolean = (
       (_: SID, _: VerbQA, _: List[QASRLValidationAnswer]) => true)
@@ -32,7 +31,7 @@ object DataIO {
       var shouldIncludeSentence = true // for now, print everything
       sentenceSB.append(s"${idString}\t${nlpdata.util.Text.render(sentenceTokens)}\n")
       // sort by keyword group first...
-      for(HITInfo(genHIT, genAssignments) <- genInfosBySentenceId(id).sortBy(_.hit.prompt.keywords.min)) {
+      for(HITInfo(genHIT, genAssignments) <- genInfosBySentenceId(id).sortBy(_.hit.prompt.verbIndex)) {
         // then worker ID second, so the data will be chunked correctly according to HIT;
         for(genAssignment <- genAssignments.sortBy(_.workerId)) {
           // and these should already be ordered in terms of the target word used for a QA pair.

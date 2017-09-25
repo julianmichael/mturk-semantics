@@ -7,7 +7,6 @@ import turkey.tasks._
 
 import turksem._
 import turksem.util._
-import turksem.qamr.GenerationPrompt
 import turksem.qamr.WorkerStats
 import turksem.qamr.Pring
 import turksem.qamr.SaveData
@@ -28,16 +27,16 @@ import com.typesafe.scalalogging.StrictLogging
 case class FlagBadSentence[SID](id: SID)
 
 class QASRLGenerationHITManager[SID : Reader : Writer](
-  helper: HITManager.Helper[GenerationPrompt[SID], List[VerbQA]],
+  helper: HITManager.Helper[QASRLGenerationPrompt[SID], List[VerbQA]],
   validationHelper: HITManager.Helper[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]],
   validationActor: ActorRef,
   coverageDisqualificationTypeId: String,
   // sentenceTrackingActor: ActorRef,
-  numAssignmentsForPrompt: GenerationPrompt[SID] => Int,
+  numAssignmentsForPrompt: QASRLGenerationPrompt[SID] => Int,
   initNumHITsToKeepActive: Int,
-  _promptSource: Iterator[GenerationPrompt[SID]])(
+  _promptSource: Iterator[QASRLGenerationPrompt[SID]])(
   implicit annotationDataService: AnnotationDataService
-) extends NumAssignmentsHITManager[GenerationPrompt[SID], List[VerbQA]](
+) extends NumAssignmentsHITManager[QASRLGenerationPrompt[SID], List[VerbQA]](
   helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource
 ) with StrictLogging {
 
@@ -46,7 +45,7 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
   import QASRLSettings._
   import taskSpec.hitTypeId
 
-  override def promptFinished(prompt: GenerationPrompt[SID]): Unit = {
+  override def promptFinished(prompt: QASRLGenerationPrompt[SID]): Unit = {
     // sentenceTrackingActor ! GenerationFinished(prompt)
   }
 
@@ -95,7 +94,7 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
     logger.info("Generation data saved.")
   }
 
-  override def reviewAssignment(hit: HIT[GenerationPrompt[SID]], assignment: Assignment[List[VerbQA]]): Unit = {
+  override def reviewAssignment(hit: HIT[QASRLGenerationPrompt[SID]], assignment: Assignment[List[VerbQA]]): Unit = {
     evaluateAssignment(hit, startReviewing(assignment), Approval(""))
     if(!assignment.feedback.isEmpty) {
       feedbacks = assignment :: feedbacks

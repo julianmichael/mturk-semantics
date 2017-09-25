@@ -38,7 +38,7 @@ import scala.collection.JavaConverters._
 
 class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
-  numGenerationAssignmentsForPrompt: GenerationPrompt[SID] => Int,
+  numGenerationAssignmentsForPrompt: QASRLGenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
   generationAccuracyDisqualTypeLabel: Option[String] = None,
   generationCoverageDisqualTypeLabel: Option[String] = None,
@@ -72,10 +72,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     }
   }
 
-  lazy val allPrompts: Vector[GenerationPrompt[SID]] = for {
+  lazy val allPrompts: Vector[QASRLGenerationPrompt[SID]] = for {
     id <- allIds
     verbIndex <- id.keyIndices.toList.sorted
-  } yield GenerationPrompt(id, List(verbIndex))
+  } yield QASRLGenerationPrompt(id, verbIndex)
 
   // lazy val (smallPrompts, largePrompts) = allPrompts.partition(_.keywords.size < 3)
 
@@ -233,7 +233,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     ))
 
   lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {
-    case QASRLGenerationApiRequest(workerIdOpt, GenerationPrompt(id, keywords)) =>
+    case QASRLGenerationApiRequest(workerIdOpt, QASRLGenerationPrompt(id, verbIndex)) =>
       val questionListsOpt = for {
         genManagerP <- Option(genManagerPeek)
         workerId <- workerIdOpt
@@ -253,10 +253,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
         workerStatsOpt = workerStatsOpt)
 
       val tokens = id.tokens
-      val indicesWithInflectedForms = keywords.flatMap(kw =>
-        inflections.getInflectedForms(tokens(kw).lowerCase).map(forms => IndexWithInflectedForms(kw, forms))
-      )
-      QASRLGenerationApiResponse(stats, tokens, indicesWithInflectedForms)
+      val inflectedForms = inflections.getInflectedForms(tokens(verbIndex).lowerCase).get
+      QASRLGenerationApiResponse(stats, tokens, inflectedForms)
   }
 
   lazy val sampleGenPrompt = allPrompts(3)
@@ -312,7 +310,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   //       stats -> SentenceHITInfo(
   //         sentence,
   //         stats.genHITIds.toList
-  //           .map(hitDataService.getHITInfo[GenerationPrompt[SID], List[VerbQA]](genTaskSpec.hitTypeId, _))
+  //           .map(hitDataService.getHITInfo[QASRLGenerationPrompt[SID], List[VerbQA]](genTaskSpec.hitTypeId, _))
   //           .map(_.get),
   //         stats.valHITIds.toList
   //           .map(hitDataService.getHITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](valTaskSpec.hitTypeId, _))
@@ -390,8 +388,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   var genManagerPeek: QASRLGenerationHITManager[SID] = null
 
-  def makeGenHITManagement(hitType: HITType, prompts: Vector[GenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit)) = {
-    val taskSpec = TaskSpecification[GenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
+  def makeGenHITManagement(hitType: HITType, prompts: Vector[QASRLGenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit)) = {
+    val taskSpec = TaskSpecification[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
       QASRLSettings.generationTaskKey, hitType, genApiFlow, sampleGenPrompt,
       taskPageHeadElements = taskPageHeadLinks,
       taskPageBodyElements = taskPageBodyLinks)
@@ -419,7 +417,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             valManager,
             genCoverageDisqualTypeId,
             // sentenceTracker,
-            (_: GenerationPrompt[SID]) => 1, 3, prompts.iterator)
+            (_: QASRLGenerationPrompt[SID]) => 1, 3, prompts.iterator)
           setPeek(manager)
           manager
         }
@@ -489,7 +487,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   // for use while it's running. Ideally instead of having to futz around at the console calling these functions,
   // in the future you could have a nice dashboard UI that will help you examine common sources of issues
 
-  def allGenInfos = hitDataService.getAllHITInfo[GenerationPrompt[SID], List[VerbQA]](genTaskSpec.hitTypeId).get
+  def allGenInfos = hitDataService.getAllHITInfo[QASRLGenerationPrompt[SID], List[VerbQA]](genTaskSpec.hitTypeId).get
 
   def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](valTaskSpec.hitTypeId).get
 

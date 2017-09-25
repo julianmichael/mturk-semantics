@@ -17,17 +17,13 @@ package object qasrl {
 
   case class QASRLGenerationApiRequest[SID](
     workerIdOpt: Option[String],
-    prompt: qamr.GenerationPrompt[SID]
+    prompt: QASRLGenerationPrompt[SID]
   )
-
-  case class IndexWithInflectedForms(
-    wordIndex: Int,
-    inflectedForms: InflectedForms)
 
   case class QASRLGenerationApiResponse(
     stats: GenerationStatSummary,
     tokens: Vector[String],
-    templates: List[IndexWithInflectedForms])
+    inflectedForms: InflectedForms)
 
   case class QASRLValidationApiRequest[SID](
     workerIdOpt: Option[String],

@@ -20,7 +20,6 @@ import com.amazonaws.services.mturk.model.AssociateQualificationWithWorkerReques
 import com.amazonaws.services.mturk.model.SendBonusRequest
 import com.amazonaws.services.mturk.model.NotifyWorkersRequest
 
-
 import upickle.default._
 
 import com.typesafe.scalalogging.StrictLogging

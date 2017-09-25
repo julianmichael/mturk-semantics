@@ -134,7 +134,7 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
     Wiktionary.getInflectionsForTokens(tokens)
   }
 
-  def numGenerationAssignmentsForPrompt(p: GenerationPrompt[SentenceId]) = 1
+  def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[SentenceId]) = 1
 
   lazy val experiment = new QASRLAnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
