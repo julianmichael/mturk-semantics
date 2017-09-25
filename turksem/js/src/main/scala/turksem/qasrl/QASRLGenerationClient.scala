@@ -80,10 +80,10 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   @Lenses case class QAPair(
     question: String,
-    answers: List[Set[Int]], // TODO change to contiguous span
+    answers: List[ContiguousSpan],
     state: QAState)
   object QAPair {
-    val empty = QAPair("", List.empty[Set[Int]], InProgress)
+    val empty = QAPair("", Nil, InProgress)
   }
 
   @Lenses case class State(
@@ -174,7 +174,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
       scope.modState(
         State.qas.composeTraversal(eachIndexed).modify {
           case (qa, qaIndex) => QAPair.answers.set(
-            hs.spans(qaIndex).map(_.indices)
+            hs.spans(qaIndex)
           )(qa) -> qaIndex
         } andThen addQAFields
       )
@@ -380,7 +380,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
             ^.onMouseLeave --> setBlurEnabled(true),
             {
               val answersString = (0 until answers.size).reverse
-                .map(i => Text.renderSpan(sentence, answers(i)))
+                .map(i => Text.renderSpan(sentence, answers(i).indices))
                 .mkString(" / ")
               if(isFocused) {
                 if(answers.isEmpty) <.span(

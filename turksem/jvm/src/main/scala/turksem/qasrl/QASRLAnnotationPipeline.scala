@@ -288,9 +288,9 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val sampleValPrompt = QASRLValidationPrompt[SID](
     sampleGenPrompt, "", "", "",
-    List(VerbQA(0, "Who did someone look at?", List(Set(4))),
-         VerbQA(1, "Who looked at someone?", List(Set(0, 1))),
-         VerbQA(1, "How did someone look at someone?", List(Set(5)))))
+    List(VerbQA(0, "Who did someone look at?", List(ContiguousSpan(4, 4))),
+         VerbQA(1, "Who looked at someone?", List(ContiguousSpan(0, 1))),
+         VerbQA(1, "How did someone look at someone?", List(ContiguousSpan(5, 5)))))
 
   lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationApiRequest[SID], QASRLValidationApiResponse](
     QASRLSettings.validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
@@ -521,7 +521,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       Text.render(sentence) + "\n" +
         info.hit.prompt.qaPairs.zip(assignment.response).map {
           case (VerbQA(kwIndex, question, answers), valAnswer) =>
-            val answerString = answers.map(s => Text.renderSpan(sentence, s)).mkString(" / ")
+            val answerString = answers.map(s => Text.renderSpan(sentence, s.indices)).mkString(" / ")
             val validationString = QASRLValidationAnswer.render(sentence, valAnswer, info.hit.prompt.qaPairs)
             s"\t$question --> $answerString \t|$validationString"
         }.mkString("\n")

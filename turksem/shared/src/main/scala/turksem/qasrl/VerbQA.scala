@@ -1,7 +1,9 @@
 package turksem.qasrl
 
+import turksem.util.ContiguousSpan
+
 case class VerbQA(
   verbIndex: Int,
   question: String, // should be guaranteed to adhere to QA-SRL format
-  answers: List[Set[Int]] // should not overlap
+  answers: List[ContiguousSpan] // should not overlap
 )
