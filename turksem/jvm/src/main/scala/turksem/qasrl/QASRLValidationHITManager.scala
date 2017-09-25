@@ -61,7 +61,7 @@ class QASRLValidationHITManager[SID : Reader : Writer](
     val prompts = annotationDataService.loadLiveData(validationPromptsFilename)
       .toOption
       .fold(List.empty[QASRLValidationPrompt[SID]])(lines => read[List[QASRLValidationPrompt[SID]]](lines.mkString))
-    prompts.reverse.foreach(addPrompt) // add them back in after loading
+    prompts.reverse.foreach(super.addPrompt) // add them back while loading
     prompts
   }
 
@@ -86,7 +86,6 @@ class QASRLValidationHITManager[SID : Reader : Writer](
       .map(_.mkString)
       .map(read[Map[String, QASRLValidationWorkerInfo]])
       .toOption.getOrElse {
-      // TODO assemble from saved data?
       Map.empty[String, QASRLValidationWorkerInfo]
     }
   }
