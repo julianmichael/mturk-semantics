@@ -77,8 +77,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     verbIndex <- id.keyIndices.toList.sorted
   } yield QASRLGenerationPrompt(id, verbIndex)
 
-  // lazy val (smallPrompts, largePrompts) = allPrompts.partition(_.keywords.size < 3)
-
   implicit val ads = annotationDataService
 
   import config.hitDataService
@@ -229,7 +227,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     reward = QASRLSettings.generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, localeRequirement, genAccuracyRequirement, genCoverageRequirement // TODO qual task req
+      approvalRateRequirement, /* localeRequirement, */ genAccuracyRequirement, genCoverageRequirement
     ))
 
   lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {
@@ -272,7 +270,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     reward = QASRLSettings.validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, localeRequirement, valAgreementRequirement // TODO maybe another requirement
+      approvalRateRequirement, /* localeRequirement, */ valAgreementRequirement
     ))
 
   lazy val valApiFlow = Flow[QASRLValidationApiRequest[SID]].map {
