@@ -93,19 +93,17 @@ class SpanHighlightingComponent[Index] {
     }
 
     def touch(index: Index)(wordIndex: Int): Callback = modStateWithUpdate {
-      case SpanHighlightingState(spans, status) =>
-        if(spans.values.toList.flatten.exists(_.contains(wordIndex))) SpanHighlightingState(spans, status) // do nothing
-        else status match {
-          case NoSpan => spans(index).findIndex(_.contains(wordIndex)) match {
-            case None =>
-              SpanHighlightingState(spans, Highlighting(index, wordIndex, wordIndex)) // start highlighting
-            case Some(i) => // remove span
-              SpanHighlightingState(spans.updated(index, spans(index).remove(i)), NoSpan)
-          }
-          case Highlighting(`index`, x, y) => // finish span
-            SpanHighlightingState(spans.updated(index, ContiguousSpan(x, y) :: spans(index)), NoSpan)
-          case _ => SpanHighlightingState(spans, status)
-        }
+      case SpanHighlightingState(spans, NoSpan) => spans(index).findIndex(_.contains(wordIndex)) match {
+        case None =>
+          if(spans.values.toList.flatten.exists(_.contains(wordIndex))) SpanHighlightingState(spans, NoSpan) // do nothing
+          else SpanHighlightingState(spans, Highlighting(index, wordIndex, wordIndex)) // start highlighting
+        case Some(i) => // remove span
+          SpanHighlightingState(spans.updated(index, spans(index).remove(i)), NoSpan)
+      }
+      case SpanHighlightingState(spans, Highlighting(`index`, x, y)) =>
+        if(spans.values.toList.flatten.exists(_.contains(wordIndex))) SpanHighlightingState(spans, Highlighting(index, x, y)) // do nothing
+        else SpanHighlightingState(spans.updated(index, ContiguousSpan(x, y) :: spans(index)), NoSpan) // finish span
+      case x => x
     }
 
     def cancel = modStateWithUpdate(SpanHighlightingState.status.set(NoSpan))

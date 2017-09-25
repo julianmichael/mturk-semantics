@@ -59,15 +59,12 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse]
   import WebsocketLoadableComponent._
-  val HighlightingComponent = new HighlightingComponent[(Int, Int, Int, Int)] // keyword index AMONG KEYWORDS, qa index, answer index, answer word index
-  import HighlightingComponent._
+  val SpanHighlightingComponent = new SpanHighlightingComponent[(Int, Int)] // keyword index AMONG KEYWORDS, qa index
+  import SpanHighlightingComponent._
 
   val IntState = new LocalStateComponent[Int]
 
-  val ReferenceComponent = new ReferenceComponent[dom.html.Element]
-  import ReferenceComponent._
-
-  import MultiSpanHighlightableSentenceComponent._
+  import MultiContigSpanHighlightableSentenceComponent._
 
   sealed trait QAState {
     final def isComplete: Boolean = this match {
@@ -97,7 +94,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   @Lenses case class State(
     qaGroups: List[QAGroup],
-    curFocus: Option[(Int, Int, Int)]) {
+    curFocus: Option[(Int, Int)]) {
   }
   object State {
     val empty: State = State(Nil, None)
@@ -123,12 +120,6 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   def qaStateLens(groupIndex: Int, qaIndex: Int) = qaLens(groupIndex, qaIndex)
     .composeLens(QAPair.state)
-
-  // def getQAState(template: QASRLStatefulTemplate, qa: QAPair): QAState =
-  //   template.processStringFully(qa.question) match {
-  //     case Left(QASRLStatefulTemplate.AggregatedInvalidState(_, numGoodCharacters)) => Invalid
-  //     case Right(validStates) => if(validStates.exists(_.isComplete)) Complete else InProgress
-  //   }
 
   def isQuestionComplete(qa: QAPair): Boolean = qa.state.isComplete
 
@@ -193,31 +184,25 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
     def moveToNextQuestion: Callback = scope.state.flatMap { s =>
       s.curFocus.foldMap { focus =>
-        val qaFocus = (focus._1, focus._2)
         val allFocusablePairs = s.qaGroups.toVector.zipWithIndex.flatMap {
           case (group, groupIndex) => group.qas.zipWithIndex.map {
             case (_, qaIndex) => (groupIndex, qaIndex)
           }
         }
-        val curIndex = allFocusablePairs.indexOf(qaFocus)
+        val curIndex = allFocusablePairs.indexOf(focus)
         val newIndex = (curIndex + 1) % allFocusablePairs.size
 
         Callback(allInputRefs(allFocusablePairs(newIndex)).focus)
       }
     }
 
-    def moveToAnswer(targetAnswerIndex: Int): Callback = scope.modState(
-      (State.curFocus composePrism OptionOptics.some composeLens Optics.third).set(targetAnswerIndex)
-    )
-
-    def updateHighlights(hs: HighlightingState) =
+    def updateHighlights(hs: SpanHighlightingState) =
       scope.modState(
         State.qaGroups.composeTraversal(eachIndexed).modify {
           case (group, groupIndex) => QAGroup.qas.composeTraversal(eachIndexed).modify {
             case (qa, qaIndex) => QAPair.answers.set(
-              hs.span.collect {
-                case (`groupIndex`, `qaIndex`, answerIndex, wordIndex) => (answerIndex, wordIndex)
-              }.groupBy(_._1).toList.sortBy(_._1).map(_._2.map(p => p._2).toSet))(qa) -> qaIndex
+              hs.spans((groupIndex, qaIndex)).map(_.indices)
+            )(qa) -> qaIndex
           }(group) -> groupIndex
         } andThen addQAFields
       )
@@ -236,11 +221,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
       case State(qaGroups, curFocus) =>
         val qaGroup = qaGroups(groupIndex)
         val template = qaGroup.template
-        val answerFocus = curFocus match {
-          case Some((`groupIndex`, `qaIndex`, answerIndex)) => Some(answerIndex)
-          case _ => None
-        }
-        val isFocused = answerFocus.nonEmpty
+        val isFocused = curFocus.nonEmptyAnd(_ == (groupIndex, qaIndex))
         val numQAsInGroup = qaGroup.qas.size
         val QAPair(question, answers, qaState) = qaGroup.qas(qaIndex)
 
@@ -332,7 +313,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                           case KeyCode.Enter => selectItem(menuItems.toList(highlightedIndex)) >> e.preventDefaultCB
                         }
                       }
-                  }
+                    }
 
                   genHandlers orElse menuHandlers
                 }
@@ -345,92 +326,81 @@ class QASRLGenerationClient[SID : Reader : Writer](
                 }
 
                 <.div(
-                  Reference(
-                    ReferenceProps(
-                      referencedTag = <.input(
-                        (^.disabled := true).when(isNotAssigned),
-                        bgStyle,
-                        ^.float := "left",
-                        ^.`type` := "text",
-                        ^.placeholder := (
-                          if(qaIndex == 0) ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\" (required)")
-                          else ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\"" + s" (+${math.round(100 * nextPotentialBonus).toInt}c)")
-                        ),
-                        ^.padding := s"1px",
-                        ^.width := "480px",
-                        ^.onKeyDown ==> handleKey,
-                        ^.onChange ==> ((e: ReactEventFromInput) => handleQuestionChange(e.target.value)),
-                        ^.onFocus --> scope.modState(
-                          State.curFocus.modify {
-                            case cf @ Some((`groupIndex`, `qaIndex`, answerIndex)) => cf
-                            case _ => Some((groupIndex, qaIndex, 0))
-                          }),
-                        ^.onBlur --> (if(isBlurEnabled) scope.modState(State.curFocus.set(None)) else Callback(allInputRefs((groupIndex, qaIndex)).focus)),
-                        ^.value := question
-                      ),
-                      render = {
-                        case (input, refOpt) =>
-                          <.div(
-                            input.ref(setInputRef(groupIndex, qaIndex)),
-                            (for {
-                               AutocompleteState(suggestions, badStartIndexOpt) <- autocompleteStateOpt
-                               ref <- allInputRefs.get((groupIndex, qaIndex)) // refOpt
-                             } yield {
-                               val rect = ref.getBoundingClientRect
-                               val width = math.round(rect.width)
-                               val bottom = math.round(ref.offsetTop + rect.height)
-                               val left = math.round(ref.offsetLeft)
+                  <.input(
+                    (^.disabled := true).when(isNotAssigned),
+                    bgStyle,
+                    ^.float := "left",
+                    ^.`type` := "text",
+                    ^.placeholder := (
+                      if(qaIndex == 0) ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\" (required)")
+                      else ("Question about \"" + Text.normalizeToken(sentence(qaGroup.verbIndex)) + "\"" + s" (+${math.round(100 * nextPotentialBonus).toInt}c)")
+                    ),
+                    ^.padding := s"1px",
+                    ^.width := "480px",
+                    ^.onKeyDown ==> handleKey,
+                    ^.onChange ==> ((e: ReactEventFromInput) => handleQuestionChange(e.target.value)),
+                    ^.onFocus --> scope.modState(State.curFocus.set(Some((groupIndex, qaIndex)))),
+                    ^.onBlur --> (
+                      if(isBlurEnabled) scope.modState(State.curFocus.set(None))
+                      else Callback(allInputRefs((groupIndex, qaIndex)).focus)
+                    ),
+                    ^.value := question
+                  ).ref(setInputRef(groupIndex, qaIndex)),
+                  (for {
+                     AutocompleteState(suggestions, badStartIndexOpt) <- autocompleteStateOpt
+                     ref <- allInputRefs.get((groupIndex, qaIndex))
+                   } yield {
+                     val rect = ref.getBoundingClientRect
+                     val width = math.round(rect.width)
+                     val bottom = math.round(ref.offsetTop + rect.height)
+                     val left = math.round(ref.offsetLeft)
 
-                               def itemBgStyle(tokenIndex: Int, isCompletion: Boolean) =
-                                 if(tokenIndex == highlightedIndex && isCompletion) Some(^.backgroundColor := "rgba(0, 255, 0, 0.7)")
-                                 else if(tokenIndex == highlightedIndex) Some(^.backgroundColor := "rgb(40, 162, 254)")
-                                 else if(isCompletion) Some(^.backgroundColor := "rgba(0, 255, 0, 0.3)")
-                                 else None
+                     def itemBgStyle(tokenIndex: Int, isCompletion: Boolean) =
+                       if(tokenIndex == highlightedIndex && isCompletion) Some(^.backgroundColor := "rgba(0, 255, 0, 0.7)")
+                       else if(tokenIndex == highlightedIndex) Some(^.backgroundColor := "rgb(40, 162, 254)")
+                       else if(isCompletion) Some(^.backgroundColor := "rgba(0, 255, 0, 0.3)")
+                       else None
 
-                               <.div(
-                                 ^.zIndex := "10",
-                                 ^.position := "absolute",
-                                 ^.top := s"${bottom}px",
-                                 ^.left := s"${left}px",
-                                 ^.minWidth := s"${width}px",
-                                 ^.border := "solid 1px #ccc",
-                                 ^.borderRadius := "3px",
-                                 ^.boxShadow := "0 2px 12px rgba(0, 0, 0, 0.1)",
-                                 ^.background := "rgba(255, 255, 255, 1.0)",
-                                 ^.padding := "2px 0",
-                                 ^.fontSize := "90%",
-                                 ^.overflow := "auto",
-                                 ^.maxHeight := "600px",
-                                 ^.onMouseMove --> setBlurEnabled(false),
-                                 ^.onMouseLeave --> setBlurEnabled(true),
-                                 suggestions.zipWithIndex.toList.toVdomArray {
-                                   case (ts @ Suggestion(text, isCompletion), tokenIndex) =>
-                                     <.div(
-                                       itemBgStyle(tokenIndex, isCompletion).whenDefined,
-                                       ^.padding := "2px 6px",
-                                       ^.cursor := "default",
-                                       ^.onMouseEnter --> setHighlightedIndex(tokenIndex),
-                                       ^.onClick --> selectItem(ts),
-                                       badStartIndexOpt match {
-                                         case None => text
-                                         case Some(badStartIndex) =>
-                                           <.span(
-                                             <.span(text.substring(0, badStartIndex)),
-                                             <.span(
-                                               ^.backgroundColor := "rgba(255, 0, 0, 0.3)",
-                                               text.substring(badStartIndex)
-                                             )
-                                           )
-                                       }
-                                     )
-                                 }
-                               )
+                     <.div(
+                       ^.zIndex := "10",
+                       ^.position := "absolute",
+                       ^.top := s"${bottom}px",
+                       ^.left := s"${left}px",
+                       ^.minWidth := s"${width}px",
+                       ^.border := "solid 1px #ccc",
+                       ^.borderRadius := "3px",
+                       ^.boxShadow := "0 2px 12px rgba(0, 0, 0, 0.1)",
+                       ^.background := "rgba(255, 255, 255, 1.0)",
+                       ^.padding := "2px 0",
+                       ^.fontSize := "90%",
+                       ^.overflow := "auto",
+                       ^.maxHeight := "600px",
+                       ^.onMouseMove --> setBlurEnabled(false),
+                       ^.onMouseLeave --> setBlurEnabled(true),
+                       suggestions.zipWithIndex.toList.toVdomArray {
+                         case (ts @ Suggestion(text, isCompletion), tokenIndex) =>
+                           <.div(
+                             itemBgStyle(tokenIndex, isCompletion).whenDefined,
+                             ^.padding := "2px 6px",
+                             ^.cursor := "default",
+                             ^.onMouseEnter --> setHighlightedIndex(tokenIndex),
+                             ^.onClick --> selectItem(ts),
+                             badStartIndexOpt match {
+                               case None => text
+                               case Some(badStartIndex) =>
+                                 <.span(
+                                   <.span(text.substring(0, badStartIndex)),
+                                   <.span(
+                                     ^.backgroundColor := "rgba(255, 0, 0, 0.3)",
+                                     text.substring(badStartIndex)
+                                   )
+                                 )
                              }
-                            ).whenDefined.when(isFocused)
-                          )
-                      }
-                    )
-                  )
+                           )
+                       }
+                     )
+                   }
+                  ).whenDefined.when(isFocused)
                 )
               })),
           <.div(
@@ -439,38 +409,26 @@ class QASRLGenerationClient[SID : Reader : Writer](
             ^.padding := "1px",
             ^.onMouseMove --> setBlurEnabled(false),
             ^.onMouseLeave --> setBlurEnabled(true),
-            if(isFocused) {
-              if(answers.isEmpty) <.span(
-                ^.color := "#CCCCCC",
-                "Highlight your answer above"
-              ) else (0 to answers.size).map(i =>
-                <.span(
-                  ^.onClick --> moveToAnswer(i),
-                  if(i < answers.size) TagMod(
-                    (^.backgroundColor := "#FFFF00").when(answerFocus.nonEmptyAnd(_ == i)),
-                    Text.renderSpan(sentence, answers(i))
-                  ) else TagMod(
+            {
+              val answersString = (0 until answers.size).reverse
+                .map(i => Text.renderSpan(sentence, answers(i)))
+                .mkString(" / ")
+              if(isFocused) {
+                if(answers.isEmpty) <.span(
+                  ^.color := "#CCCCCC",
+                  "Highlight your answer above"
+                ) else <.span(
+                  answersString,
+                  <.span(
                     (^.color := "#CCCCCC"),
-                    if(answerFocus.nonEmptyAnd(_ == i)) TagMod(
-                      ^.backgroundColor := "#FFFF00",
-                      "Highlight a new answer above, or click other answers to edit"
-                    ) else "Click here to add new answer; click other answers to edit"
+                    " / Highlight another phrase to add an answer"
                   )
                 )
-              ).toList.map(List(_)).intercalate(List(<.span(" / "))).toVdomArray
-            } else <.span(
-              (0 until answers.size).map(i =>
-                <.span(
-                  ^.onClick --> (
-                    setBlurEnabled(true) >>
-                      Callback(allInputRefs((groupIndex, qaIndex)).focus) >>
-                      moveToAnswer(i) >>
-                      setBlurEnabled(false)
-                  ),
-                  Text.renderSpan(sentence, answers(i))
-                )
-              ).toList.map(List(_)).intercalate(List(<.span(" / "))).toVdomArray
-            )
+              } else <.span(
+                ^.onClick --> (Callback(allInputRefs((groupIndex, qaIndex)).focus)),
+                answersString
+              )
+            }
           )
         )
     }
@@ -499,63 +457,46 @@ class QASRLGenerationClient[SID : Reader : Writer](
                 if remaining > 0
               } yield remaining
 
-              Highlighting(
-                HighlightingProps(
+              SpanHighlighting(
+                SpanHighlightingProps(
                   isEnabled = !isNotAssigned,
-                  preUpdate = HighlightingState.span.modify(
-                    span => span.map(t => (t._1, t._2)).flatMap {
-                      case (keywordIndex, qaIndex) => span.collect {
-                        case (`keywordIndex`, `qaIndex`, answerIndex, wordIndex) => (answerIndex, wordIndex)
-                      }.groupBy(_._1).toList.sortBy(_._1).map(_._2.map(p => p._2)).zipWithIndex.flatMap {
-                        case (wordIndices, newAnswerIndex) => wordIndices.map((keywordIndex, qaIndex, newAnswerIndex, _))
-                      }.toSet
-                    }
-                  ),
                   update = updateHighlights,
                   render = {
-                    case (HighlightingState(spans, status),
-                          HighlightingContext(setSpan, startHighlight, startErase, stopHighlight, touchElement)) =>
+                    case (SpanHighlightingState(spans, status), SpanHighlightingContext(setSpan, hover, touch, cancelHighlight)) =>
 
                       val curCompleteQAPairs = getAllCompleteQAPairs(s.qaGroups)
 
                       val curPotentialBonus = QASRLSettings.generationBonus(curCompleteQAPairs.size)
                       val nextPotentialBonus = QASRLSettings.generationBonus(curCompleteQAPairs.size + 1) - curPotentialBonus
 
-                      val groupAnswersByQAIndex = s.curFocus.foldMap {
-                        case (groupIndex, _, _) => spans.collect {
-                          case (`groupIndex`, qaIndex, answerIndex, wordIndex) => (qaIndex, answerIndex, wordIndex)
-                        }
-                      }.groupBy(_._1).map {
-                        case (qaIndex, tuples) => qaIndex -> tuples
-                            .map(t => (t._2, t._3))
-                            .groupBy(_._1).toList.sortBy(_._1)
-                            .map(_._2).toList.map(_.map(p => p._2).toSet)
-                      }
-
-                      val otherAnswersInGroup = s.curFocus.foldMap {
-                        case (_, qaIndex, answerIndex) =>
-                          groupAnswersByQAIndex.toList.flatMap {
-                            case (`qaIndex`, answerSpans) => answerSpans.take(answerIndex) ++ answerSpans.drop(answerIndex + 1)
-                            case (_, answerSpans) => answerSpans
-                          }
-                      }
-
-                      val otherAnswerWordsInGroup = otherAnswersInGroup.flatten.toSet
-
-                      val curAnswers = s.curFocus.flatMap {
-                        case (_, qaIndex, _) => groupAnswersByQAIndex.get(qaIndex)
-                      }.foldK
-
-                      val curAnswer = s.curFocus.foldMap {
-                        case (_, _, answerIndex) => curAnswers.lift(answerIndex).foldMap(identity)
-                      }
-
-                      // val otherAnswersToQuestion = s.curFocus.foldMap {
-                      //   case (_, _, answerIndex) => curAnswers.take(answerIndex) ++ curAnswers.drop(answerIndex + 1)
+                      // val groupAnswersByQAIndex = s.curFocus.foldMap {
+                      //   case (groupIndex, _) => s.qaGroups(groupIndex).qas.indices.map(qaIndex =>
+                      //     qaIndex -> spans((groupIndex, qaIndex)).map(_.indices)
+                      //   ).toMap
                       // }
 
+                      val otherAnswerSpansInGroup = s.curFocus.foldMap {
+                        case (groupIndex, qaIndex) =>
+                          s.qaGroups(groupIndex).qas.indices
+                            .filterNot(_ == qaIndex)
+                            .flatMap(otherQAIndex => spans(groupIndex, otherQAIndex))
+                            .toList
+                      }
+
+                      // val otherAnswerWordsInGroup = otherAnswersInGroup.flatten.toSet
+
+                      val curAnswerSpans = s.curFocus.foldMap(spans)
+
+                      val inProgressAnswerOpt = SpanHighlightingStatus.highlighting.getOption(status).map {
+                        case Highlighting(_, anchor, endpoint) => ContiguousSpan(anchor, endpoint)
+                      }
+
+                      def hoverWord(i: Int) = s.curFocus.foldMap {
+                        case (groupIndex, qaIndex) => hover((groupIndex, qaIndex))(i)
+                      }
+
                       def touchWord(i: Int) = s.curFocus.foldMap {
-                        case (groupIndex, qaIndex, answerIndex) => touchElement((groupIndex, qaIndex, answerIndex, i))
+                        case (groupIndex, qaIndex) => touch((groupIndex, qaIndex))(i)
                       }
 
                       def ifCurGroup[M: Monoid](groupIndex: Int)(valueIfCorrect: M): M =
@@ -563,8 +504,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
                       <.div(
                         ^.classSet1("container-fluid"),
-                        ^.onMouseUp --> stopHighlight,
-                        ^.onMouseDown --> startHighlight,
+                        ^.onClick --> cancelHighlight,
                         Styles.mainContent,
                         <.div(
                           ^.margin := "5px",
@@ -620,20 +560,16 @@ class QASRLGenerationClient[SID : Reader : Writer](
                           (0 until s.qaGroups.size).toVdomArray(groupIndex =>
                             <.div(
                               ^.marginBottom := "20px",
-                              MultiSpanHighlightableSentence(
-                                MultiSpanHighlightableSentenceProps(
+                              MultiContigSpanHighlightableSentence(
+                                MultiContigSpanHighlightableSentenceProps(
                                   sentence = sentence,
-                                  styleForIndex = ((i: Int) =>
-                                    TagMod(Styles.specialWord, Styles.niceBlue).when(
-                                      i == prompt.keywords(groupIndex)
-                                    )
-                                  ),
-                                  highlightedSpans = (curAnswer, ^.backgroundColor := "#FFFF00") :: otherAnswersInGroup.map(
-                                    (_, ^.backgroundColor := "#DDDDDD")
-                                  ),
-                                  startHighlight = startHighlight,
-                                  startErase = startErase,
-                                  touchWord = (i: Int) => if(otherAnswerWordsInGroup.contains(i)) Callback.empty else touchWord(i),
+                                  styleForIndex = i => TagMod(Styles.specialWord, Styles.niceBlue).when(i == prompt.keywords(groupIndex)),
+                                  highlightedSpans = (
+                                    inProgressAnswerOpt.map(_ -> (^.backgroundColor := "#FF8000")) ::
+                                      (curAnswerSpans.map(_ -> (^.backgroundColor := "#FFFF00")) ++
+                                         otherAnswerSpansInGroup.map(_ -> (^.backgroundColor := "#DDDDDD"))).map(Some(_))).flatten,
+                                  hover = hoverWord,
+                                  touch = touchWord,
                                   render = (elements =>
                                     <.div(
                                       ^.onMouseEnter --> setBlurEnabled(false),

@@ -52,10 +52,9 @@ package object util extends PackagePlatformExtensions {
   }
 
   implicit class RichOption[A](val a: Option[A]) extends AnyVal {
-    // these replace the two possible foldMaps you might normally do with the two typical Boolean monoids.
-    // it's not really more concise, but it's more readable / harder to mess up.
-    def emptyOr(predicate: A => Boolean): Boolean = a.fold(true)(predicate)
-    def nonEmptyAnd(predicate: A => Boolean): Boolean = a.fold(false)(predicate)
+    // more readable alternatives to forall/exists
+    def emptyOr(predicate: A => Boolean): Boolean = a.forall(predicate)
+    def nonEmptyAnd(predicate: A => Boolean): Boolean = a.exists(predicate)
 
     def ifEmpty[B](b: => B): Option[B] = a match {
       case Some(_) => None
@@ -63,6 +62,7 @@ package object util extends PackagePlatformExtensions {
     }
   }
 
+  // TODO change to reducible
   implicit class RichNonEmptyList[A](val a: NonEmptyList[A]) extends AnyVal {
     def mean(implicit N: Numeric[A]): Double =
       N.toDouble(a.sum) / a.size

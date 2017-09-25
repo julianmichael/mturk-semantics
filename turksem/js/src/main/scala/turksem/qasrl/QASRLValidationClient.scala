@@ -220,10 +220,10 @@ class QASRLValidationClient[SID : Writer : Reader](
                       ).toMap
 
                       val isCurrentInvalid = answers(curQuestion).isInvalid
-                      val touchWord = touch(curQuestion) // TODO check that this works
+                      val touchWord = touch(curQuestion)
                       <.div(
                         ^.classSet1("container-fluid"),
-                        ^.onClick --> cancelHighlight, // TODO stop propagation with actual highlighting clicks
+                        ^.onClick --> cancelHighlight,
                         <.div(
                           instructions,
                           ^.margin := "5px"
@@ -278,7 +278,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                               highlightedSpans = (
                                 inProgressAnswerOpt.map(_ -> (^.backgroundColor := "#FF8000")) ::
                                 (curAnswers.map(_ -> (^.backgroundColor := "#FFFF00")) ++
-                                otherAnswers.map(_ -> (^.backgroundColor := "#CCCCCC"))).map(Some(_))).flatten,
+                                otherAnswers.map(_ -> (^.backgroundColor := "#DDDDDD"))).map(Some(_))).flatten,
                               hover = hover(state.curQuestion),
                               touch = touch(state.curQuestion),
                               render = (elements =>
