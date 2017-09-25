@@ -105,7 +105,7 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
     coverageStats = coverageStats.updated(assignment.workerId, newQuestionRecord)
     val verbsCompleted = newQuestionRecord.size
     val questionsPerVerb = newQuestionRecord.sum.toDouble / verbsCompleted
-    if(questionsPerVerb < QASRLSettings.generationCoverageGracePeriod &&
+    if(questionsPerVerb < QASRLSettings.generationCoverageQuestionsPerVerbThreshold &&
          verbsCompleted > generationCoverageGracePeriod) {
       config.service.associateQualificationWithWorker(
         new AssociateQualificationWithWorkerRequest()

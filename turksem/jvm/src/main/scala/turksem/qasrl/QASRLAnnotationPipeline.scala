@@ -489,11 +489,25 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](valTaskSpec.hitTypeId).get
 
+  def printCoverageStats = genManagerPeek.coverageStats.toList
+    .sortBy(-_._2.size)
+    .map { case (workerId, numQs) => f"$workerId%s\t${numQs.size}%d\t${numQs.sum.toDouble / numQs.size}%.2f" }
+    .foreach(println)
+
+  def allGenWorkers = allGenInfos.flatMap(_.assignments).map(_.workerId).toSet.toList
+
   def workerGenInfos(workerId: String) = for {
     hi <- allGenInfos
     assignment <- hi.assignments
     if assignment.workerId == workerId
   } yield HITInfo(hi.hit, List(assignment))
+
+  def allWorkerGenInfos = allGenWorkers.map(workerGenInfos)
+
+  // def renderGenInfo(info: HITInfo[QASRLGenerationPrompt, List[VerbQA]]) = Text.render(info.hit.prompt.id) + "\n" +
+  //   info.assignments.flatMap(_.response).map(qa =>
+  //     qa.question + "\t" + qa.answers.map(answer => Text.renderSpan(info.hit.prompt.id, answer.indices)).mkString(" / ")
+  //   )
 
   // sorted increasing by number of disagreements
   def workerValInfos(workerId: String) = {
