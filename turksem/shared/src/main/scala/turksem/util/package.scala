@@ -64,6 +64,7 @@ package object util extends PackagePlatformExtensions {
 
   // TODO change to reducible
   implicit class RichNonEmptyList[A](val a: NonEmptyList[A]) extends AnyVal {
+
     def mean(implicit N: Numeric[A]): Double =
       N.toDouble(a.sum) / a.size
 

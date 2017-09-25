@@ -19,6 +19,21 @@ case class CoNLLSentenceId(path: CoNLLSentencePath) extends SentenceId
 
 object SentenceId {
 
+  def isBrownTest(id: PTBSentenceId) = id.path.filepath match {
+    case BrownPath("CK", i) if i <= 3 => true
+    case _ => false
+  }
+
+  def isBrownDev(id: PTBSentenceId) = id.path.filepath match {
+    case BrownPath("CK", i) if i > 3 && i <= 6 => true
+    case _ => false
+  }
+
+  def isBrownTrain(id: PTBSentenceId) = id.path.filepath match {
+    case BrownPath("CK", i) if i > 6 => true
+    case _ => false
+  }
+
   // not necessarily used for serialization over the wire, but
   // used for storing to / reading from  the dataset file.
   def toString(sid: SentenceId): String = sid match {

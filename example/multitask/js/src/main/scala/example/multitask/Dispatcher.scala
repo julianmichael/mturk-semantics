@@ -238,7 +238,9 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     ),
     <.p("Occasionally, you may get a bolded word that isn't a verb, or is hard or impossible to write questions about. ",
         " In this case, please do your best to come up with one question, even if it is nonsensical. ",
-        " While it will count against your accuracy, this case is rare enough that it shouldn't matter. "),
+        " While it will count against your accuracy, this case is rare enough that it shouldn't matter. ",
+        " If the sentence has grammatical errors or is not a complete sentence, please write questions and answers ",
+        " that are appropriate to the sentence's meaning to the best of your ability. "),
     <.p("If you are not sure about certain cases, please check the examples.")
   )
 
@@ -393,7 +395,9 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
            If the only possible answers to a question were already used for previous questions, please mark it invalid."""
       )
     ),
-
+    <.p(" All ungrammatical questions should be counted invalid. However, ",
+        " If the sentence has grammatical errors or is not a complete sentence, please answer ",
+        " questions according to the sentence's meaning to the best of your ability. "),
     <.p("Please read through the examples if you need more details.")
   )
 

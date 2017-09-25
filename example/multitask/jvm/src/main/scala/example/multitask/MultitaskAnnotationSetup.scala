@@ -114,16 +114,47 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
     Files.lines(path).iterator.asScala.toList
   }
 
+  lazy val allBrownPaths = for {
+    path @ BrownPath("CK", _) <- PTB.getAllPaths
+    sentence <- PTB.getFile(path).sentences
+  } yield PTBSentenceId(sentence.path)
+
+  lazy val allOntoNotesPaths = for {
+    path <- CoNLL.getAllPaths
+    if path.language == "english" && path.domain == "bc"
+    sentence <- CoNLL.getFile(path).sentences
+  } yield CoNLLSentenceId(sentence.path)
+
   lazy val allIds: Vector[SentenceId] = {
-    val shuffleRand = new Random(234348765L)
-    val brownPaths = {
-      val unshuffled = for {
-        path @ BrownPath("CK", _) <- PTB.getAllPaths
-        sentence <- PTB.getFile(path).sentences
-      } yield PTBSentenceId(sentence.path)
-      shuffleRand.shuffle(unshuffled.toVector)
+    import scala.annotation.tailrec
+    @tailrec def weightedRoundRobinAux[A](soFar: Vector[A], vectors: List[Vector[A]]): Vector[A] = {
+      if(vectors.isEmpty) soFar else { // hit base case because filter out empties
+        val smallestSize = vectors.map(_.size).min // works bc nonempty
+        val (processedRemains, newSoFar) = vectors.foldLeft((List.empty[Vector[A]], soFar)) {
+          case ((remains, fullSoFar), vector) =>
+            val sizeMultiplier = vector.size / smallestSize
+            (vector.drop(sizeMultiplier) :: remains, fullSoFar ++ vector.take(sizeMultiplier))
+        }
+        weightedRoundRobinAux(newSoFar, processedRemains.reverse.filter(_.nonEmpty))
+      }
     }
-    brownPaths
+    def weightedRoundRobin[A](vectors: List[Vector[A]]) = weightedRoundRobinAux(Vector.empty[A], vectors)
+
+    val brownShuffleRand = new Random(234348765L)
+    val brownPaths = brownShuffleRand.shuffle(allBrownPaths.toVector)
+    val trainBrown = brownPaths.filter(SentenceId.isBrownTrain)
+    val devBrown = brownPaths.filter(SentenceId.isBrownDev)
+    val testBrown = brownPaths.filter(SentenceId.isBrownTest)
+    val finalBrown = weightedRoundRobin(List(trainBrown, devBrown, testBrown))
+
+    val ontoNotesShuffleRand = new Random(425632738L)
+    val ontoNotesPaths = ontoNotesShuffleRand.shuffle(allOntoNotesPaths.toVector)
+    val trainOntoNotes = ontoNotesPaths.filter(_.path.filePath.split == "train")
+    val devOntoNotes = ontoNotesPaths.filter(_.path.filePath.split == "development")
+    val testOntoNotes = ontoNotesPaths.filter(_.path.filePath.split == "test")
+    val finalOntoNotes = weightedRoundRobin(List(trainOntoNotes, devOntoNotes, testOntoNotes))
+
+    finalBrown ++ finalOntoNotes
   }
 
   implicit lazy val inflections = {
