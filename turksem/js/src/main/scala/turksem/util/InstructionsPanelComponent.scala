@@ -41,7 +41,7 @@ object InstructionsComponent {
         ),
         <.div(
           ^.id := props.instructionsId,
-          ^.classSet1("collapse in"),
+          ^.classSet1("collapse"),
           <.div( // header
             ^.classSet1("card-header"),
             <.ul(
@@ -108,7 +108,6 @@ object InstructionsComponent {
           jQuery(s"#collapse-text").text("(Click to collapse)")
           Dynamic.global.$.removeCookie(
             context.props.collapseCookieId,
-            "1",
             Dynamic.literal(path = "/"))
         }
       )
