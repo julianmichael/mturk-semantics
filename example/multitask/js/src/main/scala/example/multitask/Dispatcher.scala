@@ -43,8 +43,8 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
   private[this] val examples = <.div(
     TooltipsComponent(
       <.div(
+        <.p(Styles.bolded," This section is exactly the same between the question writing and question answering tasks. "),
         <.p(" Below, for each verb, we list a complete set of good questions (green) and some bad ones (red). ",
-            " (This section is exactly the same between the question writing and question answering tasks.) ",
             " Hover the mouse over the underlined examples for an explanation. "),
         <.blockquote(
           ^.classSet1("blockquote"),
@@ -179,7 +179,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
             "Where should someone go?",
             "up to the counter",
             true,
-            """Since both "up" and "to the counter", describe where they will go, they should both be included in the answer to a "where" question. """))
+            """Since both "up" and "to the counter" describe where they will go, they should both be included in the answer to a "where" question. """))
       )
     )
   )
@@ -204,8 +204,8 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.h2("Guidelines"),
     <.ol(
       <.li(
-        <.span(Styles.bolded, "The Litmus Test. "),
-        """Each question-answer pair must satisfy The Litmus Test that if you substitute the answer back into the question,
+        <.span(Styles.bolded, "Correctness. "),
+        """Each question-answer pair must satisfy the litmus test that if you substitute the answer back into the question,
            the result is a grammatical statement, and it is true according to the sentence given. For example, """,
         <.span(Styles.bolded, "Who blamed someone? --> Protesters"), """ becomes """,
         <.span(Styles.goodGreen, "Protesters blamed someone, "), """ which is valid, while """,
@@ -213,6 +213,19 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         <.span(Styles.badRed, "Protesters blamed, "), s""" which is ungrammatical, so it is invalid.
            Your questions will be judged by other annotators, and you must retain an accuracy of
            ${(100.0 * QASRLSettings.generationAccuracyBlockingThreshold).toInt}% in order to remain qualified. """),
+      <.li(
+        <.span(Styles.bolded, "Verb-relevance. "),
+        s"""The answer to a question must pertain to the participants, time, place, reason, etc., of """,
+        <.span(Styles.bolded, " the target verb in the sentence. "),
+        """ For example, if the sentence is """,
+        <.span(Styles.bolded,
+               " He ",
+               <.span(Styles.niceBlue, Styles.underlined, "promised"),
+               " to come tomorrow, "),
+        """ you may """, <.span(Styles.bolded, " not "), " write ",
+        <.span(Styles.badRed, " When did someone promise to do something? --> tomorrow, "),
+        """ because tomorrow is """, <.i(" not "),
+        " the time that he made the promise, but rather the time that he might come."),
       <.li(
         <.span(Styles.bolded, "Exhaustiveness. "),
         s"""You must write as many questions, and as many answers to each question, as possible.
@@ -252,29 +265,36 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
 
   val generationControls = <.div(
     <.ul(
-      <.li("""You can use the mouse, the up and down arrow keys, and the enter key to navigate the autocomplete menu.
-        We suggest starting off using the mouse and clicking on the autocomplete options to write your questions.
-        Once you get used to the question format, it might be fastest to type all of the questions
-        (with autocomplete checking your work) and then fill in the answers.
-        You can use tab and shift+tab to switch between questions quickly."""),
-      <.li("""Once you have written at least one question,
-        the autocomplete dropdown will start proposing completions of your other questions.
-        These can significantly speed up your question writing,
-        though keep in mind that the suggestions will not always be grammatical or answerable.
+      <.li(
+        <.span(Styles.bolded, "Questions & Autocomplete. "),
+        """You can write questions by typing or selecting items in the autocomplete menu.
+        You may navigate the menu using the mouse or the up & down arrows and enter key.
+        It may be easiest to start off with the mouse and then switch to typing when you get used to the question format.
+        You can use tab and shift+tab to switch between questions."""),
+      <.li(
+        <.span(Styles.bolded, "Auto-suggest. "),
+        """Once you have written at least one question,
+        the autocomplete dropdown will start proposing complete questions.
         The suggestions are based on the structure of your previous questions, so to get the most out of them,
         write questions with more structure (e.g., "Who looked at someone?") rather than
         less (e.g., "Who looked?").
         """),
-      <.li("""Highlight words for your answers by clicking or by dragging on words in the sentence.
-        To erase highlights, click or start dragging on a word that is already highlighted.
-        To add a new answer, just click on the open slot next to the current answer;
-        and click on a previous answer to edit it.
-        You will be prevented from including any words in more than one answer. """)),
+      <.li(
+        <.span(Styles.bolded, "Answers. "),
+        "To highlight an answer, first click on the first word in the answer, which will turn ",
+        <.span(^.backgroundColor := "#FF8000", "orange"),
+        ". Then click on the last word in the answer (which may be the same word) and the whole phrase will turn ",
+        <.span(^.backgroundColor := "#FFFF00", "yellow"),
+        ". (You may also click them in the opposite order.) You can highlight multiple answers to the same question in this way. ",
+        " To delete an answer, click on a word in that answer while it is highlighted yellow. ",
+        """ None of your answers may overlap with each other; answers to questions other than the currently selected one
+        will be highlighted in """,
+        <.span(^.backgroundColor := "#DDDDDD", "grey"), ".")),
     <.p("""
       When a question-answer pair is complete (the question is finished and it has at least one answer),
-      its input field will turn """, <.span(
-          ^.backgroundColor := "rgba(0, 255, 0, 0.3)", "green"
-        ), """. If it violates the required formatting, it will turn """, <.span(
+      its input field will turn """,
+        <.span(^.backgroundColor := "rgba(0, 255, 0, 0.3)", "green"),
+        """. If it violates the required formatting, it will turn """, <.span(
           ^.backgroundColor := "rgba(255, 0, 0, 0.3)", "red"
         ), """. If it is a repeat of a previous question, it will turn """, <.span(
           ^.backgroundColor := "rgba(255, 255, 0, 0.3)", "yellow"
@@ -310,7 +330,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
         collapseCookieId = "generationCollapseCookie",
         tabs = List(
           "Overview" -> generationOverview,
-          "Controls" -> generationControls,
+          "Interface & Controls" -> generationControls,
           "Question Format" -> generationQuestionFormat,
           "Conditions & Bonuses" -> generationConditions,
           "Examples" -> <.div(examples)
@@ -319,23 +339,16 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     )
   )
 
-  // override val validationPreTaskInstructions =
-  //   <.p(<.span(Styles.badRed, """ Please read the detailed instructions at the bottom before you begin. """),
-  //       """ Also, while there may be few HITs available at any one time,
-  //           more will be uploaded as other workers write questions for you to validate.
-  //           (Task design last updated Sept 22, 2017.)""")
-
   val validationOverview = <.div(
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.
            You will be presented with a selection of English text and a list of questions prepared by other annotators."""),
     <.p("""You will highlight the words in the sentence that correctly answer each question,
-           as well as mark whether questions are invalid.
-           For example, consider the following sentence:"""),
+           as well as mark whether questions are invalid. For example, consider the following sentence:"""),
     <.blockquote(
       ^.classSet1("blockquote"),
       "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today ",
-      <.span(Styles.bolded, " refused "), " to promise that they would resume the investigation before year's end. "),
+      " refused to promise that they would resume the investigation before year's end. "),
     <.p("""You should choose all of the following answers:"""),
     <.ul(
       <.li("Who blamed someone? --> ", <.span(Styles.goodGreen, " Protesters ")),
@@ -343,44 +356,66 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
       <.li("What did someone blame on someone? --> ", <.span(Styles.goodGreen, " the corruption scandal"))),
     <.p(s"""You will be paid a ${dollarsToCents(validationBonusPerQuestion)}c bonus per question after the first $validationBonusThreshold questions if there are more than $validationBonusThreshold."""),
     <.h2("""Guidelines"""),
-    <.p("""This task is best fit for native speakers of English.
-        For each question, you will either """,
-        <.b(" answer it "), " or mark it ", <.b(" invalid"), "."),
-    <.h4("Answers"),
-    <.p("Your answers will be phrases that you highlight in the sentence. They must satisfy all of the following criteria:"),
     <.ol(
-      <.li("You must highlight every correct answer, including phrases such as pronouns that refer to the correct answer."),
-      <.li("None of your answers may overlap with each other. (This is enforced by the interface.)"),
-      <.li("Include only the words relevant for answering the question, but if all else is equal, prefer longer answers.")),
-    <.p(""" To determine whether an answer is correct, the litmus test is turning it into a sentence by substituting its answer in.
-        For example: for the question """, <.span(Styles.bolded, " Who blamed someone?"), """, the answer """, <.span(Styles.bolded, " Protesters "), """ would be correct,
-        because the sentence does imply that """, <.span(Styles.bolded, " Protesters blamed someone."), """."""),
-    <.p("""All of the questions will center around some verb in the sentence, which will be bolded in the sentence.
-        Use this to disambiguate in case the verb appears multiple times."""),
-    <.p("""If all of the possible answers to a question have been taken by previous questions, please mark it invalid.
-        The annotators writing the questions are not supposed to repeat answers."""),
-    <.h4("Invalid Questions"),
-    <.p("""A question should be marked invalid if either of the following are true:"""),
-    <.ul(
-      <.li("It is not a grammatical English question."),
-      <.li("It does not have a correct answer directly expressed in the sentence.")
+      <.li(
+        <.span(Styles.bolded, "Correctness. "),
+        """Each answer must satisfy the litmus test that if you substitute it back into the question,
+           the result is a grammatical statement, and it is true according to the sentence given. For example, """,
+        <.span(Styles.bolded, "Who blamed someone? --> Protesters"), """ becomes """,
+        <.span(Styles.goodGreen, "Protesters blamed someone, "), """ which is valid, while """,
+        <.span(Styles.bolded, "Who blamed? --> Protesters"), """ would become """,
+        <.span(Styles.badRed, "Protesters blamed, "), s""" which is ungrammatical, so it is invalid.
+           Your responses will be compared to other annotators, and you must agree with them
+           ${(100.0 * QASRLSettings.validationAgreementBlockingThreshold).toInt}% of the time in order to remain qualified. """),
+      <.li(
+        <.span(Styles.bolded, "Verb-relevance. "),
+        """ Answers to the questions must pertain to the participants, time, place, reason, etc., of """,
+        <.span(Styles.bolded, " the target verb in the sentence, "),
+        " which is bolded and colored blue in the interface. ",
+        """ For example, if the sentence is """,
+        <.span(Styles.bolded,
+               " He ",
+               <.span(Styles.niceBlue, Styles.underlined, "promised"),
+               " to come tomorrow "),
+        """ and the question is """,
+        <.span(Styles.badRed, " When did someone promise to do something? "),
+        """ you must mark it """,
+        <.span(Styles.badRed, " Invalid "),
+        """ because the time mentioned, """, <.i(" tomorrow, "), " is ", <.i(" not "),
+        " the time that he made the promise, but rather the time that he might come."),
+      <.li(
+        <.span(Styles.bolded, "Exhaustiveness. "),
+        s"""You must provide every possible answer to each question.
+           When highlighting answers, please only include the necessary words to provide a complete, grammatical answer,
+           but if all else is equal, prefer to use longer answers.
+           Also please include pronouns in the sentence that refer an answer you've already given.
+           However, note that none of the answers to your questions may overlap.
+           If the only possible answers to a question were already used for previous questions, please mark it invalid."""
+      )
     ),
-    <.p(""" To determine whether a question is grammatical, again use the litmus test above.
-        For example: """, <.span(Styles.bolded, " Who blamed? --> Protesters"), """ would be wrong, because by substituting the answer back in, we get
-        """, <.span(Styles.bolded, "Protesters blamed"), """, which is not a grammatical sentence. """),
-    <.p(" Occasionally, you may get questions about words that aren't verbs or are impossible to ask questions about. Please mark these invalid. "),
 
-    <.p("Please read through the examples for a complete explanation.")
+    <.p("Please read through the examples if you need more details.")
   )
 
   val validationControls = <.div(
     <.ul(
-      <.li("Change questions using the mouse, the up and down arrow keys, or W and S."),
-      <.li("Cycle between answers using the left and right arrow keys, or A and D."),
-      <.li("Click the button labeled \"Invalid\" or press the space bar to toggle a question as invalid."),
-      <.li(""" Highlight words for your answers by clicking or by dragging on the sentence.
-        To erase highlights, click or start dragging on a word that is already highlighted.""")
-    )
+      <.li(
+        <.span(Styles.bolded, "Navigation. "),
+        "Change questions using the mouse, the up and down arrow keys, or W and S."),
+      <.li(
+        <.span(Styles.bolded, "Invalid Questions. "),
+        "Click the button labeled \"Invalid\" or press the space bar to toggle a question as invalid."),
+      <.li(
+        <.span(Styles.bolded, "Answers. "),
+        "To highlight an answer, first click on the first word in the answer, which will turn ",
+        <.span(^.backgroundColor := "#FF8000", "orange"),
+        ". Then click on the last word in the answer (which may be the same word) and the whole phrase will turn ",
+        <.span(^.backgroundColor := "#FFFF00", "yellow"),
+        ". (You may also click them in the opposite order.) You can highlight multiple answers to the same question in this way. ",
+        " To delete an answer, click on a word in that answer while it is highlighted yellow. ",
+        """ None of your answers may overlap with each other; answers to questions other than the currently selected one
+        will be highlighted in """,
+        <.span(^.backgroundColor := "#DDDDDD", "grey"), "."))
   )
 
   val validationConditions = <.div(

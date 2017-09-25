@@ -4,7 +4,6 @@ import turkey.tasks._
 import cats.implicits._
 
 import turksem._
-import turksem.qamr._
 import turksem.util._
 
 import nlpdata.util.Text

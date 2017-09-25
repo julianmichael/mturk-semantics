@@ -10,8 +10,6 @@ import cats.implicits._
 
 import turksem._
 
-// TODO remove
-import turksem.qamr._
 import turksem.util._
 import turkey.tasks._
 
