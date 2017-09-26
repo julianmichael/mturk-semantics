@@ -505,6 +505,11 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   def allGenWorkers = allGenInfos.flatMap(_.assignments).map(_.workerId).toSet.toList
   def allValWorkers = allValInfos.flatMap(_.assignments).map(_.workerId).toSet.toList
 
+  def latestValInfos(n: Int = 5) = allValInfos
+    .filter(_.assignments.nonEmpty)
+    .sortBy(_.assignments.map(_.submitTime).max)
+    .takeRight(n)
+
   // sorted increasing by submit time
   def infosForGenWorker(workerId: String) = {
     val scored = for {
@@ -529,6 +534,10 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   def renderValidation(info: HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]) = {
     val sentence = info.hit.prompt.genPrompt.id.tokens
+    val genWorkerString = hitDataService
+      .getAssignmentsForHIT[List[VerbQA]](genTaskSpec.hitTypeId, info.hit.prompt.sourceHITId).get
+      .find(_.assignmentId == info.hit.prompt.sourceAssignmentId)
+      .fold("")(_.workerId)
     Text.render(sentence) + "\n" +
       info.hit.prompt.qaPairs.zip(info.assignments.map(_.response).transpose).map {
         case (VerbQA(verbIndex, question, answers), validationAnswers) =>
@@ -538,7 +547,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             case Nil => ""
             case head :: tail => f"$head%20s(${tail.mkString("; ")}%s)"
           }
-          f"   $question%50s --> $answerString%20s | $allValidationsString"
+          f"$genWorkerString%-20s $question%-35s --> $answerString%20s | $allValidationsString"
       }.mkString("\n") + "\n"
   }
 
