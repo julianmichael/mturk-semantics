@@ -664,11 +664,11 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   def printAggregateStats = aggregateStats match {
     case AggregateStatSummary(numVerbs, numQs, numAs, numInvalidAnswers, totalCost) =>
-      println(f"${"Num verbs:"}%20s$numVerbs%d")
-      println(f"${"Num questions:"}%20s$numQs%d")
-      println(f"${"Num answers:"}%20s$numAs%d")
-      println(f"${"Num invalids:"}%20s$numInvalidAnswers%d")
-      println(f"${"Total cost:"}%20s$totalCost%.2f")
+      println(f"${"Num verbs:"}%-20s$numVerbs%d")
+      println(f"${"Num questions:"}%-20s$numQs%d")
+      println(f"${"Num answers:"}%-20s$numAs%d")
+      println(f"${"Num invalids:"}%-20s$numInvalidAnswers%d")
+      println(f"${"Total cost:"}%-20s$totalCost%.2f")
   }
 
   // def allSentenceStats: Map[SID, SentenceStats[SID]] = {

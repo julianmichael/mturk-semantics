@@ -54,6 +54,7 @@ class QASRLValidationHITManager[SID : Reader : Writer](
   override def addPrompt(prompt: QASRLValidationPrompt[SID]): Unit = {
     super.addPrompt(prompt)
     allPrompts = prompt :: allPrompts
+    refreshHITs
   }
 
   def christenWorker(workerId: String, numAgreementsToAdd: Int) = {
