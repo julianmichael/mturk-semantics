@@ -2,8 +2,6 @@ package turksem
 
 import nlpdata.datasets.wiktionary.InflectedForms
 
-import turksem.qamr.WorkerStats
-
 package object qasrl {
 
   case class QASRLGenerationPrompt[SID](
