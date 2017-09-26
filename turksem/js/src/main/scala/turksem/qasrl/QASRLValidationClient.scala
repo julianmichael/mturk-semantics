@@ -123,7 +123,6 @@ class QASRLValidationClient[SID : Writer : Reader](
         ),
         <.span(
           Styles.bolded.when(isFocused),
-          Styles.uncomfortableOrange.when(s.answers(s.curQuestion).getRedundant.nonEmptyAnd(_.other == index)),
           Styles.unselectable,
           ^.float := "left",
           ^.margin := "1px",
@@ -148,9 +147,6 @@ class QASRLValidationClient[SID : Writer : Reader](
               ^.color := "#CCCCCC",
               "N/A"
             )
-            case Redundant(other) => <.span(
-              ^.color := "#CCCCCC",
-              "Redundant with ", <.i(questions(other)))
             case Answer(spans) if spans.isEmpty && isFocused =>
               <.span(
                 ^.color := "#CCCCCC",
@@ -158,9 +154,7 @@ class QASRLValidationClient[SID : Writer : Reader](
             case Answer(spans) if isFocused => // spans nonempty
               (spans.flatMap { span =>
                  List(
-                   <.span(
-                     Text.renderSpan(sentence, span.indices)
-                   ),
+                   <.span(Text.renderSpan(sentence, span.indices)),
                    <.span(" / ")
                  )
                } ++ List(<.span(^.color := "#CCCCCC", "Highlight to add an answer"))).toVdomArray

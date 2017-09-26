@@ -7,7 +7,6 @@ import turkey.tasks._
 
 import turksem._
 import turksem.util._
-import turksem.qamr.WorkerStats
 import turksem.qamr.Pring
 import turksem.qamr.SaveData
 

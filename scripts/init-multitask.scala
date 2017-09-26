@@ -10,6 +10,9 @@ import scala.concurrent.duration._
 import com.amazonaws.services.mturk._
 import com.amazonaws.services.mturk.model._
 
+import nlpdata.util.Text
+import nlpdata.HasTokens.ops._
+
 val isProduction = false // sandbox. change to true for production
 val domain = "nlp.cs.washington.edu" // change to your domain, or keep localhost for testing
 val projectName = "turksem-multitask" // make sure it matches the SBT project;
@@ -38,6 +41,8 @@ def exit = {
 }
 
 val setup = new multitask.MultitaskAnnotationSetup()
+import setup.SentenceIdHasTokens
+
 val exp = setup.experiment
 exp.server
 

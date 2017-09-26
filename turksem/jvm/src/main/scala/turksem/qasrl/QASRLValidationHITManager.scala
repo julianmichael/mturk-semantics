@@ -2,7 +2,6 @@ package turksem.qasrl
 
 import turksem._
 import turksem.util._
-import turksem.qamr.GenerationPrompt
 import turksem.qamr.Pring
 import turksem.qamr.SaveData
 
@@ -19,6 +18,9 @@ import akka.actor.ActorRef
 import com.amazonaws.services.mturk.model.AssociateQualificationWithWorkerRequest
 import com.amazonaws.services.mturk.model.SendBonusRequest
 import com.amazonaws.services.mturk.model.NotifyWorkersRequest
+import com.amazonaws.services.mturk.model.CreateWorkerBlockRequest
+import com.amazonaws.services.mturk.model.ListWorkersWithQualificationTypeRequest
+import com.amazonaws.services.mturk.model.DisassociateQualificationFromWorkerRequest
 
 import upickle.default._
 
@@ -38,6 +40,7 @@ class QASRLValidationHITManager[SID : Reader : Writer](
   override lazy val receiveAux2: PartialFunction[Any, Unit] = {
     case SaveData => save
     case Pring => println("Validation manager pringed.")
+    case ChristenWorker(workerId, numAgreementsToAdd) => christenWorker(workerId, numAgreementsToAdd)
   }
 
   override def promptFinished(prompt: QASRLValidationPrompt[SID]): Unit = {
@@ -51,6 +54,12 @@ class QASRLValidationHITManager[SID : Reader : Writer](
   override def addPrompt(prompt: QASRLValidationPrompt[SID]): Unit = {
     super.addPrompt(prompt)
     allPrompts = prompt :: allPrompts
+  }
+
+  def christenWorker(workerId: String, numAgreementsToAdd: Int) = {
+    allWorkerInfo = allWorkerInfo.get(workerId).fold(allWorkerInfo) { info =>
+      allWorkerInfo.updated(workerId, info.addBonusAgreements(numAgreementsToAdd))
+    }
   }
 
   val validationPromptsFilename = "validationPrompts"
@@ -109,19 +118,34 @@ class QASRLValidationHITManager[SID : Reader : Writer](
       List.empty[Assignment[List[QASRLValidationAnswer]]]
     }
 
-  def blockIfNecessary(worker: QASRLValidationWorkerInfo): Unit = {
-    if(!worker.agreement.isNaN &&
-         worker.agreement < QASRLSettings.validationAgreementBlockingThreshold &&
-         worker.numAssignmentsCompleted > QASRLSettings.validationAgreementGracePeriod) {
-      Try(
-        helper.config.service.associateQualificationWithWorker(
-          new AssociateQualificationWithWorkerRequest()
+  import scala.collection.JavaConverters._
+
+  def assessQualification(worker: QASRLValidationWorkerInfo): Unit = {
+    for {
+      workerIsDisqualified <- Try(
+        helper.config.service.listWorkersWithQualificationType(
+          new ListWorkersWithQualificationTypeRequest()
             .withQualificationTypeId(valDisqualificationTypeId)
-            .withWorkerId(worker.workerId)
-            .withIntegerValue(1)
-            .withSendNotification(true))
-      )
-    }
+        ).getQualifications.asScala.toList.map(_.getWorkerId).contains(worker.workerId))
+      workerShouldBeDisqualified = (
+        !worker.agreement.isNaN &&
+          worker.agreement < QASRLSettings.validationAgreementBlockingThreshold &&
+          worker.numAssignmentsCompleted > QASRLSettings.validationAgreementGracePeriod)
+      _ <- Try(
+        if(workerIsDisqualified && !workerShouldBeDisqualified) {
+          helper.config.service.disassociateQualificationFromWorker(
+            new DisassociateQualificationFromWorkerRequest()
+              .withQualificationTypeId(valDisqualificationTypeId)
+              .withWorkerId(worker.workerId))
+        } else if(!workerIsDisqualified && workerShouldBeDisqualified) {
+          helper.config.service.associateQualificationWithWorker(
+            new AssociateQualificationWithWorkerRequest()
+              .withQualificationTypeId(valDisqualificationTypeId)
+              .withWorkerId(worker.workerId)
+              .withIntegerValue(1)
+              .withSendNotification(true))
+        } else Success(()))
+    } yield ()
   }
 
   // override for more interesting review policy
@@ -153,6 +177,15 @@ class QASRLValidationHITManager[SID : Reader : Writer](
       .addAssignment(assignment.response,
                      assignment.submitTime - assignment.acceptTime,
                      helper.taskSpec.hitType.reward + totalBonus)
+
+    if(newWorkerInfo.proportionInvalid > 0.7 && newWorkerInfo.numAssignmentsCompleted >= 10) {
+      helper.config.service.createWorkerBlock(
+        new CreateWorkerBlockRequest()
+          .withWorkerId(newWorkerInfo.workerId)
+          .withReason("You have been blocked for spamming the question answering task. If you believe this was in error, please contact the requester.")
+      )
+    }
+    val proportionInvalid = newWorkerInfo.numInvalids.toDouble / (newWorkerInfo.numAnswerSpans + newWorkerInfo.numInvalids)
     // do comparisons with other workers
     promptToAssignments.get(hit.prompt).getOrElse(Nil).foreach { otherAssignment =>
       val otherWorkerId = otherAssignment.workerId
@@ -162,11 +195,11 @@ class QASRLValidationHITManager[SID : Reader : Writer](
         .addComparison(numQuestions, nAgreed)
       // update the other one and put back in data structure (blocking if necessary)
       val otherWorkerInfo = allWorkerInfo(otherWorkerId).addComparison(numQuestions, nAgreed)
-      blockIfNecessary(otherWorkerInfo)
+      assessQualification(otherWorkerInfo)
       allWorkerInfo = allWorkerInfo.updated(otherWorkerId, otherWorkerInfo)
     }
     // now blocking the current worker if necessary before adding everything in
-    blockIfNecessary(newWorkerInfo)
+    assessQualification(newWorkerInfo)
     allWorkerInfo = allWorkerInfo.updated(workerId, newWorkerInfo)
     promptToAssignments = promptToAssignments.updated(
       hit.prompt,

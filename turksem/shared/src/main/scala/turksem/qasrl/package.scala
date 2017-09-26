@@ -13,7 +13,7 @@ package object qasrl {
   case class GenerationStatSummary(
     numVerbsCompleted: Int, // before validation: used to calculate coverage
     numQuestionsWritten: Int, // before validation: "
-    workerStatsOpt: Option[WorkerStats])
+    workerStatsOpt: Option[QASRLGenerationWorkerStats])
 
   case class QASRLGenerationApiRequest[SID](
     workerIdOpt: Option[String],

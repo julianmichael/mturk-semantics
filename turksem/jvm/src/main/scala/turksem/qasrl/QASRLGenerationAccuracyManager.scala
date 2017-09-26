@@ -5,7 +5,6 @@ import turkey.tasks._
 
 import turksem._
 import turksem.util._
-import turksem.qamr.WorkerStats
 import turksem.qamr.Pring
 import turksem.qamr.SaveData
 
@@ -40,22 +39,28 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
   var allWorkerStats =
     annotationDataService.loadLiveData(workerStatsFilename)
       .map(_.mkString)
-      .map(read[Map[String, WorkerStats]])
+      .map(read[Map[String, QASRLGenerationWorkerStats]])
       .toOption.getOrElse {
-      // TODO assemble from saved data
-      Map.empty[String, WorkerStats]
+      Map.empty[String, QASRLGenerationWorkerStats]
     }
+
+  def christenWorker(workerId: String, numAgreementsToAdd: Int) = {
+    allWorkerStats = allWorkerStats.get(workerId).fold(allWorkerStats) { stats =>
+      allWorkerStats.updated(workerId, stats.addBonusValids(numAgreementsToAdd))
+    }
+  }
 
   private[this] def save = {
     Try(
       annotationDataService.saveLiveData(
         workerStatsFilename,
-        write[Map[String, WorkerStats]](allWorkerStats))
+        write[Map[String, QASRLGenerationWorkerStats]](allWorkerStats))
     ).toOptionLogging(logger).foreach(_ => logger.info("Worker stats data saved."))
   }
 
   override def receive = {
     case SaveData => save
+    case ChristenWorker(workerId, numAgreementsToAdd) => christenWorker(workerId, numAgreementsToAdd)
     case vr: QASRLValidationResult[SID] => vr match {
       case QASRLValidationResult(prompt, hitTypeId, hitId, assignmentId, numQAsValid) =>
         val ha = for {
@@ -83,7 +88,7 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
 
           val stats = allWorkerStats
             .get(assignment.workerId)
-            .getOrElse(WorkerStats.empty(assignment.workerId))
+            .getOrElse(QASRLGenerationWorkerStats.empty(assignment.workerId))
             .addAssignment(assignment.response.size, numQAsValid,
                            assignment.submitTime - assignment.acceptTime,
                            QASRLSettings.generationReward + bonusAwarded)

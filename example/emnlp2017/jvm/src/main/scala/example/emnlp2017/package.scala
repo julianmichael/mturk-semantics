@@ -1,6 +1,7 @@
 package example
 
 import turksem._
+import turksem.util._
 
 import edu.stanford.nlp.ling.Word
 import edu.stanford.nlp.process.PTBTokenizer

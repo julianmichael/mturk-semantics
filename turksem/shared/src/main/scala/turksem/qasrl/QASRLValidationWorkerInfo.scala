@@ -8,19 +8,22 @@ case class QASRLValidationWorkerInfo(
   numComparisonAgreements: Int,
   numAnswerSpans: Int,
   numInvalids: Int,
-  numRedundants: Int,
+  numBonusAgreements: Int,
   timeSpent: Long,
-  earnings: Double,
-  warnedAt: Option[Int],
-  blockedAt: Option[Int]) {
+  earnings: Double) {
 
-  def agreement = numComparisonAgreements.toDouble / numComparisonInstances
+  def agreement = (numComparisonAgreements + numBonusAgreements).toDouble / (numComparisonInstances + numBonusAgreements)
+
+  def proportionInvalid = numInvalids.toDouble / (numAnswerSpans + numInvalids)
+
+  def addBonusAgreements(n: Int) = this.copy(
+    numBonusAgreements = this.numBonusAgreements + n
+  )
 
   def addAssignment(response: List[QASRLValidationAnswer], timeTaken: Long, totalReward: Double) = this.copy(
     numAssignmentsCompleted = this.numAssignmentsCompleted + 1,
     numAnswerSpans = this.numAnswerSpans + response.filter(_.isAnswer).size,
     numInvalids = this.numInvalids + response.filter(_.isInvalid).size,
-    numRedundants = this.numRedundants + response.filter(_.isRedundant).size,
     timeSpent = this.timeSpent + timeTaken,
     earnings = this.earnings + totalReward)
 
@@ -28,11 +31,8 @@ case class QASRLValidationWorkerInfo(
     numComparisonInstances = this.numComparisonInstances + numTotal,
     numComparisonAgreements = this.numComparisonAgreements + numAgreed
   )
-
-  def warned = this.copy(warnedAt = Some(numAssignmentsCompleted))
-  def blocked = this.copy(blockedAt = Some(numAssignmentsCompleted))
 }
 
 object QASRLValidationWorkerInfo {
-  def empty(workerId: String) = QASRLValidationWorkerInfo(workerId, 0, 0, 0, 0, 0, 0, 0L, 0.0, None, None)
+  def empty(workerId: String) = QASRLValidationWorkerInfo(workerId, 0, 0, 0, 0, 0, 0, 0L, 0.0)
 }

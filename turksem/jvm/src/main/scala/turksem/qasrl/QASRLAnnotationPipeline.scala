@@ -36,6 +36,8 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.collection.JavaConverters._
 
+import com.typesafe.scalalogging.StrictLogging
+
 class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
   numGenerationAssignmentsForPrompt: QASRLGenerationPrompt[SID] => Int,
@@ -44,7 +46,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   generationCoverageDisqualTypeLabel: Option[String] = None,
   validationAgreementDisqualTypeLabel: Option[String] = None)(
   implicit config: TaskConfig,
-  inflections: Inflections) {
+  inflections: Inflections) extends StrictLogging {
 
   implicit object SIDHasKeyIndices extends HasKeyIndices[SID] {
     override def getKeyIndices(id: SID): Set[Int] = {
@@ -489,59 +491,86 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   def allValInfos = hitDataService.getAllHITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](valTaskSpec.hitTypeId).get
 
-  def printCoverageStats = genManagerPeek.coverageStats.toList
-    .sortBy(-_._2.size)
-    .map { case (workerId, numQs) => f"$workerId%s\t${numQs.size}%d\t${numQs.sum.toDouble / numQs.size}%.2f" }
-    .foreach(println)
-
-  def allGenWorkers = allGenInfos.flatMap(_.assignments).map(_.workerId).toSet.toList
-
-  def workerGenInfos(workerId: String) = for {
-    hi <- allGenInfos
-    assignment <- hi.assignments
-    if assignment.workerId == workerId
-  } yield HITInfo(hi.hit, List(assignment))
-
-  def allWorkerGenInfos = allGenWorkers.map(workerGenInfos)
-
-  // def renderGenInfo(info: HITInfo[QASRLGenerationPrompt, List[VerbQA]]) = Text.render(info.hit.prompt.id) + "\n" +
-  //   info.assignments.flatMap(_.response).map(qa =>
-  //     qa.question + "\t" + qa.answers.map(answer => Text.renderSpan(info.hit.prompt.id, answer.indices)).mkString(" / ")
-  //   )
-
-  // sorted increasing by number of disagreements
-  def workerValInfos(workerId: String) = {
-    val scored = for {
-      hi <- allValInfos
-      if hi.assignments.exists(_.workerId == workerId)
-      workerAssignment = hi.assignments.find(_.workerId == workerId).get
-      nonWorkerAssignments = hi.assignments.filter(_.workerId != workerId)
-      avgNumDisagreed = hi.hit.prompt.qaPairs.size - nonWorkerAssignments.map(a => QASRLValidationAnswer.numAgreed(workerAssignment.response, a.response)).meanOpt.get
-    } yield (HITInfo(hi.hit, workerAssignment :: nonWorkerAssignments), avgNumDisagreed)
-    scored.sortBy(_._2).map(_._1)
-  }
-
   def currentGenSentences: List[(SID, String)] = {
     genHelper.activeHITInfosByPromptIterator.map(_._1.id).map(id =>
       id -> Text.render(id.tokens)
     ).toList
   }
 
+  def allGenWorkers = allGenInfos.flatMap(_.assignments).map(_.workerId).toSet.toList
+  def allValWorkers = allValInfos.flatMap(_.assignments).map(_.workerId).toSet.toList
+
+  // sorted increasing by submit time
+  def infosForGenWorker(workerId: String) = {
+    val scored = for {
+      hi <- allValInfos
+      sourceAssignment <- hitDataService.getAssignmentsForHIT[List[VerbQA]](genTaskSpec.hitTypeId, hi.hit.prompt.sourceHITId).toOptionLogging(logger).toList.flatten
+      if sourceAssignment.assignmentId == hi.hit.prompt.sourceAssignmentId
+      if sourceAssignment.workerId == workerId
+    } yield (hi, sourceAssignment.submitTime)
+    scored.sortBy(_._2).map(_._1)
+  }
+
+  // sorted increasing by submit time
+  def infosForValWorker(workerId: String) = {
+    val scored = for {
+      hi <- allValInfos
+      if hi.assignments.exists(_.workerId == workerId)
+      workerAssignment = hi.assignments.find(_.workerId == workerId).get
+      nonWorkerAssignments = hi.assignments.filter(_.workerId != workerId)
+    } yield (HITInfo(hi.hit, workerAssignment :: nonWorkerAssignments), workerAssignment.submitTime)
+    scored.sortBy(_._2).map(_._1)
+  }
+
   def renderValidation(info: HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]) = {
     val sentence = info.hit.prompt.genPrompt.id.tokens
-    info.assignments.map { assignment =>
-      Text.render(sentence) + "\n" +
-        info.hit.prompt.qaPairs.zip(assignment.response).map {
-          case (VerbQA(kwIndex, question, answers), valAnswer) =>
-            val answerString = answers.map(s => Text.renderSpan(sentence, s.indices)).mkString(" / ")
-            val validationString = QASRLValidationAnswer.render(sentence, valAnswer, info.hit.prompt.qaPairs)
-            s"\t$question --> $answerString \t|$validationString"
-        }.mkString("\n")
-    }.mkString("\n") + "\n"
+    Text.render(sentence) + "\n" +
+      info.hit.prompt.qaPairs.zip(info.assignments.map(_.response).transpose).map {
+        case (VerbQA(verbIndex, question, answers), validationAnswers) =>
+          val answerString = answers.map(s => Text.renderSpan(sentence, s.indices)).mkString(" / ")
+          val validationRenderings = validationAnswers.map(QASRLValidationAnswer.render(sentence, _, info.hit.prompt.qaPairs))
+          val allValidationsString = validationRenderings.toList match {
+            case Nil => ""
+            case head :: tail => f"$head%20s(${tail.mkString("; ")}%s)"
+          }
+          f"   $question%50s --> $answerString%20s | $allValidationsString"
+      }.mkString("\n") + "\n"
   }
+
+  // print LATEST and WORST n entries for val or gen worker, n default Int.MaxValue
+
+  def printLatestGenInfos(workerId: String, n: Int = 5) =
+    infosForGenWorker(workerId)
+      .takeRight(n)
+      .map(renderValidation)
+      .foreach(println)
+
+  def printWorstGenInfos(workerId: String, n: Int = 5) =
+    infosForGenWorker(workerId)
+      .sortBy(_.assignments.flatMap(_.response).filter(_.isInvalid).size)
+      .takeRight(n)
+      .map(renderValidation)
+      .foreach(println)
+
+  def printLatestValInfos(workerId: String, n: Int = 5) =
+    infosForValWorker(workerId)
+      .takeRight(n)
+      .map(renderValidation)
+      .foreach(println)
+
+  def printWorstValInfos(workerId: String, n: Int = 5) =
+    infosForValWorker(workerId)
+      .sortBy(hi => hi.hit.prompt.qaPairs.size.toDouble - (
+                hi.assignments.tail.map(
+                  a => QASRLValidationAnswer.numAgreed(hi.assignments.head.response, a.response)
+                ).meanOpt.getOrElse(hi.hit.prompt.qaPairs.size + 1.0))) // if no other answers, put at top
+      .takeRight(n)
+      .map(renderValidation)
+      .foreach(println)
 
   case class StatSummary(
     workerId: String,
+    numVerbs: Option[Int],
     numQs: Option[Int],
     accuracy: Option[Double],
     numAs: Option[Int],
@@ -551,16 +580,16 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   object StatSummary {
     def makeFromStatsAndInfo(
-      stats: Option[WorkerStats],
-      info: Option[QASRLValidationWorkerInfo]) = stats.map(_.workerId).orElse(info.map(_.workerId)).map { wid =>
+      stats: Option[QASRLGenerationWorkerStats],
+      info: Option[QASRLValidationWorkerInfo]
+    ) = stats.map(_.workerId).orElse(info.map(_.workerId)).map { wid =>
       StatSummary(
         workerId = wid,
+        numVerbs = stats.map(_.numAssignmentsCompleted),
         numQs = stats.map(_.numQAPairsWritten),
         accuracy = stats.map(_.accuracy),
-        numAs = info.map(i => i.numAnswerSpans + i.numInvalids + i.numRedundants),
-        pctBad = info.map(
-          i => 100.0 * (i.numInvalids + i.numRedundants) / (i.numAnswerSpans + i.numInvalids + i.numRedundants)
-        ),
+        numAs = info.map(i => i.numAnswerSpans + i.numInvalids),
+        pctBad = info.map(_.proportionInvalid * 100.0),
         agreement = info.map(_.agreement),
         earnings = stats.fold(0.0)(_.earnings) + info.fold(0.0)(_.earnings)
       )
@@ -573,19 +602,25 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     val summaries = (allStats.keys ++ allInfos.keys).toSet.toList.flatMap((wid: String) =>
       StatSummary.makeFromStatsAndInfo(allStats.get(wid), allInfos.get(wid))
     ).sortBy(sortFn)
-    println(f"${"Worker ID"}%14s  ${"Qs"}%5s  ${"Acc"}%4s  ${"As"}%5s  ${"%Bad"}%5s  ${"Agr"}%4s  $$")
-    summaries.foreach { case StatSummary(wid, numQsOpt, accOpt, numAsOpt, pctBadOpt, agrOpt, earnings)=>
+    println(f"${"Worker ID"}%14s  ${"Verbs"}%5s  ${"Qs"}%5s  ${"Acc"}%4s  ${"As"}%5s  ${"%Bad"}%5s  ${"Agr"}%4s  $$")
+    summaries.foreach { case StatSummary(wid, numVerbsOpt, numQsOpt, accOpt, numAsOpt, pctBadOpt, agrOpt, earnings)=>
+      val numVerbs = numVerbsOpt.getOrElse("")
       val numQs = numQsOpt.getOrElse("")
       val acc = accOpt.foldMap(pct => f"$pct%.2f")
       val numAs = numAsOpt.getOrElse("")
       val pctBad = pctBadOpt.foldMap(pct => f"$pct%4.2f")
       val agr = agrOpt.foldMap(pct => f"$pct%.2f")
-      println(f"$wid%14s  $numQs%5s  $acc%4s  $numAs%5s  $pctBad%5s  $agr%4s  $earnings%.2f")
+      println(f"$wid%14s  $numVerbs%5s  $numQs%5s  $acc%4s  $numAs%5s  $pctBad%5s  $agr%4s  $earnings%.2f")
     }
   }
 
   def printQStats = printStats(-_.numQs.getOrElse(0))
   def printAStats = printStats(-_.numAs.getOrElse(0))
+
+  def printCoverageStats = genManagerPeek.coverageStats.toList
+    .sortBy(-_._2.size)
+    .map { case (workerId, numQs) => f"$workerId%s\t${numQs.size}%d\t${numQs.sum.toDouble / numQs.size}%.2f" }
+    .foreach(println)
 
   def printGenFeedback(n: Int) = genManagerPeek.feedbacks.take(n).foreach(a =>
     println(a.workerId + " " + a.feedback)
