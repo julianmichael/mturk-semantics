@@ -574,9 +574,28 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     numQs: Option[Int],
     accuracy: Option[Double],
     numAs: Option[Int],
+    numInvalidAnswers: Option[Int],
     pctBad: Option[Double],
     agreement: Option[Double],
     earnings: Double)
+
+  case class AggregateStatSummary(
+    numVerbs: Int,
+    numQs: Int,
+    numAs: Int,
+    numInvalidAnswers: Int,
+    totalCost: Double) {
+    def combine(worker: StatSummary) = AggregateStatSummary(
+      numVerbs + worker.numVerbs.getOrElse(0),
+      numQs + worker.numQs.getOrElse(0),
+      numAs + worker.numAs.getOrElse(0) + worker.numInvalidAnswers.getOrElse(0),
+      numInvalidAnswers + worker.numInvalidAnswers.getOrElse(0),
+      totalCost + worker.earnings
+    )
+  }
+  object AggregateStatSummary {
+    def empty = AggregateStatSummary(0, 0, 0, 0, 0.0)
+  }
 
   object StatSummary {
     def makeFromStatsAndInfo(
@@ -589,6 +608,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
         numQs = stats.map(_.numQAPairsWritten),
         accuracy = stats.map(_.accuracy),
         numAs = info.map(i => i.numAnswerSpans + i.numInvalids),
+        numInvalidAnswers = info.map(_.numInvalids),
         pctBad = info.map(_.proportionInvalid * 100.0),
         agreement = info.map(_.agreement),
         earnings = stats.fold(0.0)(_.earnings) + info.fold(0.0)(_.earnings)
@@ -596,14 +616,18 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     }
   }
 
-  def printStats[B : Ordering](sortFn: StatSummary => B) = {
+  def allStatSummaries = {
     val allStats = accuracyTrackerPeek.allWorkerStats
     val allInfos = valManagerPeek.allWorkerInfo
-    val summaries = (allStats.keys ++ allInfos.keys).toSet.toList.flatMap((wid: String) =>
+    (allStats.keys ++ allInfos.keys).toSet.toList.flatMap((wid: String) =>
       StatSummary.makeFromStatsAndInfo(allStats.get(wid), allInfos.get(wid))
-    ).sortBy(sortFn)
+    )
+  }
+
+  def printStats[B : Ordering](sortFn: StatSummary => B) = {
+    val summaries = allStatSummaries.sortBy(sortFn)
     println(f"${"Worker ID"}%14s  ${"Verbs"}%5s  ${"Qs"}%5s  ${"Acc"}%4s  ${"As"}%5s  ${"%Bad"}%5s  ${"Agr"}%4s  $$")
-    summaries.foreach { case StatSummary(wid, numVerbsOpt, numQsOpt, accOpt, numAsOpt, pctBadOpt, agrOpt, earnings)=>
+    summaries.foreach { case StatSummary(wid, numVerbsOpt, numQsOpt, accOpt, numAsOpt, numInvalidsOpt, pctBadOpt, agrOpt, earnings)=>
       val numVerbs = numVerbsOpt.getOrElse("")
       val numQs = numQsOpt.getOrElse("")
       val acc = accOpt.foldMap(pct => f"$pct%.2f")
@@ -634,6 +658,17 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     printGenFeedback(n)
     println("\nValidation:")
     printValFeedback(n)
+  }
+
+  def aggregateStats = allStatSummaries.foldLeft(AggregateStatSummary.empty)(_ combine _)
+
+  def printAggregateStats = aggregateStats match {
+    case AggregateStatSummary(numVerbs, numQs, numAs, numInvalidAnswers, totalCost) =>
+      println(f"${"Num verbs:"}%20s$numVerbs%d")
+      println(f"${"Num questions:"}%20s$numQs%d")
+      println(f"${"Num answers:"}%20s$numAs%d")
+      println(f"${"Num invalids:"}%20s$numInvalidAnswers%d")
+      println(f"${"Total cost:"}%20s$totalCost%.2f")
   }
 
   // def allSentenceStats: Map[SID, SentenceStats[SID]] = {
