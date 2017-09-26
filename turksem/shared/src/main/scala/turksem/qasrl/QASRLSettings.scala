@@ -10,7 +10,7 @@ object QASRLSettings {
 
   // annotation pipeline hyperparameters
 
-  val generationRewardCents = 7
+  val generationRewardCents = 5
   val generationReward = generationRewardCents * 0.01
 
   final def generationBonus(nValidQAs: Int) = {
@@ -19,7 +19,7 @@ object QASRLSettings {
     cents * 0.01
   }
 
-  val validationReward = 0.10
+  val validationReward = 0.08
   val validationBonusPerQuestion = 0.02
   val validationBonusThreshold = 4
 
