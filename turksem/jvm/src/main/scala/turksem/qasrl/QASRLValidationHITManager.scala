@@ -123,10 +123,11 @@ class QASRLValidationHITManager[SID : Reader : Writer](
 
   def assessQualification(worker: QASRLValidationWorkerInfo): Unit = {
     for {
-      workerIsDisqualified <- Try(
+      workerIsDisqualified <- Try( // TODO pagination.. but... not end of the world... likely won't matter
         helper.config.service.listWorkersWithQualificationType(
           new ListWorkersWithQualificationTypeRequest()
             .withQualificationTypeId(valDisqualificationTypeId)
+            .withMaxResults(100)
         ).getQualifications.asScala.toList.map(_.getWorkerId).contains(worker.workerId))
       workerShouldBeDisqualified = (
         !worker.agreement.isNaN &&

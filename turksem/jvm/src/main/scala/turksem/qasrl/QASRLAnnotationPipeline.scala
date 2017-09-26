@@ -104,6 +104,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       .withQuery(genAccDisqualTypeName)
       .withMustBeOwnedByCaller(true)
       .withMustBeRequestable(false)
+      .withMaxResults(100)
   ).getQualificationTypes.asScala.toList.find(_.getName == genAccDisqualTypeName).getOrElse {
     System.out.println("Generating generation accuracy disqualification type...")
     config.service.createQualificationType(
@@ -127,6 +128,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       .withQuery(genCoverageDisqualTypeName)
       .withMustBeOwnedByCaller(true)
       .withMustBeRequestable(false)
+      .withMaxResults(100)
   ).getQualificationTypes.asScala.toList.find(_.getName == genCoverageDisqualTypeName).getOrElse {
     System.out.println("Generating generation coverage disqualification type...")
     config.service.createQualificationType(
@@ -152,6 +154,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       .withQuery(valAgrDisqualTypeName)
       .withMustBeOwnedByCaller(true)
       .withMustBeRequestable(false)
+      .withMaxResults(100)
   ).getQualificationTypes.asScala.toList.find(_.getName == valAgrDisqualTypeName).getOrElse {
     System.out.println("Generating validation disqualification type...")
     config.service.createQualificationType(
@@ -170,11 +173,13 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     .withComparator("DoesNotExist")
     .withRequiredToPreview(false)
 
+  // NOTE may need to call multiple times to cover all workers... sigh TODO pagination
   def resetAllQualificationValues = {
     def revokeAllWorkerQuals(qualTypeId: String) = {
       val quals = config.service.listWorkersWithQualificationType(
         new ListWorkersWithQualificationTypeRequest()
           .withQualificationTypeId(qualTypeId)
+          .withMaxResults(100)
       ).getQualifications.asScala.toList
       quals.foreach(qual =>
         config.service.disassociateQualificationFromWorker(

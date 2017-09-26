@@ -89,6 +89,6 @@ def disableHITById(hitId: String) = {
   deleteHITById(hitId)
 }
 
-def getActiveHITIds = {
-  config.service.listHITs(new ListHITsRequest).getHITs.asScala.toList.map(_.getHITId)
+def get100ActiveHITIds = {
+  config.service.listHITs(new ListHITsRequest().withMaxResults(100)).getHITs.asScala.toList.map(_.getHITId)
 }
