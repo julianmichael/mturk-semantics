@@ -42,6 +42,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val allIds: Vector[SID], // IDs of sentences to annotate
   numGenerationAssignmentsForPrompt: QASRLGenerationPrompt[SID] => Int,
   annotationDataService: AnnotationDataService,
+  frozenGenerationHITTypeId: Option[String] = None,
+  frozenValidationHITTypeId: Option[String] = None,
   generationAccuracyDisqualTypeLabel: Option[String] = None,
   generationCoverageDisqualTypeLabel: Option[String] = None,
   validationAgreementDisqualTypeLabel: Option[String] = None)(
@@ -300,7 +302,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationApiRequest[SID], QASRLValidationApiResponse](
     QASRLSettings.validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
     taskPageHeadElements = taskPageHeadLinks,
-    taskPageBodyElements = taskPageBodyLinks)
+    taskPageBodyElements = taskPageBodyLinks,
+    frozenHITTypeId = frozenValidationHITTypeId)
 
   // val dashboardApiFlow = Flow[Unit]
   //   .merge(Source.tick(initialDelay = 0.seconds, interval = 1.minute, ()))
@@ -365,75 +368,44 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   var valManagerPeek: QASRLValidationHITManager[SID] = null
 
   lazy val valHelper = new HITManager.Helper(valTaskSpec)
-  lazy val valManager: ActorRef = if(config.isProduction) {
-    actorSystem.actorOf(
-      Props {
-        valManagerPeek = new QASRLValidationHITManager(
-          valHelper,
-          valAgrDisqualTypeId,
-          accuracyTracker,
-          // sentenceTracker,
-          _ => 2, 50)
-        valManagerPeek
-      })
-  } else {
-    actorSystem.actorOf(
-      Props {
-        valManagerPeek = new QASRLValidationHITManager(
-          valHelper,
-          valAgrDisqualTypeId,
-          accuracyTracker,
-          // sentenceTracker,
-          _ => 1, 3)
-        valManagerPeek
-      })
-  }
+  lazy val valManager: ActorRef = actorSystem.actorOf(
+    Props {
+      valManagerPeek = new QASRLValidationHITManager(
+        valHelper,
+        valAgrDisqualTypeId,
+        accuracyTracker,
+        // sentenceTracker,
+        if(config.isProduction) (_ => 2) else (_ => 1),
+        if(config.isProduction) 100 else 3)
+      valManagerPeek
+    })
 
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
+  val genTaskSpec = TaskSpecification[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
+    QASRLSettings.generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    taskPageHeadElements = taskPageHeadLinks,
+    taskPageBodyElements = taskPageBodyLinks,
+    frozenHITTypeId = frozenGenerationHITTypeId)
+
   var genManagerPeek: QASRLGenerationHITManager[SID] = null
 
-  def makeGenHITManagement(hitType: HITType, prompts: Vector[QASRLGenerationPrompt[SID]], setPeek: (QASRLGenerationHITManager[SID] => Unit)) = {
-    val taskSpec = TaskSpecification[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
-      QASRLSettings.generationTaskKey, hitType, genApiFlow, sampleGenPrompt,
-      taskPageHeadElements = taskPageHeadLinks,
-      taskPageBodyElements = taskPageBodyLinks)
-    val helper = new HITManager.Helper(taskSpec)
-    val hitManager: ActorRef = if(config.isProduction) {
-      actorSystem.actorOf(
-        Props {
-          val manager = new QASRLGenerationHITManager(
-            helper,
-            valHelper,
-            valManager,
-            genCoverageDisqualTypeId,
-            // sentenceTracker,
-            numGenerationAssignmentsForPrompt, 30, prompts.iterator)
-          setPeek(manager)
-          manager
-        }
-      )
-    } else {
-      actorSystem.actorOf(
-        Props {
-          val manager = new QASRLGenerationHITManager(
-            helper,
-            valHelper,
-            valManager,
-            genCoverageDisqualTypeId,
-            // sentenceTracker,
-            (_: QASRLGenerationPrompt[SID]) => 1, 3, prompts.iterator)
-          setPeek(manager)
-          manager
-        }
-      )
+  val genHelper = new HITManager.Helper(genTaskSpec)
+  val genManager: ActorRef = actorSystem.actorOf(
+    Props {
+      genManagerPeek = new QASRLGenerationHITManager(
+        genHelper,
+        valHelper,
+        valManager,
+        genCoverageDisqualTypeId,
+        // sentenceTracker,
+        if(config.isProduction) numGenerationAssignmentsForPrompt else (_ => 1),
+        if(config.isProduction) 100 else 3,
+        allPrompts.iterator)
+      genManagerPeek
     }
-    val actor = actorSystem.actorOf(Props(new TaskManager(helper, hitManager)))
-    (taskSpec, helper, hitManager, actor)
-  }
-
-  lazy val (genTaskSpec, genHelper, genManager, genActor) = makeGenHITManagement(
-    genHITType, allPrompts, genManagerPeek = _)
+  )
+  val genActor = actorSystem.actorOf(Props(new TaskManager(genHelper, genManager)))
 
   lazy val server = new Server(List(genTaskSpec, valTaskSpec))
 

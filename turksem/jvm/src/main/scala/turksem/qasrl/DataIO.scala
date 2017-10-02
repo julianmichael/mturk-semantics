@@ -12,6 +12,59 @@ import turksem.util.ContiguousSpan
 
 object DataIO {
 
+  def makeQAPairTSV[SID : HasTokens](
+    ids: List[SID],
+    writeId: SID => String, // serialize sentence ID for distribution in data file
+    genInfos: List[HITInfo[QASRLGenerationPrompt[SID], List[VerbQA]]],
+    valInfos: List[HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]]
+  ): String = {
+    val genInfosBySentenceId = genInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
+    val valInfosByGenAssignmentId = valInfos.groupBy(_.hit.prompt.sourceAssignmentId).withDefaultValue(Nil)
+    val sb = new StringBuilder
+    for(id <- ids) {
+      val idString = writeId(id)
+      val sentenceTokens = id.tokens
+      val sentenceSB = new StringBuilder
+      var shouldIncludeSentence = false // for now, print everything
+      sentenceSB.append(s"${idString}\t${sentenceTokens.mkString(" ")}\n")
+      // sort by keyword group first...
+      for(HITInfo(genHIT, genAssignments) <- genInfosBySentenceId(id).sortBy(_.hit.prompt.verbIndex)) {
+        // then worker ID second, so the data will be chunked correctly according to HIT;
+        for(genAssignment <- genAssignments.sortBy(_.workerId)) {
+          // and these should already be ordered in terms of the target word used for a QA pair.
+          for((wqa, qaIndex) <- genAssignment.response.zipWithIndex) {
+            // pairs of (validation worker ID, validation answer)
+            val valAnswerSpans = for {
+              info <- valInfosByGenAssignmentId.get(genAssignment.assignmentId).getOrElse(Nil)
+              assignment <- info.assignments
+              answer <- assignment.response(qaIndex).getAnswer
+            } yield answer.spans
+            if(valAnswerSpans.size != 2) {
+              System.err.println("Warning: don't have 2 validation answers for question. Actual number: " + valAnswerSpans.size)
+            } else {
+              shouldIncludeSentence = true
+              sentenceSB.append("\t")
+              sentenceSB.append(wqa.verbIndex.toString + "\t")
+              sentenceSB.append(wqa.question + "\t") // question string written by worker
+              sentenceSB.append(
+                (wqa.answers :: valAnswerSpans).map { spans =>
+                  spans
+                    .map(span => s"${span.begin}-${span.end}")
+                    .mkString(";")
+                }.mkString("\t")
+              )
+              sentenceSB.append("\n")
+            }
+          }
+        }
+      }
+      if(shouldIncludeSentence) {
+        sb.append(sentenceSB.toString)
+      }
+    }
+    sb.toString
+  }
+
   def makeReadableQAPairTSV[SID : HasTokens](
     ids: List[SID],
     writeId: SID => String, // serialize sentence ID for distribution in data file
@@ -28,7 +81,7 @@ object DataIO {
       val idString = writeId(id)
       val sentenceTokens = id.tokens
       val sentenceSB = new StringBuilder
-      var shouldIncludeSentence = true // for now, print everything
+      var shouldIncludeSentence = false
       sentenceSB.append(s"${idString}\t${nlpdata.util.Text.render(sentenceTokens)}\n")
       // sort by keyword group first...
       for(HITInfo(genHIT, genAssignments) <- genInfosBySentenceId(id).sortBy(_.hit.prompt.verbIndex)) {

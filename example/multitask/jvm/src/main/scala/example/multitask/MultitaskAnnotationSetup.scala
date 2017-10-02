@@ -47,9 +47,11 @@ import scala.util.Random
 import upickle.default._
 
 
-class MultitaskAnnotationSetup(implicit config: TaskConfig) {
-
-  val label = "final"
+class MultitaskAnnotationSetup(
+  val label: String = "final",
+  frozenGenerationHITTypeId: Option[String] = None,
+  frozenValidationHITTypeId: Option[String] = None)(
+  implicit config: TaskConfig) {
 
   val resourcePath = java.nio.file.Paths.get("resources")
 
@@ -77,9 +79,9 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
 
   import java.nio.file.{Paths, Path, Files}
   private[this] val liveDataPath = if(config.isProduction) {
-    Paths.get(s"live-data/multitask/$label/production")
+    Paths.get(s"live-data/multitask/$label")
   } else {
-    Paths.get(s"live-data/multitask/$label/sandbox")
+    Paths.get(s"live-data/multitask/$label")
   }
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
@@ -114,20 +116,8 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
     Files.lines(path).iterator.asScala.toList
   }
 
-  lazy val allBrownPaths = for {
-    path @ BrownPath("CK", _) <- PTB.getAllPaths
-    sentence <- PTB.getFile(path).sentences
-  } yield PTBSentenceId(sentence.path)
-
-  lazy val allOntoNotesPaths = for {
-    path <- CoNLL.getAllPaths
-    if path.language == "english" && path.domain == "bc"
-    sentence <- CoNLL.getFile(path).sentences
-  } yield CoNLLSentenceId(sentence.path)
-
-  lazy val allIds: Vector[SentenceId] = {
-    import scala.annotation.tailrec
-    @tailrec def weightedRoundRobinAux[A](soFar: Vector[A], vectors: List[Vector[A]]): Vector[A] = {
+  import scala.annotation.tailrec
+  @tailrec private def weightedRoundRobinAux[A](soFar: Vector[A], vectors: List[Vector[A]]): Vector[A] = {
       if(vectors.isEmpty) soFar else { // hit base case because filter out empties
         val smallestSize = vectors.map(_.size).min // works bc nonempty
         val (processedRemains, newSoFar) = vectors.foldLeft((List.empty[Vector[A]], soFar)) {
@@ -138,24 +128,38 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
         weightedRoundRobinAux(newSoFar, processedRemains.reverse.filter(_.nonEmpty))
       }
     }
-    def weightedRoundRobin[A](vectors: List[Vector[A]]) = weightedRoundRobinAux(Vector.empty[A], vectors)
+  def weightedRoundRobin[A](vectors: List[Vector[A]]) = weightedRoundRobinAux(Vector.empty[A], vectors)
 
-    val brownShuffleRand = new Random(234348765L)
-    val brownPaths = brownShuffleRand.shuffle(allBrownPaths.toVector)
-    val trainBrown = brownPaths.filter(SentenceId.isBrownTrain)
-    val devBrown = brownPaths.filter(SentenceId.isBrownDev)
-    val testBrown = brownPaths.filter(SentenceId.isBrownTest)
-    val finalBrown = weightedRoundRobin(List(trainBrown, devBrown, testBrown))
-
-    val ontoNotesShuffleRand = new Random(425632738L)
-    val ontoNotesPaths = ontoNotesShuffleRand.shuffle(allOntoNotesPaths.toVector)
-    val trainOntoNotes = ontoNotesPaths.filter(_.path.filePath.split == "train")
-    val devOntoNotes = ontoNotesPaths.filter(_.path.filePath.split == "development")
-    val testOntoNotes = ontoNotesPaths.filter(_.path.filePath.split == "test")
-    val finalOntoNotes = weightedRoundRobin(List(trainOntoNotes, devOntoNotes, testOntoNotes))
-
-    finalBrown ++ finalOntoNotes
+  lazy val (brownTrain, brownDev, brownTest) = {
+    val unshuffled = for {
+      path @ BrownPath("CK", _) <- PTB.getAllPaths
+      sentence <- PTB.getFile(path).sentences
+    } yield PTBSentenceId(sentence.path)
+    val shuffleRand = new Random(234348765L)
+    val shuffled = shuffleRand.shuffle(unshuffled.toVector)
+    val trainBrown = shuffled.filter(SentenceId.isBrownTrain)
+    val devBrown = shuffled.filter(SentenceId.isBrownDev)
+    val testBrown = shuffled.filter(SentenceId.isBrownTest)
+    (trainBrown, devBrown, testBrown)
   }
+  val brownIds = weightedRoundRobin(List(brownTrain, brownDev, brownTest))
+
+  lazy val (ontoNotesTrain, ontoNotesDev, ontoNotesTest) = {
+    lazy val unshuffled = for {
+      path <- CoNLL.getAllPaths
+      if path.language == "english" && path.domain == "bc"
+      sentence <- CoNLL.getFile(path).sentences
+    } yield CoNLLSentenceId(sentence.path)
+    val shuffleRand = new Random(425632738L)
+    val shuffled = shuffleRand.shuffle(unshuffled.toVector)
+    val trainOntoNotes = shuffled.filter(_.path.filePath.split == "train")
+    val devOntoNotes = shuffled.filter(_.path.filePath.split == "development")
+    val testOntoNotes = shuffled.filter(_.path.filePath.split == "test")
+    (trainOntoNotes, devOntoNotes, testOntoNotes)
+  }
+  val ontoNotesIds = weightedRoundRobin(List(ontoNotesTrain, ontoNotesDev, ontoNotesTest))
+
+  lazy val allIds: Vector[SentenceId] = brownIds ++ ontoNotesIds
 
   implicit lazy val inflections = {
     val tokens = for {
@@ -170,7 +174,42 @@ class MultitaskAnnotationSetup(implicit config: TaskConfig) {
   lazy val experiment = new QASRLAnnotationPipeline(
     allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
+    frozenGenerationHITTypeId = frozenGenerationHITTypeId,
+    frozenValidationHITTypeId = frozenValidationHITTypeId,
     generationAccuracyDisqualTypeLabel = Some("v3-templates"),
     generationCoverageDisqualTypeLabel = Some("v3-templates"),
     validationAgreementDisqualTypeLabel = Some("v3-templates"))
+
+  def saveAnnotationData(
+    filename: String,
+    ids: Vector[SentenceId]
+  ) = {
+    saveOutputFile(
+      s"$filename-readable.tsv",
+      DataIO.makeReadableQAPairTSV(
+        ids.toList,
+        SentenceId.toString,
+        identity,
+        experiment.allGenInfos,
+        experiment.allValInfos,
+        (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
+    )
+    saveOutputFile(
+      s"$filename.tsv",
+      DataIO.makeQAPairTSV(
+        ids.toList,
+        SentenceId.toString,
+        experiment.allGenInfos,
+        experiment.allValInfos)
+    )
+  }
+
+  def writeAllTSVs {
+    saveAnnotationData("brown-train", brownTrain)
+    saveAnnotationData("brown-dev", brownDev)
+    saveAnnotationData("brown-test", brownTest)
+    saveAnnotationData("bc-train", ontoNotesTrain)
+    saveAnnotationData("bc-dev", ontoNotesDev)
+    saveAnnotationData("bc-test", ontoNotesTest)
+  }
 }

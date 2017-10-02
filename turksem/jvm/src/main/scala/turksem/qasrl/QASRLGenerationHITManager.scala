@@ -72,6 +72,12 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
     .map(read[Map[String, List[Int]]])
     .toOption.getOrElse(Map.empty[String, List[Int]])
 
+  def christenWorker(workerId: String, numQuestions: Int) = {
+    val newStats = numQuestions :: coverageStats.get(workerId).getOrElse(Nil)
+    coverageStats = coverageStats.updated(workerId, newStats)
+    val newQuestionsPerVerb = newStats.sum.toDouble / newStats.size
+  }
+
   val feedbackFilename = "genFeedback"
 
   var feedbacks =
@@ -124,5 +130,7 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
     case fbs: FlagBadSentence[SID] => fbs match {
       case FlagBadSentence(id) => flagBadSentence(id)
     }
+    case ChristenWorker(workerId, numQuestions) =>
+      christenWorker(workerId, numQuestions)
   }
 }
