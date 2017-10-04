@@ -550,7 +550,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     infosForValWorker(workerId)
       .sortBy(hi => hi.hit.prompt.qaPairs.size.toDouble - (
                 hi.assignments.tail.map(
-                  a => QASRLValidationAnswer.numAgreed(hi.assignments.head.response, a.response)
+                  a => (hi.assignments.head.response, a.response).zipped.map(QASRLValidationResponseComparison(_, _)).filter(_.isAgreement).size
                 ).meanOpt.getOrElse(hi.hit.prompt.qaPairs.size + 1.0))) // if no other answers, put at top
       .takeRight(n)
       .map(renderValidation)

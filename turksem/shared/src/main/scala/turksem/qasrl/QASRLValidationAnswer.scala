@@ -21,7 +21,7 @@ sealed trait QASRLValidationAnswer {
     case a @ Answer(_) => Some(a)
     case _ => None
   }
-  def isAnswer = !getAnswer.isEmpty
+  def isAnswer = getAnswer.nonEmpty
 
   def isComplete = this match {
     case InvalidQuestion => true
@@ -34,22 +34,6 @@ case object InvalidQuestion extends QASRLValidationAnswer
 object QASRLValidationAnswer {
   val invalidQuestion = GenPrism[QASRLValidationAnswer, InvalidQuestion.type]
   val answer = GenPrism[QASRLValidationAnswer, Answer]
-
-  def numAgreed(
-    one: List[QASRLValidationAnswer],
-    two: List[QASRLValidationAnswer]
-  ) = {
-    one.zip(two).filter {
-      case (InvalidQuestion, InvalidQuestion) => true
-      case (Answer(spans1), Answer(spans2)) =>
-        spans1.exists(span1 =>
-          spans2.exists(span2 =>
-            span1.indices.intersect(span2.indices).nonEmpty
-          )
-        )
-      case _ => false
-    }.size
-  }
 
   def numValidQuestions(responses: List[List[QASRLValidationAnswer]]) =
     math.round(responses.map(_.filter(_.isAnswer).size).meanOpt.get - 0.01).toInt

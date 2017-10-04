@@ -192,12 +192,11 @@ class QASRLValidationHITManager[SID : Reader : Writer](
     // do comparisons with other workers
     promptToAssignments.get(hit.prompt).getOrElse(Nil).foreach { otherAssignment =>
       val otherWorkerId = otherAssignment.workerId
-      val nAgreed = QASRLValidationAnswer.numAgreed(assignment.response, otherAssignment.response)
+      val comparisons = (assignment.response, otherAssignment.response).zipped.map(QASRLValidationResponseComparison(_, _))
       // update current worker with comparison
-      newWorkerInfo = newWorkerInfo
-        .addComparison(numQuestions, nAgreed)
+      newWorkerInfo = newWorkerInfo.addComparisons(comparisons)
       // update the other one and put back in data structure (blocking if necessary)
-      val otherWorkerInfo = allWorkerInfo(otherWorkerId).addComparison(numQuestions, nAgreed)
+      val otherWorkerInfo = allWorkerInfo(otherWorkerId).addComparisons(comparisons.map(_.swap))
       assessQualification(otherWorkerInfo)
       allWorkerInfo = allWorkerInfo.updated(otherWorkerId, otherWorkerInfo)
     }
