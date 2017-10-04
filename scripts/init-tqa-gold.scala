@@ -37,7 +37,7 @@ def exit = {
 }
 
 val setup = new TQAAnnotationSetup(isGold = true, label)
-import setup.TQASentenceIdHasAlignedTokens
+import setup.SentenceIdHasAlignedTokens
 
 val exp = setup.experiment
 exp.server
