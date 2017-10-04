@@ -485,7 +485,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                 },
                                 f"$questionsPerVerb%.1f"
                               ),
-                              " questions per verb. This must remain above 2.0",
+                              s" questions per verb. This must remain above ${settings.generationCoverageQuestionsPerVerbThreshold}",
                               remainingInCoverageGracePeriodOpt.fold(".")(remaining =>
                                 s" after the end of the grace period ($remaining verbs remaining)."
                               )
