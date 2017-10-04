@@ -10,7 +10,7 @@ import upickle.default._
 
 import japgolly.scalajs.react.vdom.html_<^.VdomTag
 
-abstract class QASRLDispatcher[SID : Reader : Writer] extends TaskDispatcher {
+abstract class QASRLDispatcher[SID : Reader : Writer](implicit settings: QASRLSettings) extends TaskDispatcher {
 
   def generationInstructions: VdomTag
   def validationInstructions: VdomTag
@@ -23,8 +23,8 @@ abstract class QASRLDispatcher[SID : Reader : Writer] extends TaskDispatcher {
   //   new turksem.qamr.DashboardClient[SID](QASRLSettings)
 
   final override lazy val taskMapping = Map[String, () => Unit](
-    QASRLSettings.generationTaskKey -> genClient.main,
-    QASRLSettings.validationTaskKey -> valClient.main//,
-    /*QASRLSettings.dashboardTaskKey -> dashClient.main*/)
+    settings.generationTaskKey -> genClient.main,
+    settings.validationTaskKey -> valClient.main//,
+    /*settings.dashboardTaskKey -> dashClient.main*/)
 
 }

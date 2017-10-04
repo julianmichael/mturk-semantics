@@ -1,6 +1,5 @@
 package example.tqa
 
-import turksem.qasrl.QASRLSettings
 import turksem.qasrl.QASRLDispatcher
 import turksem.qamr._
 import turksem.util._
@@ -13,6 +12,8 @@ import scalacss.ScalaCssReact._
 
 import scalajs.js.JSApp
 
+import upickle.default._
+
 object Dispatcher extends QASRLDispatcher[TQASentenceId] with JSApp {
 
   val dataToggle = VdomAttr("data-toggle")
@@ -23,7 +24,7 @@ object Dispatcher extends QASRLDispatcher[TQASentenceId] with JSApp {
     .componentDidMount(_ => Callback(scala.scalajs.js.Dynamic.global.$("[data-toggle=\"tooltip\"]").tooltip()))
     .build
 
-  import QASRLSettings._
+  import settings._
 
   def example(question: String, answer: String, isGood: Boolean, tooltip: String = "") =
     <.li(
@@ -212,7 +213,7 @@ object Dispatcher extends QASRLDispatcher[TQASentenceId] with JSApp {
         <.span(Styles.bolded, "Who blamed? --> Protesters"), """ would become """,
         <.span(Styles.badRed, "Protesters blamed, "), s""" which is ungrammatical, so it is invalid.
            Your questions will be judged by other annotators, and you must retain an accuracy of
-           ${(100.0 * QASRLSettings.generationAccuracyBlockingThreshold).toInt}% in order to remain qualified. """),
+           ${(100.0 * generationAccuracyBlockingThreshold).toInt}% in order to remain qualified. """),
       <.li(
         <.span(Styles.bolded, "Verb-relevance. "),
         s"""The answer to a question must pertain to the participants, time, place, reason, etc., of """,
@@ -231,7 +232,7 @@ object Dispatcher extends QASRLDispatcher[TQASentenceId] with JSApp {
         s"""You must write as many questions, and as many answers to each question, as possible.
            Each HIT will require you to write at least one question, and you must write more than 2 questions per verb
            on average in order to remain qualified for the HIT. You will be awarded a bonus for each new question,
-           starting at ${QASRLSettings.generationRewardCents}c and going up by 1c for each additional question.
+           starting at ${generationRewardCents}c and going up by 1c for each additional question.
            However, note that none of the answers to your questions may overlap.
            If there is more than one possible question that has the same answer, just write one of them."""
       )
@@ -368,7 +369,7 @@ object Dispatcher extends QASRLDispatcher[TQASentenceId] with JSApp {
         <.span(Styles.bolded, "Who blamed? --> Protesters"), """ would become """,
         <.span(Styles.badRed, "Protesters blamed, "), s""" which is ungrammatical, so it is invalid.
            Your responses will be compared to other annotators, and you must agree with them
-           ${(100.0 * QASRLSettings.validationAgreementBlockingThreshold).toInt}% of the time in order to remain qualified. """),
+           ${(100.0 * validationAgreementBlockingThreshold).toInt}% of the time in order to remain qualified. """),
       <.li(
         <.span(Styles.bolded, "Verb-relevance. "),
         """ Answers to the questions must pertain to the participants, time, place, reason, etc., of """,

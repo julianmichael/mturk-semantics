@@ -33,7 +33,8 @@ class QASRLValidationHITManager[SID : Reader : Writer](
   // sentenceTrackingActor: ActorRef,
   numAssignmentsForPrompt: QASRLValidationPrompt[SID] => Int,
   initNumHITsToKeepActive: Int)(
-  implicit annotationDataService: AnnotationDataService
+  implicit annotationDataService: AnnotationDataService,
+  settings: QASRLSettings
 ) extends NumAssignmentsHITManager[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]](
   helper, numAssignmentsForPrompt, initNumHITsToKeepActive, List.empty[QASRLValidationPrompt[SID]].iterator) {
 
@@ -131,8 +132,8 @@ class QASRLValidationHITManager[SID : Reader : Writer](
         ).getQualifications.asScala.toList.map(_.getWorkerId).contains(worker.workerId))
       workerShouldBeDisqualified = (
         !worker.agreement.isNaN &&
-          worker.agreement < QASRLSettings.validationAgreementBlockingThreshold &&
-          worker.numAssignmentsCompleted > QASRLSettings.validationAgreementGracePeriod)
+          worker.agreement < settings.validationAgreementBlockingThreshold &&
+          worker.numAssignmentsCompleted > settings.validationAgreementGracePeriod)
       _ <- Try(
         if(workerIsDisqualified && !workerShouldBeDisqualified) {
           helper.config.service.disassociateQualificationFromWorker(
@@ -162,7 +163,7 @@ class QASRLValidationHITManager[SID : Reader : Writer](
 
     // grant bonus as appropriate
     val numQuestions = hit.prompt.qaPairs.size
-    val totalBonus = QASRLSettings.validationBonus(numQuestions)
+    val totalBonus = settings.validationBonus(numQuestions)
     if(totalBonus > 0.0) {
       helper.config.service.sendBonus(
         new SendBonusRequest()

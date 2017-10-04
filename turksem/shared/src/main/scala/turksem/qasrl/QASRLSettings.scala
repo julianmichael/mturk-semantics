@@ -1,6 +1,7 @@
 package turksem.qasrl
 
-object QASRLSettings {
+// default settings
+trait QASRLSettings {
 
   // used as URL parameters that indicate to the client which interface to use
 
@@ -13,7 +14,7 @@ object QASRLSettings {
   val generationRewardCents = 5
   val generationReward = generationRewardCents * 0.01
 
-  final def generationBonus(nValidQAs: Int) = {
+  def generationBonus(nValidQAs: Int) = {
     // no bonus for the first question, hence -1
     val cents = (0 until (nValidQAs - 1)).map(_ + generationRewardCents).sum
     cents * 0.01
@@ -23,11 +24,11 @@ object QASRLSettings {
   val validationBonusPerQuestion = 0.02
   val validationBonusThreshold = 4
 
-  final def validationBonus(numQuestions: Int) =
+  def validationBonus(numQuestions: Int) =
     math.max(0.0, validationBonusPerQuestion * (numQuestions - validationBonusThreshold))
 
   val generationCoverageQuestionsPerVerbThreshold = 2.0
-  val generationCoverageBlockingThreshold = math.floor(generationCoverageQuestionsPerVerbThreshold * 10).toInt
+  // val generationCoverageBlockingThreshold = math.floor(generationCoverageQuestionsPerVerbThreshold * 10).toInt
   val generationCoverageGracePeriod = 15
 
   val generationAccuracyBlockingThreshold = 0.75
@@ -35,4 +36,8 @@ object QASRLSettings {
 
   val validationAgreementBlockingThreshold = 0.70
   val validationAgreementGracePeriod = 15
+}
+
+object QASRLSettings {
+  val default = new QASRLSettings {}
 }

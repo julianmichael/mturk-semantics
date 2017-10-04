@@ -49,7 +49,7 @@ class TQAAnnotationSetup(
   val resourcePath = java.nio.file.Paths.get("resources")
 
   lazy val tqaTexts = new TQAFileSystemTopicTextService(
-    Paths.get("resources/tqa/tqa_sentences_trimmed.json")
+    resourcePath.resolve("tqa/tqa_sentences_trimmed.json")
   ).topicTexts
 
   lazy val tqaTrain = new TQAFileSystemService(

@@ -48,7 +48,9 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   generationCoverageDisqualTypeLabel: Option[String] = None,
   validationAgreementDisqualTypeLabel: Option[String] = None)(
   implicit config: TaskConfig,
-  inflections: Inflections) extends StrictLogging {
+  settings: QASRLSettings,
+  inflections: Inflections
+) extends StrictLogging {
 
   implicit object SIDHasKeyIndices extends HasKeyIndices[SID] {
     override def getKeyIndices(id: SID): Set[Int] = {
@@ -233,7 +235,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       provided by autocomplete functionality.
       Maintain high accuracy to stay qualified.
     """.trim.replace("\\s+", " "),
-    reward = QASRLSettings.generationReward,
+    reward = settings.generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
       approvalRateRequirement, /* localeRequirement, */ genAccuracyRequirement, genCoverageRequirement
@@ -276,7 +278,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       and mark questions that are invalid or redundant.
       Maintain high agreement with others to stay qualified.
     """.trim,
-    reward = QASRLSettings.validationReward,
+    reward = settings.validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
       approvalRateRequirement, /* localeRequirement, */ valAgreementRequirement
@@ -300,7 +302,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
          VerbQA(1, "How did someone look at someone?", List(ContiguousSpan(5, 5)))))
 
   lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationApiRequest[SID], QASRLValidationApiResponse](
-    QASRLSettings.validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    settings.validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks,
     frozenHITTypeId = frozenValidationHITTypeId)
@@ -383,7 +385,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
   val genTaskSpec = TaskSpecification[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
-    QASRLSettings.generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    settings.generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks,
     frozenHITTypeId = frozenGenerationHITTypeId)

@@ -28,11 +28,11 @@ import com.typesafe.scalalogging.StrictLogging
 class QASRLGenerationAccuracyManager[SID : Reader : Writer](
   genDisqualificationTypeId: String)(
   implicit annotationDataService: AnnotationDataService,
-  config: TaskConfig
+  config: TaskConfig,
+  settings: QASRLSettings
 ) extends Actor with StrictLogging {
 
   import config._
-  import QASRLSettings._
 
   val workerStatsFilename = "generationWorkerStats"
 
@@ -72,7 +72,7 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
         ha.foreach { case (hit, assignment) =>
           // award bonuses
           val numQAsProvided = assignment.response.size
-          val bonusAwarded = generationBonus(numQAsValid)
+          val bonusAwarded = settings.generationBonus(numQAsValid)
           val bonusCents = dollarsToCents(bonusAwarded)
           if(bonusAwarded > 0.0) {
             Try(
@@ -91,10 +91,10 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
             .getOrElse(QASRLGenerationWorkerStats.empty(assignment.workerId))
             .addAssignment(assignment.response.size, numQAsValid,
                            assignment.submitTime - assignment.acceptTime,
-                           QASRLSettings.generationReward + bonusAwarded)
+                           settings.generationReward + bonusAwarded)
 
-          if(stats.accuracy < QASRLSettings.generationAccuracyBlockingThreshold &&
-               stats.numAssignmentsCompleted > QASRLSettings.generationAccuracyGracePeriod) {
+          if(stats.accuracy < settings.generationAccuracyBlockingThreshold &&
+               stats.numAssignmentsCompleted > settings.generationAccuracyGracePeriod) {
             Try(
               config.service.associateQualificationWithWorker(
                 new AssociateQualificationWithWorkerRequest()

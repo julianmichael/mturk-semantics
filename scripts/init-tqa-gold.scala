@@ -41,6 +41,8 @@ import setup.TQASentenceIdHasAlignedTokens
 val exp = setup.experiment
 exp.server
 
+exp.setValHITsActive(0)
+
 // use with caution... intended mainly for sandbox
 def deleteAll = {
   exp.setGenHITsActiveEach(0)

@@ -44,7 +44,8 @@ import japgolly.scalajs.react.CatsReact._
 
 class QASRLGenerationClient[SID : Reader : Writer](
   instructions: VdomTag)(
-  implicit promptReader: Reader[QASRLGenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
+  implicit settings: QASRLSettings,
+  promptReader: Reader[QASRLGenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[VerbQA]] // same as above
 ) extends TaskClient[QASRLGenerationPrompt[SID], List[VerbQA]] {
 
@@ -420,13 +421,13 @@ class QASRLGenerationClient[SID : Reader : Writer](
                 numQuestionsWritten.toDouble / numVerbsCompleted
               )
               val remainingInCoverageGracePeriodOpt = questionsPerVerbOpt
-                .as(QASRLSettings.generationCoverageGracePeriod - numVerbsCompleted)
+                .as(settings.generationCoverageGracePeriod - numVerbsCompleted)
                 .filter(_ > 0)
 
               val accuracyOpt = workerStatsOpt.map(_.accuracy)
               val remainingInAccuracyGracePeriodOpt = for {
                 workerStats <- workerStatsOpt
-                remaining = QASRLSettings.generationAccuracyGracePeriod - workerStats.numAssignmentsCompleted
+                remaining = settings.generationAccuracyGracePeriod - workerStats.numAssignmentsCompleted
                 if remaining > 0
               } yield remaining
 
@@ -439,8 +440,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
                       val curCompleteQAPairs = getAllCompleteQAPairs(s)
 
-                      val curPotentialBonus = QASRLSettings.generationBonus(curCompleteQAPairs.size)
-                      val nextPotentialBonus = QASRLSettings.generationBonus(curCompleteQAPairs.size + 1) - curPotentialBonus
+                      val curPotentialBonus = settings.generationBonus(curCompleteQAPairs.size)
+                      val nextPotentialBonus = settings.generationBonus(curCompleteQAPairs.size + 1) - curPotentialBonus
 
                       val otherAnswerSpans = s.curFocus.foldMap { qaIndex =>
                         s.qas.indices
@@ -475,9 +476,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
                             <.p(
                               """So far, you have written """,
                               <.span(
-                                if(questionsPerVerb <= QASRLSettings.generationCoverageQuestionsPerVerbThreshold) {
+                                if(questionsPerVerb <= settings.generationCoverageQuestionsPerVerbThreshold) {
                                   Styles.badRed
-                                } else if(questionsPerVerb <= (QASRLSettings.generationCoverageQuestionsPerVerbThreshold * 1.1)) {
+                                } else if(questionsPerVerb <= (settings.generationCoverageQuestionsPerVerbThreshold * 1.1)) {
                                   TagMod(Styles.uncomfortableOrange, Styles.bolded)
                                 } else {
                                   Styles.goodGreen
@@ -493,16 +494,16 @@ class QASRLGenerationClient[SID : Reader : Writer](
                               <.p(
                                 """Of your questions that have been validated, """,
                                 <.span(
-                                  if(accuracy <= QASRLSettings.generationAccuracyBlockingThreshold) {
+                                  if(accuracy <= settings.generationAccuracyBlockingThreshold) {
                                     Styles.badRed
-                                  } else if(accuracy <= QASRLSettings.generationAccuracyBlockingThreshold + 0.05) {
+                                  } else if(accuracy <= settings.generationAccuracyBlockingThreshold + 0.05) {
                                     TagMod(Styles.uncomfortableOrange, Styles.bolded)
                                   } else {
                                     Styles.goodGreen
                                   },
                                   f"${accuracy * 100.0}%.1f%%"
                                 ),
-                                f""" were judged valid by other annotators. This must remain above ${QASRLSettings.generationAccuracyBlockingThreshold * 100.0}%.1f%%""",
+                                f""" were judged valid by other annotators. This must remain above ${settings.generationAccuracyBlockingThreshold * 100.0}%.1f%%""",
                                 remainingInAccuracyGracePeriodOpt.fold(".")(remaining =>
                                   s" after the end of the grace period ($remaining verbs remaining)."
                                 )

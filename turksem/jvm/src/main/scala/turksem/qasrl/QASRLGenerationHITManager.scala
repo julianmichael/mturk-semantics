@@ -34,14 +34,14 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
   numAssignmentsForPrompt: QASRLGenerationPrompt[SID] => Int,
   initNumHITsToKeepActive: Int,
   _promptSource: Iterator[QASRLGenerationPrompt[SID]])(
-  implicit annotationDataService: AnnotationDataService
+  implicit annotationDataService: AnnotationDataService,
+  settings: QASRLSettings
 ) extends NumAssignmentsHITManager[QASRLGenerationPrompt[SID], List[VerbQA]](
   helper, numAssignmentsForPrompt, initNumHITsToKeepActive, _promptSource
 ) with StrictLogging {
 
   import helper._
   import config._
-  import QASRLSettings._
   import taskSpec.hitTypeId
 
   override def promptFinished(prompt: QASRLGenerationPrompt[SID]): Unit = {
@@ -110,8 +110,8 @@ class QASRLGenerationHITManager[SID : Reader : Writer](
     coverageStats = coverageStats.updated(assignment.workerId, newQuestionRecord)
     val verbsCompleted = newQuestionRecord.size
     val questionsPerVerb = newQuestionRecord.sum.toDouble / verbsCompleted
-    if(questionsPerVerb < QASRLSettings.generationCoverageQuestionsPerVerbThreshold &&
-         verbsCompleted > generationCoverageGracePeriod) {
+    if(questionsPerVerb < settings.generationCoverageQuestionsPerVerbThreshold &&
+         verbsCompleted > settings.generationCoverageGracePeriod) {
       config.service.associateQualificationWithWorker(
         new AssociateQualificationWithWorkerRequest()
           .withQualificationTypeId(coverageDisqualificationTypeId)

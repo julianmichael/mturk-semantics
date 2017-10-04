@@ -31,11 +31,10 @@ import japgolly.scalajs.react.MonocleReact._
 
 class QASRLValidationClient[SID : Writer : Reader](
   instructions: VdomTag)(
-  implicit promptReader: Reader[QASRLValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
+  implicit settings: QASRLSettings,
+  promptReader: Reader[QASRLValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[QASRLValidationAnswer]] // same as above
 ) extends TaskClient[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]] {
-
-  import QASRLSettings._
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
@@ -175,7 +174,7 @@ class QASRLValidationClient[SID : Writer : Reader](
 
               val agreementOpt = workerInfoOpt.map(_.agreement)
               val remainingInAgreementGracePeriodOpt = workerInfoOpt
-                .map(info => QASRLSettings.validationAgreementGracePeriod - info.numAssignmentsCompleted)
+                .map(info => settings.validationAgreementGracePeriod - info.numAssignmentsCompleted)
                 .filter(_ > 0)
               val numAssignmentsCompleted = workerInfoOpt.fold(0)(_.numAssignmentsCompleted)
 
@@ -210,16 +209,16 @@ class QASRLValidationClient[SID : Writer : Reader](
                             <.p(
                               """Your responses agree with others """,
                               <.span(
-                                if(agreement <= QASRLSettings.validationAgreementBlockingThreshold) {
+                                if(agreement <= settings.validationAgreementBlockingThreshold) {
                                   Styles.badRed
-                                } else if(agreement <= QASRLSettings.validationAgreementBlockingThreshold + 0.05) {
+                                } else if(agreement <= settings.validationAgreementBlockingThreshold + 0.05) {
                                   TagMod(Styles.uncomfortableOrange, Styles.bolded)
                                 } else {
                                   Styles.goodGreen
                                 },
                                 f"${agreement * 100.0}%.1f%%"
                               ),
-                              f""" of the time. This must remain above ${QASRLSettings.validationAgreementBlockingThreshold * 100.0}%.1f%%""",
+                              f""" of the time. This must remain above ${settings.validationAgreementBlockingThreshold * 100.0}%.1f%%""",
                               remainingInAgreementGracePeriodOpt.fold(".")(remaining =>
                                 s" after the end of a grace period ($remaining verbs remaining)."
                               )
@@ -270,7 +269,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                               .map(field => <.li(^.display := "block", field))
                               .toVdomArray
                           ),
-                          <.p(s"Bonus: ${dollarsToCents(validationBonus(questions.size))}c")
+                          <.p(s"Bonus: ${dollarsToCents(settings.validationBonus(questions.size))}c")
                         ),
                         <.div(
                           ^.classSet1("form-group"),
