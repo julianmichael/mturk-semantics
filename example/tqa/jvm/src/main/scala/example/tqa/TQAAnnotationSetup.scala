@@ -49,34 +49,6 @@ class TQAAnnotationSetup(
 
   val resourcePath = java.nio.file.Paths.get("resources")
 
-  lazy val tqaTexts = new TQAFileSystemTopicTextService(
-    resourcePath.resolve("tqa/tqa_sentences_trimmed.json")
-  ).topicTexts
-
-  lazy val tqaTrain = new TQAFileSystemService(
-    resourcePath.resolve("tqa/train/tqa_v1_train.json")
-  ).getDataset.get
-  lazy val tqaDev = new TQAFileSystemService(
-    resourcePath.resolve("tqa/val/tqa_v1_val.json")
-  ).getDataset.get
-
-  lazy val tqaTrainTopicIds = tqaTrain.topics.keySet
-  lazy val tqaDevTopicIds = tqaDev.topics.keySet
-
-  def isTQATrain(sid: TQASentenceId) = tqaTrainTopicIds.contains(sid.topicId)
-  def isTQADev(sid: TQASentenceId) = tqaDevTopicIds.contains(sid.topicId)
-  def isTQATest(sid: TQASentenceId) = !isTQATrain(sid) && !isTQADev(sid)
-
-  lazy val Wiktionary = new wiktionary.WiktionaryFileSystemService(
-    resourcePath.resolve("wiktionary")
-  )
-
-  implicit object TQASentenceIdHasAlignedTokens extends HasAlignedTokens[TQASentenceId] {
-    def getAlignedTokens(id: TQASentenceId): Vector[AlignedToken] = id match {
-      case TQASentenceId(globalId, sentenceIndex) => tqaTexts(globalId).sentences(sentenceIndex)
-    }
-  }
-
   import java.nio.file.{Paths, Path, Files}
   private[this] val liveDataPath = Paths.get(s"data/tqa/$label/live")
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
@@ -110,6 +82,39 @@ class TQAAnnotationSetup(
     val path = directory.resolve(name)
     import scala.collection.JavaConverters._
     Files.lines(path).iterator.asScala.toList
+  }
+
+  lazy val tqaTexts = new TQAFileSystemTopicTextService(
+    resourcePath.resolve("tqa/tqa_sentences_trimmed.json")
+  ).topicTexts
+
+  lazy val tqaTrain = new TQAFileSystemService(
+    resourcePath.resolve("tqa/train/tqa_v1_train.json")
+  ).getDataset.get
+  lazy val tqaDev = new TQAFileSystemService(
+    resourcePath.resolve("tqa/val/tqa_v1_val.json")
+  ).getDataset.get
+
+  lazy val tqaTrainTopicIds = tqaTrain.topics.keySet
+  lazy val tqaDevTopicIds = tqaDev.topics.keySet
+
+  def isTQATrain(sid: TQASentenceId) = tqaTrainTopicIds.contains(sid.topicId)
+  def isTQADev(sid: TQASentenceId) = tqaDevTopicIds.contains(sid.topicId)
+  def isTQATest(sid: TQASentenceId) = !isTQATrain(sid) && !isTQADev(sid)
+
+  lazy val Wiktionary = new wiktionary.WiktionaryFileSystemService(
+    resourcePath.resolve("wiktionary")
+  )
+
+  lazy val tusharSentences = loadInputFile("qasrl_sentences_only.csv").get.toVector.map(AligningTokenizer.tokenize)
+
+  lazy val tusharIds = tusharSentences.indices.map(TusharSentenceId(_)).toVector
+
+  implicit object SentenceIdHasAlignedTokens extends HasAlignedTokens[SentenceId] {
+    def getAlignedTokens(id: SentenceId): Vector[AlignedToken] = id match {
+      case TQASentenceId(globalId, sentenceIndex) => tqaTexts(globalId).sentences(sentenceIndex)
+      case TusharSentenceId(index) => tusharSentences(index)
+    }
   }
 
   import scala.annotation.tailrec
@@ -153,7 +158,7 @@ class TQAAnnotationSetup(
     (train, dev, test)
   }
 
-  lazy val allIds = weightedRoundRobin(List(tqaTrainIds, tqaDevIds, tqaTestIds))
+  lazy val allIds = weightedRoundRobin(List(tqaTrainIds, tqaDevIds, tqaTestIds, tusharIds))
 
   lazy val goldIds = evenDistribution(tqaDevIds)
 
@@ -167,7 +172,7 @@ class TQAAnnotationSetup(
     Wiktionary.getInflectionsForTokens(tokens)
   }
 
-  def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[TQASentenceId]) = 1
+  def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[SentenceId]) = 1
 
   lazy val experiment = new QASRLAnnotationPipeline(
     expIds, numGenerationAssignmentsForPrompt,
@@ -180,23 +185,23 @@ class TQAAnnotationSetup(
 
   def saveAnnotationData(
     filename: String,
-    ids: Vector[TQASentenceId]
+    ids: Vector[SentenceId]
   ) = {
     saveOutputFile(
       s"$filename-readable.tsv",
       DataIO.makeReadableQAPairTSV(
         ids.toList,
-        TQASentenceId.toString,
+        SentenceId.toString,
         identity,
         experiment.allGenInfos,
         experiment.allValInfos,
-        (id: TQASentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
+        (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
     )
     saveOutputFile(
       s"$filename.tsv",
       DataIO.makeQAPairTSV(
         ids.toList,
-        TQASentenceId.toString,
+        SentenceId.toString,
         experiment.allGenInfos,
         experiment.allValInfos)
     )
