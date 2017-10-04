@@ -1,4 +1,4 @@
-package turksem
+package turksem.qamr
 
 /** Wrapper class for a predicate that is used to identify stopwords.
   * A wrapper is used so that we can pass this around implicitly without

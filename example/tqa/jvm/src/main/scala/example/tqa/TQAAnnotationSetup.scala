@@ -1,27 +1,25 @@
-package example.multitask
+package example.tqa
 
 import cats._
 import cats.implicits._
 
 import turksem.FileSystemAnnotationDataService
-import turksem.qamr._
 import turksem.qasrl._
 import turksem.util._
 
 import turkey._
 import turkey.tasks._
 
-import nlpdata.structure._
-import nlpdata.datasets.conll
-import nlpdata.datasets.wiktionary.Inflections
-import nlpdata.util.LowerCaseStrings._
-import nlpdata.util.Text
-import nlpdata.util.HasTokens
-import nlpdata.util.HasTokens.ops._
-import nlpdata.datasets.ptb3._
-import nlpdata.datasets.qasrl
+import nlpdata.structure.AlignedToken
+
 import nlpdata.datasets.wiktionary
 import nlpdata.datasets.wiktionary.Inflections
+import nlpdata.datasets.tqa.TQAFileSystemService
+
+import nlpdata.util.LowerCaseStrings._
+import nlpdata.util.Text
+import nlpdata.util.HasAlignedTokens
+import nlpdata.util.HasAlignedTokens.ops._
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
@@ -34,9 +32,6 @@ import scala.util.Try
 
 import upickle.default._
 
-import edu.stanford.nlp.ling.Word
-import edu.stanford.nlp.process.PTBTokenizer
-import edu.stanford.nlp.process.WordTokenFactory
 import java.io.StringReader
 import java.nio.file.{Files, Path, Paths}
 
@@ -45,46 +40,47 @@ import scala.util.Random
 
 import upickle.default._
 
-
-class MultitaskAnnotationSetup(
-  val label: String = "final",
+class TQAAnnotationSetup(
+  val label: String,
   frozenGenerationHITTypeId: Option[String] = None,
   frozenValidationHITTypeId: Option[String] = None)(
   implicit config: TaskConfig) {
 
   val resourcePath = java.nio.file.Paths.get("resources")
 
-  // ignore file system errors.. the service should always succeed
-  lazy val PTB = {
-    new InterpretedPTB3Service(
-      λ[Try ~> Id](_.get) compose (new PTB3FileSystemInterpreter(resourcePath.resolve("ptb3")))
-    )
-  }
+  lazy val tqaTexts = new TQAFileSystemTopicTextService(
+    Paths.get("resources/tqa/tqa_sentences_trimmed.json")
+  ).topicTexts
+
+  lazy val tqaTrain = new TQAFileSystemService(
+    resourcePath.resolve("tqa/train/tqa_v1_train.json")
+  ).getDataset.get
+  lazy val tqaDev = new TQAFileSystemService(
+    resourcePath.resolve("tqa/val/tqa_v1_val.json")
+  ).getDataset.get
+
+  lazy val tqaTrainTopicIds = tqaTrain.topics.keySet
+  lazy val tqaDevTopicIds = tqaDev.topics.keySet
+
+  def isTQATrain(sid: TQASentenceId) = tqaTrainTopicIds.contains(sid.topicId)
+  def isTQADev(sid: TQASentenceId) = tqaDevTopicIds.contains(sid.topicId)
+  def isTQATest(sid: TQASentenceId) = !isTQATrain(sid) && !isTQADev(sid)
 
   lazy val Wiktionary = new wiktionary.WiktionaryFileSystemService(
     resourcePath.resolve("wiktionary")
   )
 
-  lazy val CoNLL = new conll.CoNLLFileSystemService(
-    resourcePath.resolve("conll-2012")
-  ).interpretThrough(λ[Try ~> Id](_.get))
-
-  implicit object SentenceIdHasTokens extends HasTokens[SentenceId] {
-    def getTokens(id: SentenceId): Vector[String] = id match {
-      case PTBSentenceId(path) => PTB.getSentence(path).tokens
-      case CoNLLSentenceId(path) => CoNLL.getSentence(path).tokens
+  implicit object TQASentenceIdHasAlignedTokens extends HasAlignedTokens[TQASentenceId] {
+    def getAlignedTokens(id: TQASentenceId): Vector[AlignedToken] = id match {
+      case TQASentenceId(globalId, sentenceIndex) => tqaTexts(globalId).sentences(sentenceIndex)
     }
   }
 
   import java.nio.file.{Paths, Path, Files}
-  private[this] val liveDataPath = if(config.isProduction) {
-    Paths.get(s"live-data/multitask/$label")
-  } else {
-    Paths.get(s"live-data/multitask/$label")
-  }
+  private[this] val liveDataPath = Paths.get(s"data/tqa/$label/live")
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  val staticDataPath = Paths.get(s"static-data/multitask/$label")
+  val staticDataPath = Paths.get(s"data/tqa/$label/static")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
     val directory = staticDataPath.resolve("out")
@@ -129,36 +125,36 @@ class MultitaskAnnotationSetup(
     }
   def weightedRoundRobin[A](vectors: List[Vector[A]]) = weightedRoundRobinAux(Vector.empty[A], vectors)
 
-  lazy val (brownTrain, brownDev, brownTest) = {
+  // reorders a vector into a result s.t. prefixes of the result are
+  // (roughly) maximally evenly distributed over the original vector
+  private def evenDistributionAux[A](vector: Vector[A]): Iterator[A] = {
+    if(vector.size <= 3) {
+      vector.iterator
+    } else {
+      val (firstHalf, secondHalf) = vector.splitAt(vector.size / 2)
+      evenDistributionAux(firstHalf).zip(evenDistributionAux(secondHalf)).flatMap {
+        case (x, y) => x :: y :: Nil
+      }
+    }
+  }
+  def evenDistribution[A](vector: Vector[A]) = evenDistributionAux(vector).toVector
+
+  lazy val (tqaTrainIds, tqaDevIds, tqaTestIds) = {
     val unshuffled = for {
-      path @ BrownPath("CK", _) <- PTB.getAllPaths
-      sentence <- PTB.getFile(path).sentences
-    } yield PTBSentenceId(sentence.path)
-    val shuffleRand = new Random(234348765L)
+      (topicId, topicText) <- tqaTexts
+      index <- topicText.sentences.indices
+    } yield TQASentenceId(topicId, index)
+    val shuffleRand = new Random(2158369L)
     val shuffled = shuffleRand.shuffle(unshuffled.toVector)
-    val trainBrown = shuffled.filter(SentenceId.isBrownTrain)
-    val devBrown = shuffled.filter(SentenceId.isBrownDev)
-    val testBrown = shuffled.filter(SentenceId.isBrownTest)
-    (trainBrown, devBrown, testBrown)
+    val train = shuffled.filter(isTQATrain)
+    val dev = shuffled.filter(isTQADev)
+    val test = shuffled.filter(isTQATest)
+    (train, dev, test)
   }
-  val brownIds = weightedRoundRobin(List(brownTrain, brownDev, brownTest))
 
-  lazy val (ontoNotesTrain, ontoNotesDev, ontoNotesTest) = {
-    lazy val unshuffled = for {
-      path <- CoNLL.getAllPaths
-      if path.language == "english" && path.domain == "bc"
-      sentence <- CoNLL.getFile(path).sentences
-    } yield CoNLLSentenceId(sentence.path)
-    val shuffleRand = new Random(425632738L)
-    val shuffled = shuffleRand.shuffle(unshuffled.toVector)
-    val trainOntoNotes = shuffled.filter(_.path.filePath.split == "train")
-    val devOntoNotes = shuffled.filter(_.path.filePath.split == "development")
-    val testOntoNotes = shuffled.filter(_.path.filePath.split == "test")
-    (trainOntoNotes, devOntoNotes, testOntoNotes)
-  }
-  val ontoNotesIds = weightedRoundRobin(List(ontoNotesTrain, ontoNotesDev, ontoNotesTest))
+  lazy val allIds = weightedRoundRobin(List(tqaTrainIds, tqaDevIds, tqaTestIds))
 
-  lazy val allIds: Vector[SentenceId] = brownIds ++ ontoNotesIds
+  lazy val goldIds = evenDistribution(tqaDevIds)
 
   implicit lazy val inflections = {
     val tokens = for {
@@ -168,47 +164,42 @@ class MultitaskAnnotationSetup(
     Wiktionary.getInflectionsForTokens(tokens)
   }
 
-  def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[SentenceId]) = 1
+  def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[TQASentenceId]) = 1
 
   lazy val experiment = new QASRLAnnotationPipeline(
-    allIds, numGenerationAssignmentsForPrompt,
+    goldIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
     frozenGenerationHITTypeId = frozenGenerationHITTypeId,
     frozenValidationHITTypeId = frozenValidationHITTypeId,
-    generationAccuracyDisqualTypeLabel = Some("v3-templates"),
-    generationCoverageDisqualTypeLabel = Some("v3-templates"),
-    validationAgreementDisqualTypeLabel = Some("v3-templates"))
+    generationAccuracyDisqualTypeLabel = None,
+    generationCoverageDisqualTypeLabel = None,
+    validationAgreementDisqualTypeLabel = None)
 
   def saveAnnotationData(
     filename: String,
-    ids: Vector[SentenceId]
+    ids: Vector[TQASentenceId]
   ) = {
     saveOutputFile(
       s"$filename-readable.tsv",
       DataIO.makeReadableQAPairTSV(
         ids.toList,
-        SentenceId.toString,
+        TQASentenceId.toString,
         identity,
         experiment.allGenInfos,
         experiment.allValInfos,
-        (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
+        (id: TQASentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
     )
     saveOutputFile(
       s"$filename.tsv",
       DataIO.makeQAPairTSV(
         ids.toList,
-        SentenceId.toString,
+        TQASentenceId.toString,
         experiment.allGenInfos,
         experiment.allValInfos)
     )
   }
 
   def writeAllTSVs = {
-    saveAnnotationData("brown-train", brownTrain)
-    saveAnnotationData("brown-dev", brownDev)
-    saveAnnotationData("brown-test", brownTest)
-    saveAnnotationData("bc-train", ontoNotesTrain)
-    saveAnnotationData("bc-dev", ontoNotesDev)
-    saveAnnotationData("bc-test", ontoNotesTest)
+    () // TODO
   }
 }

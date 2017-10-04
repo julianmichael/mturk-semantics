@@ -21,7 +21,8 @@ import nlpdata.datasets.wiki1k
 import nlpdata.datasets.wiki1k.Wiki1kPath
 import nlpdata.datasets.wiktionary
 import nlpdata.datasets.wiktionary.Inflections
-import turksem.IsStopword
+
+import turksem.qamr.IsStopword
 
 import scala.util.Try
 import scala.util.Random
