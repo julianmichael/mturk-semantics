@@ -41,6 +41,7 @@ import scala.util.Random
 import upickle.default._
 
 class TQAAnnotationSetup(
+  val isGold: Boolean,
   val label: String,
   frozenGenerationHITTypeId: Option[String] = None,
   frozenValidationHITTypeId: Option[String] = None)(
@@ -156,6 +157,8 @@ class TQAAnnotationSetup(
 
   lazy val goldIds = evenDistribution(tqaDevIds)
 
+  lazy val expIds = if(isGold) goldIds else allIds
+
   implicit lazy val inflections = {
     val tokens = for {
       id <- allIds.iterator
@@ -167,7 +170,7 @@ class TQAAnnotationSetup(
   def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[TQASentenceId]) = 1
 
   lazy val experiment = new QASRLAnnotationPipeline(
-    goldIds, numGenerationAssignmentsForPrompt,
+    expIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
     frozenGenerationHITTypeId = frozenGenerationHITTypeId,
     frozenValidationHITTypeId = frozenValidationHITTypeId,

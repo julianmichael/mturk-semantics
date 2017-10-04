@@ -530,6 +530,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
                                 render = (elements =>
                                   <.div(
                                     ^.onMouseEnter --> setBlurEnabled(false),
+                                    ^.onMouseMove --> setBlurEnabled(false),
+                                    ^.onMouseDown --> setBlurEnabled(false),
                                     ^.onMouseLeave --> setBlurEnabled(true),
                                     <.p(
                                       Styles.largeText,

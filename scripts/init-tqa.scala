@@ -44,7 +44,7 @@ def exit = {
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
 
-val setup = new TQAAnnotationSetup(label)
+val setup = new TQAAnnotationSetup(isGold = false, label)
 import setup.TQASentenceIdHasAlignedTokens
 
 val exp = setup.experiment

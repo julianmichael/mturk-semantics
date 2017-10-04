@@ -4,6 +4,7 @@ import turksem.qasrl._
 import turksem.util._
 import turkey._
 import turkey.tasks._
+import turkey.util._
 import akka.pattern.ask
 import scala.concurrent.duration._
 
@@ -35,7 +36,7 @@ def exit = {
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
 
-val setup = new TQAAnnotationSetup(label)
+val setup = new TQAAnnotationSetup(isGold = true, label)
 import setup.TQASentenceIdHasAlignedTokens
 
 val exp = setup.experiment
@@ -86,6 +87,6 @@ def disableHITById(hitId: String) = {
   deleteHITById(hitId)
 }
 
-def get100ActiveHITIds = {
-  config.service.listHITs(new ListHITsRequest().withMaxResults(100)).getHITs.asScala.toList.map(_.getHITId)
+def getActiveHITIds = {
+  config.service.listAllHITs.map(_.getHITId)
 }
