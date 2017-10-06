@@ -7,6 +7,7 @@ import turksem.qamr.SaveData
 
 import turkey._
 import turkey.tasks._
+import turkey.util._
 
 import scala.collection.mutable
 import scala.util.{Try, Success, Failure}
@@ -46,9 +47,8 @@ class QASRLValidationHITManager[SID : Reader : Writer](
 
   override def promptFinished(prompt: QASRLValidationPrompt[SID]): Unit = {
     val assignments = promptToAssignments(prompt)
-    // sentenceTrackingActor ! ValidationFinished(prompt, assignments)
     val numValid = QASRLValidationAnswer.numValidQuestions(assignments.map(_.response))
-    accuracyStatsActor ! QASRLValidationResult(prompt.genPrompt, prompt.sourceHITTypeId, prompt.sourceHITId, prompt.sourceAssignmentId, numValid)
+    accuracyStatsActor ! QASRLValidationFinished(prompt, numValid)
     promptToAssignments = promptToAssignments - prompt
   }
 
@@ -65,8 +65,6 @@ class QASRLValidationHITManager[SID : Reader : Writer](
   }
 
   val validationPromptsFilename = "validationPrompts"
-  val workerInfoFilename = "validationWorkerInfo"
-  val promptToAssignmentsFilename = "promptToAssignments"
 
   private[this] var allPrompts = {
     val prompts = annotationDataService.loadLiveData(validationPromptsFilename)
@@ -76,21 +74,7 @@ class QASRLValidationHITManager[SID : Reader : Writer](
     prompts
   }
 
-  private[this] def save = {
-    annotationDataService.saveLiveData(
-      workerInfoFilename,
-      write[Map[String, QASRLValidationWorkerInfo]](allWorkerInfo))
-    annotationDataService.saveLiveData(
-      promptToAssignmentsFilename,
-      write[Map[QASRLValidationPrompt[SID], List[Assignment[List[QASRLValidationAnswer]]]]](promptToAssignments))
-    annotationDataService.saveLiveData(
-      validationPromptsFilename,
-      write[List[QASRLValidationPrompt[SID]]](allPrompts))
-    annotationDataService.saveLiveData(
-      feedbackFilename,
-      write[List[Assignment[List[QASRLValidationAnswer]]]](feedbacks))
-    logger.info("Validation data saved.")
-  }
+  val workerInfoFilename = "validationWorkerInfo"
 
   var allWorkerInfo = {
     annotationDataService.loadLiveData(workerInfoFilename)
@@ -100,6 +84,8 @@ class QASRLValidationHITManager[SID : Reader : Writer](
       Map.empty[String, QASRLValidationWorkerInfo]
     }
   }
+
+  val promptToAssignmentsFilename = "promptToAssignments"
 
   private[this] var promptToAssignments = {
     annotationDataService.loadLiveData(promptToAssignmentsFilename)
@@ -116,39 +102,87 @@ class QASRLValidationHITManager[SID : Reader : Writer](
     annotationDataService.loadLiveData(feedbackFilename)
       .map(_.mkString)
       .map(read[List[Assignment[List[QASRLValidationAnswer]]]])
-      .toOption.getOrElse {
-      List.empty[Assignment[List[QASRLValidationAnswer]]]
-    }
+      .toOption
+      .getOrElse(List.empty[Assignment[List[QASRLValidationAnswer]]])
+
+  val blockedValidatorsFilename = "blockedValidators"
+
+  var blockedValidators =
+    annotationDataService.loadLiveData(blockedValidatorsFilename)
+      .map(_.mkString)
+      .map(read[Set[String]])
+      .toOption
+      .getOrElse(Set.empty[String])
+
+  private[this] def save = {
+    annotationDataService.saveLiveData(
+      workerInfoFilename,
+      write[Map[String, QASRLValidationWorkerInfo]](allWorkerInfo))
+    annotationDataService.saveLiveData(
+      promptToAssignmentsFilename,
+      write[Map[QASRLValidationPrompt[SID], List[Assignment[List[QASRLValidationAnswer]]]]](promptToAssignments))
+    annotationDataService.saveLiveData(
+      validationPromptsFilename,
+      write[List[QASRLValidationPrompt[SID]]](allPrompts))
+    annotationDataService.saveLiveData(
+      feedbackFilename,
+      write[List[Assignment[List[QASRLValidationAnswer]]]](feedbacks))
+    annotationDataService.saveLiveData(
+      blockedValidatorsFilename,
+      write[Set[String]](blockedValidators))
+    logger.info("Validation data saved.")
+  }
 
   import scala.collection.JavaConverters._
 
   def assessQualification(worker: QASRLValidationWorkerInfo): Unit = {
-    for {
-      workerIsDisqualified <- Try( // TODO pagination.. but... not end of the world... likely won't matter
-        helper.config.service.listWorkersWithQualificationType(
-          new ListWorkersWithQualificationTypeRequest()
+    if(worker.isLikelySpamming) blockWorker(worker.workerId)
+    else Try {
+      val workerIsDisqualified = helper.config.service
+        .listAllWorkersWithQualificationType(valDisqualificationTypeId)
+        .contains(worker.workerId)
+
+      val workerShouldBeDisqualified = !worker.agreement.isNaN &&
+        worker.agreement < settings.validationAgreementBlockingThreshold &&
+        worker.numAssignmentsCompleted > settings.validationAgreementGracePeriod
+
+      if(workerIsDisqualified && !workerShouldBeDisqualified) {
+        helper.config.service.disassociateQualificationFromWorker(
+          new DisassociateQualificationFromWorkerRequest()
             .withQualificationTypeId(valDisqualificationTypeId)
-            .withMaxResults(100)
-        ).getQualifications.asScala.toList.map(_.getWorkerId).contains(worker.workerId))
-      workerShouldBeDisqualified = (
-        !worker.agreement.isNaN &&
-          worker.agreement < settings.validationAgreementBlockingThreshold &&
-          worker.numAssignmentsCompleted > settings.validationAgreementGracePeriod)
-      _ <- Try(
-        if(workerIsDisqualified && !workerShouldBeDisqualified) {
-          helper.config.service.disassociateQualificationFromWorker(
-            new DisassociateQualificationFromWorkerRequest()
-              .withQualificationTypeId(valDisqualificationTypeId)
-              .withWorkerId(worker.workerId))
-        } else if(!workerIsDisqualified && workerShouldBeDisqualified) {
-          helper.config.service.associateQualificationWithWorker(
-            new AssociateQualificationWithWorkerRequest()
-              .withQualificationTypeId(valDisqualificationTypeId)
-              .withWorkerId(worker.workerId)
-              .withIntegerValue(1)
-              .withSendNotification(true))
-        } else Success(()))
-    } yield ()
+            .withWorkerId(worker.workerId)
+            .withReason("Agreement dropped too low on the question answering task."))
+      } else if(!workerIsDisqualified && workerShouldBeDisqualified) {
+        helper.config.service.associateQualificationWithWorker(
+          new AssociateQualificationWithWorkerRequest()
+            .withQualificationTypeId(valDisqualificationTypeId)
+            .withWorkerId(worker.workerId)
+            .withIntegerValue(1)
+            .withSendNotification(true))
+      }
+    }
+  }
+
+  def blockWorker(workerId: String) = {
+    if(!blockedValidators.contains(workerId)) {
+      helper.config.service.createWorkerBlock(
+        new CreateWorkerBlockRequest()
+          .withWorkerId(workerId)
+          .withReason("You have been blocked because you were detected spamming the question answering task. If you believe this was in error, please contact the requester.")
+      )
+      accuracyStatsActor ! ValidatorBlocked(workerId)
+      // remove all comparisons with a blocked validator to prevent them from ruining people's stats
+      blockedValidators = blockedValidators + workerId
+      allWorkerInfo = allWorkerInfo.map {
+        case (wid, info) =>
+          if(wid == workerId) wid -> info else {
+            val newInfo = info.removeComparisonsWithWorker(workerId)
+            // update qualifications for the worker if any comparisons were removed
+            if(info != newInfo) assessQualification(newInfo)
+            wid -> newInfo
+          }
+      }
+    }
   }
 
   // override for more interesting review policy
@@ -181,24 +215,45 @@ class QASRLValidationHITManager[SID : Reader : Writer](
                      assignment.submitTime - assignment.acceptTime,
                      helper.taskSpec.hitType.reward + totalBonus)
 
-    if(newWorkerInfo.proportionInvalid > 0.7 && newWorkerInfo.numAssignmentsCompleted >= 10) {
-      helper.config.service.createWorkerBlock(
-        new CreateWorkerBlockRequest()
-          .withWorkerId(newWorkerInfo.workerId)
-          .withReason("You have been blocked for spamming the question answering task. If you believe this was in error, please contact the requester.")
-      )
+    // spam detection
+    if(newWorkerInfo.proportionInvalid > 0.7 && newWorkerInfo.numAssignmentsCompleted >= 8) {
+      blockWorker(newWorkerInfo.workerId)
     }
-    val proportionInvalid = newWorkerInfo.numInvalids.toDouble / (newWorkerInfo.numAnswerSpans + newWorkerInfo.numInvalids)
+
+    if(!blockedValidators.contains(assignment.workerId)) {
+      accuracyStatsActor ! QASRLValidationResult(hit.prompt, assignment.workerId, assignment.response)
+    }
+
     // do comparisons with other workers
     promptToAssignments.get(hit.prompt).getOrElse(Nil).foreach { otherAssignment =>
+
       val otherWorkerId = otherAssignment.workerId
-      val comparisons = (assignment.response, otherAssignment.response).zipped.map(QASRLValidationResponseComparison(_, _))
-      // update current worker with comparison
-      newWorkerInfo = newWorkerInfo.addComparisons(comparisons)
-      // update the other one and put back in data structure (blocking if necessary)
-      val otherWorkerInfo = allWorkerInfo(otherWorkerId).addComparisons(comparisons.map(_.swap))
-      assessQualification(otherWorkerInfo)
-      allWorkerInfo = allWorkerInfo.updated(otherWorkerId, otherWorkerInfo)
+
+      // update this worker's stats if the other isn't blocked
+      if(!blockedValidators.contains(otherWorkerId)) {
+        val comparisons = (
+          assignment.response,
+          otherAssignment.response,
+          List.fill(otherAssignment.response.size)(otherAssignment.workerId))
+          .zipped
+          .map(QASRLValidationResponseComparison(_, _, _))
+        // update current worker with comparison
+        newWorkerInfo = newWorkerInfo.addComparisons(comparisons)
+      }
+
+      // update the other worker's stats if this one isn't blocked
+      if(!blockedValidators.contains(assignment.workerId)) {
+        val reverseComparisons = (
+          otherAssignment.response,
+          assignment.response,
+          List.fill(assignment.response.size)(assignment.workerId))
+          .zipped
+          .map(QASRLValidationResponseComparison(_, _, _))
+        // update the other one and put back in data structure (blocking if necessary)
+        val otherWorkerInfo = allWorkerInfo(otherWorkerId).addComparisons(reverseComparisons)
+        assessQualification(otherWorkerInfo)
+        allWorkerInfo = allWorkerInfo.updated(otherWorkerId, otherWorkerInfo)
+      }
     }
     // now blocking the current worker if necessary before adding everything in
     assessQualification(newWorkerInfo)

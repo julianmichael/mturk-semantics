@@ -1,8 +1,13 @@
 package turksem.qasrl
 
 case class QASRLValidationResult[SID](
-  prompt: QASRLGenerationPrompt[SID],
-  sourceHITTypeId: String,
-  sourceHITId: String,
-  sourceAssignmentId: String,
+  prompt: QASRLValidationPrompt[SID],
+  validatorId: String,
+  response: List[QASRLValidationAnswer])
+
+case class ValidatorBlocked(badValidatorId: String)
+
+case class QASRLValidationFinished[SID](
+  valPrompt: QASRLValidationPrompt[SID],
   numValid: Int)
+

@@ -169,14 +169,12 @@ class QASRLValidationClient[SID : Writer : Reader](
           websocketURI = websocketUri, request = QASRLValidationApiRequest(workerIdOpt, prompt.id), render = {
             case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
-            case Loaded(QASRLValidationApiResponse(workerInfoOpt, sentence), _) =>
+            case Loaded(QASRLValidationApiResponse(workerInfoSummaryOpt, sentence), _) =>
               import state._
 
-              val agreementOpt = workerInfoOpt.map(_.agreement)
-              val remainingInAgreementGracePeriodOpt = workerInfoOpt
-                .map(info => settings.validationAgreementGracePeriod - info.numAssignmentsCompleted)
-                .filter(_ > 0)
-              val numAssignmentsCompleted = workerInfoOpt.fold(0)(_.numAssignmentsCompleted)
+              def getRemainingInAgreementGracePeriodOpt(summary: QASRLValidationWorkerInfoSummary) =
+                Option(settings.validationAgreementGracePeriod - summary.numAssignmentsCompleted)
+                  .filter(_ > 0)
 
               SpanHighlighting(
                 SpanHighlightingProps(
@@ -202,27 +200,37 @@ class QASRLValidationClient[SID : Writer : Reader](
                           instructions,
                           ^.margin := "5px"
                         ),
-                        agreementOpt.whenDefined(agreement =>
+
+                        workerInfoSummaryOpt.whenDefined(summary =>
                           <.div(
                             ^.classSet1("card"),
                             ^.margin := "5px",
                             <.p(
+                              f"""You have marked ${summary.proportionInvalid * 100.0}%.1f%% of questions as invalid.
+                               In general, you should expect this to be around 10%%
+                               unless you are getting an unusually good set of questions. """,
+                              (
+                                if(summary.proportionInvalid < 0.6) " Consider being harsher on bad questions if necessary. "
+                                else ""
+                              )
+                            ).when(!summary.proportionInvalid.isNaN),
+                            <.p(
                               """Your responses agree with others """,
                               <.span(
-                                if(agreement <= settings.validationAgreementBlockingThreshold) {
+                                if(summary.agreement <= settings.validationAgreementBlockingThreshold) {
                                   Styles.badRed
-                                } else if(agreement <= settings.validationAgreementBlockingThreshold + 0.05) {
+                                } else if(summary.agreement <= settings.validationAgreementBlockingThreshold + 0.05) {
                                   TagMod(Styles.uncomfortableOrange, Styles.bolded)
                                 } else {
                                   Styles.goodGreen
                                 },
-                                f"${agreement * 100.0}%.1f%%"
+                                f"${summary.agreement * 100.0}%.1f%%"
                               ),
                               f""" of the time. This must remain above ${settings.validationAgreementBlockingThreshold * 100.0}%.1f%%""",
-                              remainingInAgreementGracePeriodOpt.fold(".")(remaining =>
+                              getRemainingInAgreementGracePeriodOpt(summary).fold(".")(remaining =>
                                 s" after the end of a grace period ($remaining verbs remaining)."
                               )
-                            )
+                            ).when(!summary.agreement.isNaN)
                           )
                         ),
                         <.div(

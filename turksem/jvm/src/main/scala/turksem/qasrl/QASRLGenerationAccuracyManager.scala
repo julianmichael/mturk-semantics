@@ -2,6 +2,7 @@ package turksem.qasrl
 
 import turkey._
 import turkey.tasks._
+import turkey.util._
 
 import turksem._
 import turksem.util._
@@ -20,6 +21,7 @@ import com.amazonaws.services.mturk.model.HITStatus
 import com.amazonaws.services.mturk.model.SendBonusRequest
 import com.amazonaws.services.mturk.model.NotifyWorkersRequest
 import com.amazonaws.services.mturk.model.AssociateQualificationWithWorkerRequest
+import com.amazonaws.services.mturk.model.DisassociateQualificationFromWorkerRequest
 
 import upickle.default._
 
@@ -58,18 +60,70 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
     ).toOptionLogging(logger).foreach(_ => logger.info("Worker stats data saved."))
   }
 
+  private def getAssignmentFromValPrompt(valPrompt: QASRLValidationPrompt[SID]): Option[Assignment[List[VerbQA]]] = {
+    val assignmentsForHIT = for {
+      hit <- hitDataService.getHIT[QASRLGenerationPrompt[SID]](valPrompt.sourceHITTypeId, valPrompt.sourceHITId).toOptionLogging(logger).toList
+      assignment <- hitDataService.getAssignmentsForHIT[List[VerbQA]](valPrompt.sourceHITTypeId, valPrompt.sourceHITId).get
+    } yield assignment
+    assignmentsForHIT.find(_.assignmentId == valPrompt.sourceAssignmentId)
+  }
+
+  def assessQualification(workerId: String): Unit = {
+    Try {
+      allWorkerStats.get(workerId).foreach { stats =>
+        val workerIsDisqualified = config.service
+          .listAllWorkersWithQualificationType(genDisqualificationTypeId)
+          .contains(stats.workerId)
+
+        val workerShouldBeDisqualified = !stats.accuracy.isNaN &&
+          stats.accuracy < settings.generationAccuracyBlockingThreshold &&
+          (stats.numValidatorJudgments / 2) > settings.generationAccuracyGracePeriod
+
+        if(workerIsDisqualified && !workerShouldBeDisqualified) {
+          config.service.disassociateQualificationFromWorker(
+            new DisassociateQualificationFromWorkerRequest()
+              .withQualificationTypeId(genDisqualificationTypeId)
+              .withWorkerId(stats.workerId)
+              .withReason("Accuracy dropped too low on the question writing task."))
+        } else if(!workerIsDisqualified && workerShouldBeDisqualified) {
+          config.service.associateQualificationWithWorker(
+            new AssociateQualificationWithWorkerRequest()
+              .withQualificationTypeId(genDisqualificationTypeId)
+              .withWorkerId(stats.workerId)
+              .withIntegerValue(1)
+              .withSendNotification(true))
+        }
+      }
+    }
+  }
+
   override def receive = {
     case SaveData => save
     case ChristenWorker(workerId, numAgreementsToAdd) => christenWorker(workerId, numAgreementsToAdd)
+    case ValidatorBlocked(badValidatorId) =>
+      allWorkerStats = allWorkerStats.map {
+        case (wid, stats) => wid -> stats.removeJudgmentsByWorker(badValidatorId)
+      }
+      allWorkerStats.keys.foreach(assessQualification)
     case vr: QASRLValidationResult[SID] => vr match {
-      case QASRLValidationResult(prompt, hitTypeId, hitId, assignmentId, numQAsValid) =>
-        val ha = for {
-          hit <- hitDataService.getHIT[QASRLGenerationPrompt[SID]](hitTypeId, hitId).toOptionLogging(logger).toList
-          assignment <- hitDataService.getAssignmentsForHIT[List[VerbQA]](hitTypeId, hitId).get
-          if assignment.assignmentId == assignmentId
-        } yield (hit, assignment)
+      case QASRLValidationResult(valPrompt, valWorker, valResponse) =>
+        getAssignmentFromValPrompt(valPrompt).foreach { assignment =>
+          val accuracyJudgments = valResponse.map(r => AccuracyJudgment(valWorker, r.isAnswer)).toVector
 
-        ha.foreach { case (hit, assignment) =>
+          allWorkerStats = allWorkerStats.updated(
+            assignment.workerId,
+            allWorkerStats
+              .get(assignment.workerId)
+              .getOrElse(QASRLGenerationWorkerStats.empty(assignment.workerId))
+              .addAccuracyJudgments(accuracyJudgments)
+          )
+
+          assessQualification(assignment.workerId)
+        }
+    }
+    case vr: QASRLValidationFinished[SID] => vr match {
+      case QASRLValidationFinished(valPrompt, numQAsValid) =>
+        getAssignmentFromValPrompt(valPrompt).foreach { assignment =>
           // award bonuses
           val numQAsProvided = assignment.response.size
           val bonusAwarded = settings.generationBonus(numQAsValid)
@@ -86,26 +140,13 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
             ).toOptionLogging(logger).ifEmpty(logger.error(s"Failed to grant bonus of $bonusCents to worker ${assignment.workerId}"))
           }
 
-          val stats = allWorkerStats
-            .get(assignment.workerId)
-            .getOrElse(QASRLGenerationWorkerStats.empty(assignment.workerId))
-            .addAssignment(assignment.response.size, numQAsValid,
-                           assignment.submitTime - assignment.acceptTime,
-                           settings.generationReward + bonusAwarded)
-
-          if(stats.accuracy < settings.generationAccuracyBlockingThreshold &&
-               stats.numAssignmentsCompleted > settings.generationAccuracyGracePeriod) {
-            Try(
-              config.service.associateQualificationWithWorker(
-                new AssociateQualificationWithWorkerRequest()
-                  .withQualificationTypeId(genDisqualificationTypeId)
-                  .withWorkerId(assignment.workerId)
-                  .withIntegerValue(1)
-                  .withSendNotification(true))
-            )
-          }
-
-          allWorkerStats = allWorkerStats.updated(assignment.workerId, stats)
+          allWorkerStats = allWorkerStats.updated(
+            assignment.workerId,
+            allWorkerStats
+              .get(assignment.workerId)
+              .getOrElse(QASRLGenerationWorkerStats.empty(assignment.workerId))
+              .registerValidationFinished(settings.generationReward + bonusAwarded)
+          )
         }
     }
   }

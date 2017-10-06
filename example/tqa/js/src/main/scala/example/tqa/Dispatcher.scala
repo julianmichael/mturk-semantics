@@ -157,7 +157,7 @@ object Dispatcher extends QASRLDispatcher[TQASentenceId] with JSApp {
             So by substituting back into the question, we get "someone should let us do something",
             which is what someone is suggesting when they say "Let's go". """),
           example(
-            "What should someone let us do?",
+            "What should someone let someone do?",
             "go up to the counter and ask",
             true,
             """It would also be acceptable to mark "go up to the counter" and "ask" as two different answers. """),

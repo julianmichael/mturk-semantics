@@ -88,6 +88,12 @@ package object util extends PackagePlatformExtensions {
       if(count == 0) None else Some(N.toDouble(sum) / N.toDouble(count))
     }
 
+    def proportion(predicate: A => Boolean): Double = fa.foldLeft((0, 0)) {
+      case ((trues, total), a) =>
+        if(predicate(a)) (trues + 1, total + 1)
+        else (trues, total + 1)
+    } match { case (trues, total) => trues.toDouble / total }
+
     // TODO other optional versions
 
     // def sse(implicit N: Numeric[A]): Double = {

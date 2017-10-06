@@ -1,35 +1,48 @@
 package turksem.qasrl
 
+import turksem.util._
+import cats.implicits._
+
+case class AccuracyJudgment(
+  validatorId: String,
+  isValid: Boolean
+)
+
 case class QASRLGenerationWorkerStats(
   workerId: String,
+  numValidatorJudgments: Int,
   numAssignmentsCompleted: Int,
-  numQAPairsWritten: Int,
-  numQAPairsValid: Int,
+  accuracyJudgments: Vector[AccuracyJudgment],
   numBonusValids: Int,
-  timeSpent: Long,
   earnings: Double) {
 
-  def accuracy = (numQAPairsValid.toDouble + numBonusValids) / (numQAPairsWritten + numBonusValids)
+  def numQAPairsWritten: Int = accuracyJudgments.size
+  def numQAPairsValid: Int = accuracyJudgments.filter(_.isValid).size
+
+  def accuracy = (Vector.fill(numBonusValids)(true) ++ accuracyJudgments.map(_.isValid)).proportion(identity)
 
   def addBonusValids(n: Int) = this.copy(
     numBonusValids = this.numBonusValids + n
   )
 
-  def addAssignment(
-    numWritten: Int,
-    numValid: Int,
-    timeTaken: Long,
-    totalReward: Double
-  ) = QASRLGenerationWorkerStats(
-    workerId,
-    numAssignmentsCompleted + 1,
-    numQAPairsWritten + numWritten,
-    numQAPairsValid + numValid,
-    numBonusValids,
-    timeSpent + timeTaken,
-    earnings + totalReward)
+  def removeJudgmentsByWorker(badWorkerId: String) = this.copy(
+    accuracyJudgments = this.accuracyJudgments.filter(_.validatorId != badWorkerId)
+  )
 
+  def addAccuracyJudgments(
+    judgments: Vector[AccuracyJudgment]
+  ) = this.copy(
+    numValidatorJudgments = this.numValidatorJudgments + 1,
+    accuracyJudgments = judgments ++ this.accuracyJudgments
+  )
+
+  def registerValidationFinished(
+    totalReward: Double
+  ) = this.copy(
+    numAssignmentsCompleted = this.numAssignmentsCompleted + 1,
+    earnings = this.earnings + totalReward
+  )
 }
 object QASRLGenerationWorkerStats {
-  def empty(workerId: String) = QASRLGenerationWorkerStats(workerId, 0, 0, 0, 0, 0L, 0.0)
+  def empty(workerId: String) = QASRLGenerationWorkerStats(workerId, 0, 0, Vector.empty[AccuracyJudgment], 0, 0.0)
 }

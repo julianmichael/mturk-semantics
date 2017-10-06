@@ -28,7 +28,7 @@ package object qasrl {
     id: SID)
 
   case class QASRLValidationApiResponse(
-    workerInfoOpt: Option[QASRLValidationWorkerInfo],
+    workerInfoOpt: Option[QASRLValidationWorkerInfoSummary],
     sentence: Vector[String])
 
   import nlpdata.util.LowerCaseStrings._

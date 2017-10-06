@@ -28,14 +28,13 @@ trait QASRLSettings {
     math.max(0.0, validationBonusPerQuestion * (numQuestions - validationBonusThreshold))
 
   val generationCoverageQuestionsPerVerbThreshold = 2.0
-  // val generationCoverageBlockingThreshold = math.floor(generationCoverageQuestionsPerVerbThreshold * 10).toInt
   val generationCoverageGracePeriod = 15
 
-  val generationAccuracyBlockingThreshold = 0.75
+  val generationAccuracyBlockingThreshold = 0.85
   val generationAccuracyGracePeriod = 15
 
-  val validationAgreementBlockingThreshold = 0.70
-  val validationAgreementGracePeriod = 15
+  val validationAgreementBlockingThreshold = 0.85
+  val validationAgreementGracePeriod = 10
 }
 
 object QASRLSettings {

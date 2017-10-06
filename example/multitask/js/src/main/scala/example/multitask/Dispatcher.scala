@@ -155,7 +155,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
             So by substituting back into the question, we get "someone should let us do something",
             which is what someone is suggesting when they say "Let's go". """),
           example(
-            "What should someone let us do?",
+            "What should someone let someone do?",
             "go up to the counter and ask",
             true,
             """It would also be acceptable to mark "go up to the counter" and "ask" as two different answers. """),
@@ -186,6 +186,23 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
   import InstructionsComponent._
 
   val generationOverview = <.div(
+    <.p(
+      <.span(
+        Styles.badRed,
+        """ NOTE: There have been a few changes since the previous run:
+            and validators' judgments will be thrown out if they are detected spamming.
+            their judgments will be removed from your accuracy
+            and changes in the validation phase may lead to validators being tougher on ungrammatical questions.
+            """
+      )
+    ),
+    <.ul(
+      Styles.bolded,
+      <.li("""Validators' judgments will be removed from your accuracy calculation if they are detected spamming.
+              If your accuracy suddenly jumps up, it is likely because a spammer was detected."""),
+      <.li("""Accordingly, the accuracy threshold to stay qualified has been raised."""),
+      <.li("""Changes to the validation step mean that validators will likely be tougher on bad questions.""")
+    ),
     <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of verbs in English sentences into lists of questions and answers.
         You will be presented with a selection of English text with a verb written in bold."""),
@@ -341,6 +358,18 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
   )
 
   val validationOverview = <.div(
+    <.p(
+      <.span(
+        Styles.badRed,
+        """ NOTE: there have been a few changes since the last run of this task: """
+      )
+    ),
+    <.ul(
+      Styles.bolded,
+      <.li("""The penalty for marking a question invalid when the other validator disagrees with you has been reduced.
+              In general you should expect about 10% of questions to be invalid."""),
+      <.li("""Accordingly, the agreement threshold to stay qualified has been raised.""")
+    ),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.
            You will be presented with a selection of English text and a list of questions prepared by other annotators."""),
@@ -438,7 +467,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     Instructions(
       InstructionsProps(
         instructionsId = "instructions",
-        collapseCookieId = "validationCollapseCookie",
+        collapseCookieId = "validationCollapseCookie2",
         tabs = List(
           "Overview" -> validationOverview,
           "Controls" -> validationControls,

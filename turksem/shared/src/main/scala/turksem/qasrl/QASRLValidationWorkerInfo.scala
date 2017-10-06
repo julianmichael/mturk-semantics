@@ -1,9 +1,17 @@
 package turksem.qasrl
 
+import cats.implicits._
+import turksem.util._
+
+case class QASRLValidationWorkerInfoSummary(
+  proportionInvalid: Double,
+  numAssignmentsCompleted: Int,
+  agreement: Double)
+
 case class QASRLValidationResponseComparison(
   thisResponse: QASRLValidationAnswer,
-  thatResponse: QASRLValidationAnswer) {
-  def swap = QASRLValidationResponseComparison(thatResponse, thisResponse)
+  thatResponse: QASRLValidationAnswer,
+  thatWorker: String) {
   def isAgreement = (thisResponse, thatResponse) match {
     case (InvalidQuestion, InvalidQuestion) => true
     case (Answer(spans1), Answer(spans2)) =>
@@ -27,35 +35,33 @@ case class QASRLValidationWorkerInfo(
   timeSpent: Long,
   earnings: Double) {
 
-  def numComparisonInstances = comparisons.size
+  def summary = QASRLValidationWorkerInfoSummary(proportionInvalid, numAssignmentsCompleted, agreement)
 
-  def rawAccuracyOnInvalids = {
-    val compsAgainstInvalid = comparisons.filter(_.thatResponse.isInvalid)
-    val numInvalidGuesses = compsAgainstInvalid.filter(_.isAgreement).size
-    numInvalidGuesses.toDouble / compsAgainstInvalid.size
+  def agreement = {
+    val spanAgreements = for {
+      cmp <- comparisons
+      a1 <- cmp.thisResponse.getAnswer
+      a2 <- cmp.thatResponse.getAnswer
+    } yield a1.spans.exists(span1 =>
+      a2.spans.exists(span2 =>
+        span1.indices.intersect(span2.indices).nonEmpty
+      )
+    )
+    (List.fill(numBonusAgreements)(true) ++ spanAgreements).proportion(identity)
   }
 
-  def rawAccuracyOnValids = {
-    val compsAgainstValid = comparisons.filter(_.thatResponse.isAnswer)
-    val numValidGuesses = compsAgainstValid.filter(_.isAgreement).size
-    numValidGuesses.toDouble / compsAgainstValid.size
-  }
+  // def averageNumberOfSpans = comparisons.flatMap(_.thisResponse.getAnswer).map(_.spans.size).meanOpt.getOrElse(-1.0)
 
-  def rawAgreement = (rawAccuracyOnInvalids + rawAccuracyOnValids) / 2.0
+  def isLikelySpamming = comparisons.take(15)
+    .filter(c => c.thisResponse.isInvalid && c.thatResponse.isAnswer)
+    .size > 8
 
-  def accuracyOnInvalids = {
-    val compsAgainstInvalid = comparisons.filter(_.thatResponse.isInvalid)
-    val numInvalidGuesses = compsAgainstInvalid.filter(_.isAgreement).size
-    (numInvalidGuesses.toDouble + numBonusAgreements) / (compsAgainstInvalid.size + numBonusAgreements)
-  }
-
-  def accuracyOnValids = {
-    val compsAgainstValid = comparisons.filter(_.thatResponse.isAnswer)
-    val numValidGuesses = compsAgainstValid.filter(_.isAgreement).size
-    (numValidGuesses.toDouble + numBonusAgreements) / (compsAgainstValid.size + numBonusAgreements)
-  }
-
-  def agreement = (accuracyOnInvalids + accuracyOnValids) / 2.0
+  def wasEverLikelySpamming = comparisons.sliding(15)
+    .map(group =>
+    group
+      .filter(c => c.thisResponse.isInvalid && c.thatResponse.isAnswer)
+      .size > 8
+  ).exists(identity)
 
   def proportionInvalid = numInvalids.toDouble / (numAnswerSpans + numInvalids)
 
@@ -72,6 +78,11 @@ case class QASRLValidationWorkerInfo(
 
   def addComparisons(newComparisons: List[QASRLValidationResponseComparison]) = this.copy(
     comparisons = newComparisons ++ this.comparisons
+  )
+
+  // e.g. if a worker is blocked
+  def removeComparisonsWithWorker(otherWorkerId: String) = this.copy(
+    comparisons = this.comparisons.filterNot(_.thatWorker == otherWorkerId)
   )
 }
 

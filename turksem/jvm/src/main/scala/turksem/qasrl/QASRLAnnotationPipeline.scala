@@ -286,13 +286,13 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val valApiFlow = Flow[QASRLValidationApiRequest[SID]].map {
     case QASRLValidationApiRequest(workerIdOpt, id) =>
-      val workerInfoOpt = for {
+      val workerInfoSummaryOpt = for {
         valManagerP <- Option(valManagerPeek)
         workerId <- workerIdOpt
         info <- valManagerP.allWorkerInfo.get(workerId)
-      } yield info
+      } yield info.summary
 
-      QASRLValidationApiResponse(workerInfoOpt, id.tokens)
+      QASRLValidationApiResponse(workerInfoSummaryOpt, id.tokens)
   }
 
   lazy val sampleValPrompt = QASRLValidationPrompt[SID](
@@ -550,7 +550,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     infosForValWorker(workerId)
       .sortBy(hi => hi.hit.prompt.qaPairs.size.toDouble - (
                 hi.assignments.tail.map(
-                  a => (hi.assignments.head.response, a.response).zipped.map(QASRLValidationResponseComparison(_, _)).filter(_.isAgreement).size
+                  a => (hi.assignments.head.response, a.response, List.fill(a.response.size)(a.workerId)).zipped.map(QASRLValidationResponseComparison(_, _, _)).filter(_.isAgreement).size
                 ).meanOpt.getOrElse(hi.hit.prompt.qaPairs.size + 1.0))) // if no other answers, put at top
       .takeRight(n)
       .map(renderValidation)
