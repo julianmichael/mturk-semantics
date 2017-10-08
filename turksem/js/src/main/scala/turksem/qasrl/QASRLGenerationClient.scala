@@ -47,7 +47,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
   implicit settings: QASRLSettings,
   promptReader: Reader[QASRLGenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[VerbQA]] // same as above
-) extends TaskClient[QASRLGenerationPrompt[SID], List[VerbQA]] {
+) extends TaskClient[QASRLGenerationPrompt[SID], List[VerbQA], Service.UnitRequest] {
 
   // for monoid on Callback
   implicit def appMonoid[F[_]: Applicative, A: Monoid] = Applicative.monoid[F, A]

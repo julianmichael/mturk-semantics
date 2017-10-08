@@ -301,7 +301,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
          VerbQA(1, "Who looked at someone?", List(ContiguousSpan(0, 1))),
          VerbQA(1, "How did someone look at someone?", List(ContiguousSpan(5, 5)))))
 
-  lazy val valTaskSpec = TaskSpecification[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationApiRequest[SID], QASRLValidationApiResponse](
+  lazy val valTaskSpec = TaskSpecification.NoAjax[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationApiRequest[SID], QASRLValidationApiResponse](
     settings.validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks,
@@ -342,7 +342,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   //     aggSentenceStats = sentenceTrackerPeek.aggregateSentenceStats)
   // }
 
-  // lazy val dashboardTaskSpec = TaskSpecification[Unit, Unit, Unit, SummaryInfo[SID]](
+  // lazy val dashboardTaskSpec = TaskSpecification.NoAjax[Unit, Unit, Unit, SummaryInfo[SID]](
   //   dashboardTaskKey, null, dashboardApiFlow, (),
   //   frozenHITTypeId = null)
 
@@ -384,7 +384,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
-  val genTaskSpec = TaskSpecification[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
+  val genTaskSpec = TaskSpecification.NoAjax[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
     settings.generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks,

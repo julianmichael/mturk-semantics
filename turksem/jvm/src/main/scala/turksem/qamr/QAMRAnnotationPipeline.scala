@@ -176,7 +176,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val sampleGenPrompt = GenerationPrompt[SID](allIds.head, tokenSplits(allIds.head.tokens).head)
 
-  lazy val genTaskSpec = TaskSpecification[GenerationPrompt[SID], List[WordedQAPair], GenerationApiRequest[SID], GenerationApiResponse](
+  lazy val genTaskSpec = TaskSpecification.NoAjax[GenerationPrompt[SID], List[WordedQAPair], GenerationApiRequest[SID], GenerationApiResponse](
     expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
     frozenHITTypeId = frozenGenerationHITTypeID)
 
@@ -208,7 +208,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
-  lazy val valTaskSpec = TaskSpecification[ValidationPrompt[SID], List[ValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
+  lazy val valTaskSpec = TaskSpecification.NoAjax[ValidationPrompt[SID], List[ValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
     expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
     frozenHITTypeId = frozenValidationHITTypeID)
 
@@ -317,7 +317,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
       aggSentenceStats = sentenceTrackerPeek.aggregateSentenceStats)
   }
 
-  lazy val dashboardTaskSpec = TaskSpecification[Unit, Unit, Unit, SummaryInfo[SID]](
+  lazy val dashboardTaskSpec = TaskSpecification.NoAjax[Unit, Unit, Unit, SummaryInfo[SID]](
     expHDashboardTaskKey, null, dashboardApiFlow, (),
     frozenHITTypeId = null)
 

@@ -32,7 +32,7 @@ class ValidationClient[SID : Writer : Reader](
   instructions: VdomTag)(
   implicit promptReader: Reader[ValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[ValidationAnswer]] // same as above
-) extends TaskClient[ValidationPrompt[SID], List[ValidationAnswer]] {
+) extends TaskClient[ValidationPrompt[SID], List[ValidationAnswer], Service.UnitRequest] {
 
   import QAMRSettings._
 

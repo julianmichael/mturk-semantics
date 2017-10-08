@@ -29,7 +29,7 @@ import monocle._
 import monocle.macros._
 import japgolly.scalajs.react.MonocleReact._
 
-class DashboardClient[SID : Reader : Writer] extends TaskClient[Unit, Unit] {
+class DashboardClient[SID : Reader : Writer] extends TaskClient[Unit, Unit, Service.UnitRequest] {
 
   import QAMRSettings._
 

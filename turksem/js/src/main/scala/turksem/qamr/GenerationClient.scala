@@ -33,7 +33,7 @@ class GenerationClient[SID : Reader : Writer](
   requireWhAtQuestionBeginning: Boolean)(
   implicit promptReader: Reader[GenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[WordedQAPair]] // same as above
-) extends TaskClient[GenerationPrompt[SID], List[WordedQAPair]] {
+) extends TaskClient[GenerationPrompt[SID], List[WordedQAPair], Service.UnitRequest] {
 
   import QAMRSettings._
 

@@ -7,6 +7,7 @@ import turksem.util._
 
 import turkey.tasks.TaskClient
 import turkey.tasks.FieldLabels
+import turkey.tasks.Service
 
 import nlpdata.util.Text
 import nlpdata.datasets.wiktionary.InflectedForms
@@ -18,7 +19,6 @@ import nlpdata.structure.Word
 import scalajs.js
 import org.scalajs.dom
 import org.scalajs.dom.ext.KeyCode
-import org.scalajs.dom.raw._
 import org.scalajs.jquery.jQuery
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -31,11 +31,8 @@ import scalacss.ScalaCssReact._
 
 import upickle.default._
 
-import monocle._
-import monocle.function.all._
-import monocle.syntax._
-import monocle.macros._
-import japgolly.scalajs.react.MonocleReact._
+import monocle.function.{all => Optics}
+import monocle.macros.Lenses
 
 /**
   * Client for the SciSRL task.
@@ -45,7 +42,7 @@ import japgolly.scalajs.react.MonocleReact._
 class SciSRLClient[SID : Reader : Writer](instructions: VdomTag)(
   implicit promptReader: Reader[SciSRLPrompt[SID]], // need bc macro serializers fail for superclass constructor parameters
   responseWriter: Writer[SciSRLResponse] // same as above
-) extends TaskClient[SciSRLPrompt[SID], SciSRLResponse] {
+) extends TaskClient[SciSRLPrompt[SID], SciSRLResponse, Service.UnitRequest] {
 
   val colorChoices = Vector(
     "rgb(46, 151, 222)", // blue
@@ -213,17 +210,17 @@ class SciSRLClient[SID : Reader : Writer](instructions: VdomTag)(
   // lenses for easy access/modifying fields
 
   def groupLens(groupIndex: Int) = State.qaGroups
-    .composeOptional(index(groupIndex))
+    .composeOptional(Optics.index(groupIndex))
 
   def answerLens(groupIndex: Int, questionIndex: Int) = groupLens(groupIndex)
     .composeLens(QAGroup.spans)
-    .composeOptional(index(questionIndex))
+    .composeOptional(Optics.index(questionIndex))
 
   def enablerLens(enabler: Int, enablee: Int) = State.enablers
-    .composeLens(at((enabler, enablee)))
+    .composeLens(Optics.at((enabler, enablee)))
 
   def preventerLens(preventer: Int, preventee: Int) = State.preventers
-    .composeLens(at((preventer, preventee)))
+    .composeLens(Optics.at((preventer, preventee)))
 
   // used to determine whether the HIT can be submitted
 

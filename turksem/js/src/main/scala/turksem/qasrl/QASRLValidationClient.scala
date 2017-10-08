@@ -34,7 +34,7 @@ class QASRLValidationClient[SID : Writer : Reader](
   implicit settings: QASRLSettings,
   promptReader: Reader[QASRLValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
   responseWriter: Writer[List[QASRLValidationAnswer]] // same as above
-) extends TaskClient[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]] {
+) extends TaskClient[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], Service.UnitRequest] {
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()

@@ -99,7 +99,7 @@ class SciSRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   // this object holds the necessary information to start uploading tasks to Turk.
   // TaskSpecifications in an annotation run should be in 1-to-1 correspondence with HIT Type IDs.
-  lazy val genTaskSpec = TaskSpecification[SciSRLPrompt[SID], SciSRLResponse, SciSRLApiRequest[SID], SciSRLApiResponse](
+  lazy val genTaskSpec = TaskSpecification.NoAjax[SciSRLPrompt[SID], SciSRLResponse, SciSRLApiRequest[SID], SciSRLApiResponse](
     SciSRLSettings.generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
     frozenHITTypeId = frozenGenerationHITTypeID,
     taskPageHeadElements = taskPageHeadLinks,
