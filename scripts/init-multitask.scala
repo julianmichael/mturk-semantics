@@ -14,7 +14,7 @@ import nlpdata.util.Text
 import nlpdata.util.HasTokens.ops._
 
 val isProduction = false // sandbox. change to true for production
-val domain = "nlp.cs.washington.edu" // change to your domain, or keep localhost for testing
+val domain = "localhost" // change to your domain, or keep localhost for testing
 val projectName = "turksem-multitask" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
 

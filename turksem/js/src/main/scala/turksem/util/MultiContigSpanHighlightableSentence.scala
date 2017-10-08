@@ -28,7 +28,7 @@ object MultiContigSpanHighlightableSentenceComponent {
     render: List[VdomTagOf[html.Span]] => VdomElement) // word/span elements to whole thing
 
   val MultiContigSpanHighlightableSentence = ScalaComponent
-    .builder[MultiContigSpanHighlightableSentenceProps]("Multi-Span Highlightable Sentence")
+    .builder[MultiContigSpanHighlightableSentenceProps]("Multi-Contig-Span Highlightable Sentence")
     .render_P {
     case MultiContigSpanHighlightableSentenceProps(sentence, styleForIndex, highlightedSpans, hover, touch, render) =>
       render(
@@ -37,12 +37,14 @@ object MultiContigSpanHighlightableSentenceComponent {
           (index: Int) => sentence(index),
           (nextIndex: Int) => List(
             <.span(
+              ^.key := s"space-$nextIndex",
               highlightedSpans.find(span => span._1.contains(nextIndex) && span._1.contains(nextIndex - 1)).whenDefined(_._2),
               " "
             )
           ),
           (index: Int) => List(
             <.span(
+              ^.key := s"word-$index",
               highlightedSpans.find(_._1.contains(index)).whenDefined(_._2),
               styleForIndex(index),
               ^.onMouseMove ==> ((e: ReactMouseEvent) => { e.stopPropagation; hover(index) }),

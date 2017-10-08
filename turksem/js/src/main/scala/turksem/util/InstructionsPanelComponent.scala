@@ -49,6 +49,7 @@ object InstructionsComponent {
               props.tabs.zipWithIndex.toVdomArray { case ((title, _), index) =>
                 <.li(
                   ^.classSet1("nav-item"),
+                  ^.key := s"nav-item-$index",
                   <.a(
                     ^.classSet1("nav-link",
                                 "active" -> (index == 0)),
@@ -66,6 +67,7 @@ object InstructionsComponent {
               ^.classSet1("tab-content"),
               props.tabs.zipWithIndex.toVdomArray { case ((_, content), index) =>
                 <.div(
+                  ^.key := s"tab-$index-body",
                   ^.id := s"tab-$index-body",
                   ^.classSet1("tab-pane"),
                   content

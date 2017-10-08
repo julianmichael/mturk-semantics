@@ -33,10 +33,12 @@ object MultiSpanHighlightableSentenceComponent {
         (index: Int) => sentence(index),
         (nextIndex: Int) => List(
           <.span(
+            ^.key := s"space-$nextIndex",
             highlightedSpans.find(span => span._1.contains(nextIndex) && span._1.contains(nextIndex - 1)).whenDefined(_._2),
             " ")),
         (index: Int) => List(
           <.span(
+            ^.key := s"word-$index",
             styleForIndex(index),
             highlightedSpans.find(span => span._1.contains(index)).whenDefined(_._2),
             ^.onMouseMove --> touchWord(index),

@@ -46,8 +46,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
   instructions: VdomTag)(
   implicit settings: QASRLSettings,
   promptReader: Reader[QASRLGenerationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
-  responseWriter: Writer[List[VerbQA]] // same as above
-) extends TaskClient[QASRLGenerationPrompt[SID], List[VerbQA], Service.UnitRequest] {
+  responseWriter: Writer[List[VerbQA]], // same as above
+  ajaxRequestWriter: Writer[QASRLGenerationAjaxRequest[SID]] // "
+) extends TaskClient[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationAjaxRequest[SID]] {
 
   // for monoid on Callback
   implicit def appMonoid[F[_]: Applicative, A: Monoid] = Applicative.monoid[F, A]
@@ -57,10 +58,12 @@ class QASRLGenerationClient[SID : Reader : Writer](
     FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
-  val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse]
-  import WebsocketLoadableComponent._
+  // val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse]
+  // import WebsocketLoadableComponent._
   val SpanHighlightingComponent = new SpanHighlightingComponent[Int]
   import SpanHighlightingComponent._
+  val AsyncContentComponent = new AsyncContentComponent[QASRLGenerationAjaxResponse]
+  import AsyncContentComponent._
 
   val IntState = new LocalStateComponent[Int]
 
@@ -91,8 +94,8 @@ class QASRLGenerationClient[SID : Reader : Writer](
     curFocus: Option[Int])
   object State {
     val empty: State = State(null, Nil, None)
-    def initFromResponse(response: QASRLGenerationApiResponse): State = response match {
-      case QASRLGenerationApiResponse(_, sentence, forms) =>
+    def initFromResponse(response: QASRLGenerationAjaxResponse): State = response match {
+      case QASRLGenerationAjaxResponse(_, sentence, forms) =>
         val slots = new TemplateStateMachine(sentence, forms)
         val template = new QASRLStatefulTemplate(slots)
         State(template, List(QAPair.empty), None)
@@ -402,20 +405,17 @@ class QASRLGenerationClient[SID : Reader : Writer](
     }
 
     def render(s: State) = {
-      WebsocketLoadable(
-        WebsocketLoadableProps(
-          websocketURI = websocketUri,
-          request = QASRLGenerationApiRequest(workerIdOpt, prompt),
-          onLoad = ((response: QASRLGenerationApiResponse) => scope.setState(State.initFromResponse(response))),
+      AsyncContent(
+        AsyncContentProps(
+          getContent = () => makeAjaxRequest(QASRLGenerationAjaxRequest(workerIdOpt, prompt)),
+          willLoad = ((response: QASRLGenerationAjaxResponse) => scope.setState(State.initFromResponse(response))),
           render = {
-            case Connecting => <.div("Connecting to server...")
             case Loading => <.div("Retrieving data...")
             case Loaded(
-              QASRLGenerationApiResponse(
+              QASRLGenerationAjaxResponse(
                 GenerationStatSummary(numVerbsCompleted, numQuestionsWritten, workerStatsOpt),
                 sentence,
-                _),
-              _
+                _)
             ) =>
               val questionsPerVerbOpt = if(numVerbsCompleted == 0) None else Some(
                 numQuestionsWritten.toDouble / numVerbsCompleted
@@ -544,6 +544,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                               Styles.listlessList,
                               (0 until s.qas.size).toVdomArray(qaIndex =>
                                 <.li(
+                                  ^.key := qaIndex.toString,
                                   ^.display := "block",
                                   qaField(s, sentence, qaIndex, nextPotentialBonus)
                                 )

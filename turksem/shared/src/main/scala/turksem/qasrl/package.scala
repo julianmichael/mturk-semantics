@@ -1,5 +1,7 @@
 package turksem
 
+import turkey.tasks.ResponseRW
+
 import nlpdata.datasets.wiktionary.InflectedForms
 
 package object qasrl {
@@ -13,21 +15,42 @@ package object qasrl {
     numQuestionsWritten: Int, // before validation: "
     workerStatsOpt: Option[QASRLGenerationWorkerStats])
 
-  case class QASRLGenerationApiRequest[SID](
+  case class QASRLGenerationAjaxRequest[SID](
     workerIdOpt: Option[String],
-    prompt: QASRLGenerationPrompt[SID]
-  )
+    prompt: QASRLGenerationPrompt[SID]) {
+    type Response = QASRLGenerationAjaxResponse
+  }
+  object QASRLGenerationAjaxRequest {
+    import upickle.default._
+    implicit def responseRW[SID] = new ResponseRW[QASRLGenerationAjaxRequest[SID]] {
+      override def getReader(request: QASRLGenerationAjaxRequest[SID]) =
+        implicitly[Reader[QASRLGenerationAjaxResponse]]
+      override def getWriter(request: QASRLGenerationAjaxRequest[SID]) =
+        implicitly[Writer[QASRLGenerationAjaxResponse]]
+    }
+  }
 
-  case class QASRLGenerationApiResponse(
+  case class QASRLGenerationAjaxResponse(
     stats: GenerationStatSummary,
     tokens: Vector[String],
     inflectedForms: InflectedForms)
 
-  case class QASRLValidationApiRequest[SID](
+  case class QASRLValidationAjaxRequest[SID](
     workerIdOpt: Option[String],
-    id: SID)
+    id: SID) {
+    type Response = QASRLValidationAjaxResponse
+  }
+  object QASRLValidationAjaxRequest {
+    import upickle.default._
+    implicit def responseRW[SID] = new ResponseRW[QASRLValidationAjaxRequest[SID]] {
+      override def getReader(request: QASRLValidationAjaxRequest[SID]) =
+        implicitly[Reader[QASRLValidationAjaxResponse]]
+      override def getWriter(request: QASRLValidationAjaxRequest[SID]) =
+        implicitly[Writer[QASRLValidationAjaxResponse]]
+    }
+  }
 
-  case class QASRLValidationApiResponse(
+  case class QASRLValidationAjaxResponse(
     workerInfoOpt: Option[QASRLValidationWorkerInfoSummary],
     sentence: Vector[String])
 

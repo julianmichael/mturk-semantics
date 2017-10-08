@@ -93,7 +93,7 @@ class SpanHighlightingComponent[Index] {
       props.render(state, SpanHighlightingContext(setSpan, hover, touch, cancel))
   }
 
-  val SpanHighlighting = ScalaComponent.builder[SpanHighlightingProps]("SpanHighlighting")
+  val SpanHighlighting = ScalaComponent.builder[SpanHighlightingProps]("Span Highlighting")
     .initialState(SpanHighlightingState.initial)
     .renderBackend[SpanHighlightingBackend]
     .build

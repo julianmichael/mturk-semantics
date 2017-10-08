@@ -189,11 +189,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
     <.p(
       <.span(
         Styles.badRed,
-        """ NOTE: There have been a few changes since the previous run:
-            and validators' judgments will be thrown out if they are detected spamming.
-            their judgments will be removed from your accuracy
-            and changes in the validation phase may lead to validators being tougher on ungrammatical questions.
-            """
+        """ NOTE: There have been a few changes since the previous run: """
       )
     ),
     <.ul(

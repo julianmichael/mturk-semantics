@@ -33,16 +33,17 @@ class QASRLValidationClient[SID : Writer : Reader](
   instructions: VdomTag)(
   implicit settings: QASRLSettings,
   promptReader: Reader[QASRLValidationPrompt[SID]], // macro serializers don't work for superclass constructor parameters
-  responseWriter: Writer[List[QASRLValidationAnswer]] // same as above
-) extends TaskClient[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], Service.UnitRequest] {
+  responseWriter: Writer[List[QASRLValidationAnswer]], // same as above
+  ajaxRequestWriter: Writer[QASRLValidationAjaxRequest[SID]] // "
+) extends TaskClient[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationAjaxRequest[SID]] {
 
   def main(): Unit = jQuery { () =>
     Styles.addToDocument()
     FullUI().renderIntoDOM(dom.document.getElementById(FieldLabels.rootClientDivLabel))
   }
 
-  val WebsocketLoadableComponent = new WebsocketLoadableComponent[QASRLValidationApiRequest[SID], QASRLValidationApiResponse]
-  import WebsocketLoadableComponent._
+  val AsyncContentComponent = new AsyncContentComponent[QASRLValidationAjaxResponse]
+  import AsyncContentComponent._
   val SpanHighlightingComponent = new SpanHighlightingComponent[Int] // question
   import SpanHighlightingComponent._
 
@@ -164,12 +165,12 @@ class QASRLValidationClient[SID : Writer : Reader](
     }
 
     def render(state: State) = {
-      WebsocketLoadable(
-        WebsocketLoadableProps(
-          websocketURI = websocketUri, request = QASRLValidationApiRequest(workerIdOpt, prompt.id), render = {
-            case Connecting => <.div("Connecting to server...")
+      AsyncContent(
+        AsyncContentProps(
+          getContent = () => makeAjaxRequest(QASRLValidationAjaxRequest(workerIdOpt, prompt.id)),
+          render = {
             case Loading => <.div("Retrieving data...")
-            case Loaded(QASRLValidationApiResponse(workerInfoSummaryOpt, sentence), _) =>
+            case Loaded(QASRLValidationAjaxResponse(workerInfoSummaryOpt, sentence)) =>
               import state._
 
               def getRemainingInAgreementGracePeriodOpt(summary: QASRLValidationWorkerInfoSummary) =
@@ -272,10 +273,12 @@ class QASRLValidationClient[SID : Writer : Reader](
                           ),
                           <.ul(
                             ^.classSet1("list-unstyled"),
-                            (0 until questions.size)
-                              .map(qaField(state, sentence, highlightedAnswers))
-                              .map(field => <.li(^.display := "block", field))
-                              .toVdomArray
+                            (0 until questions.size).toVdomArray { index =>
+                              <.li(
+                                ^.key := s"question-$index",
+                                ^.display := "block",
+                                qaField(state, sentence, highlightedAnswers)(index))
+                            }
                           ),
                           <.p(s"Bonus: ${dollarsToCents(settings.validationBonus(questions.size))}c")
                         ),

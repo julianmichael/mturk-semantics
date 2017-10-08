@@ -241,29 +241,31 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       approvalRateRequirement, /* localeRequirement, */ genAccuracyRequirement, genCoverageRequirement
     ))
 
-  lazy val genApiFlow = Flow[QASRLGenerationApiRequest[SID]].map {
-    case QASRLGenerationApiRequest(workerIdOpt, QASRLGenerationPrompt(id, verbIndex)) =>
-      val questionListsOpt = for {
-        genManagerP <- Option(genManagerPeek)
-        workerId <- workerIdOpt
-        qCounts <- genManagerP.coverageStats.get(workerId)
-      } yield qCounts
-      val questionLists = questionListsOpt.getOrElse(Nil)
+  lazy val genAjaxService = new Service[QASRLGenerationAjaxRequest[SID]] {
+    override def processRequest(request: QASRLGenerationAjaxRequest[SID]) = request match {
+      case QASRLGenerationAjaxRequest(workerIdOpt, QASRLGenerationPrompt(id, verbIndex)) =>
+        val questionListsOpt = for {
+          genManagerP <- Option(genManagerPeek)
+          workerId <- workerIdOpt
+          qCounts <- genManagerP.coverageStats.get(workerId)
+        } yield qCounts
+        val questionLists = questionListsOpt.getOrElse(Nil)
 
-      val workerStatsOpt = for {
-        accTrackP <- Option(accuracyTrackerPeek)
-        workerId <- workerIdOpt
-        stats <- accTrackP.allWorkerStats.get(workerId)
-      } yield stats
+        val workerStatsOpt = for {
+          accTrackP <- Option(accuracyTrackerPeek)
+          workerId <- workerIdOpt
+          stats <- accTrackP.allWorkerStats.get(workerId)
+        } yield stats
 
-      val stats = GenerationStatSummary(
-        numVerbsCompleted = questionLists.size,
-        numQuestionsWritten = questionLists.sum,
-        workerStatsOpt = workerStatsOpt)
+        val stats = GenerationStatSummary(
+          numVerbsCompleted = questionLists.size,
+          numQuestionsWritten = questionLists.sum,
+          workerStatsOpt = workerStatsOpt)
 
-      val tokens = id.tokens
-      val inflectedForms = inflections.getInflectedForms(tokens(verbIndex).lowerCase).get
-      QASRLGenerationApiResponse(stats, tokens, inflectedForms)
+        val tokens = id.tokens
+        val inflectedForms = inflections.getInflectedForms(tokens(verbIndex).lowerCase).get
+        QASRLGenerationAjaxResponse(stats, tokens, inflectedForms)
+    }
   }
 
   lazy val sampleGenPrompt = allPrompts(3)
@@ -284,15 +286,17 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       approvalRateRequirement, /* localeRequirement, */ valAgreementRequirement
     ))
 
-  lazy val valApiFlow = Flow[QASRLValidationApiRequest[SID]].map {
-    case QASRLValidationApiRequest(workerIdOpt, id) =>
-      val workerInfoSummaryOpt = for {
-        valManagerP <- Option(valManagerPeek)
-        workerId <- workerIdOpt
-        info <- valManagerP.allWorkerInfo.get(workerId)
-      } yield info.summary
+  lazy val valAjaxService = new Service[QASRLValidationAjaxRequest[SID]] {
+    override def processRequest(request: QASRLValidationAjaxRequest[SID]) = request match {
+      case QASRLValidationAjaxRequest(workerIdOpt, id) =>
+        val workerInfoSummaryOpt = for {
+          valManagerP <- Option(valManagerPeek)
+          workerId <- workerIdOpt
+          info <- valManagerP.allWorkerInfo.get(workerId)
+        } yield info.summary
 
-      QASRLValidationApiResponse(workerInfoSummaryOpt, id.tokens)
+        QASRLValidationAjaxResponse(workerInfoSummaryOpt, id.tokens)
+    }
   }
 
   lazy val sampleValPrompt = QASRLValidationPrompt[SID](
@@ -301,8 +305,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
          VerbQA(1, "Who looked at someone?", List(ContiguousSpan(0, 1))),
          VerbQA(1, "How did someone look at someone?", List(ContiguousSpan(5, 5)))))
 
-  lazy val valTaskSpec = TaskSpecification.NoAjax[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationApiRequest[SID], QASRLValidationApiResponse](
-    settings.validationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+  lazy val valTaskSpec = TaskSpecification.NoWebsockets[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationAjaxRequest[SID]](
+    settings.validationTaskKey, valHITType, valAjaxService, sampleValPrompt,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks,
     frozenHITTypeId = frozenValidationHITTypeId)
@@ -384,8 +388,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
-  val genTaskSpec = TaskSpecification.NoAjax[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationApiRequest[SID], QASRLGenerationApiResponse](
-    settings.generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+  val genTaskSpec = TaskSpecification.NoWebsockets[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationAjaxRequest[SID]](
+    settings.generationTaskKey, genHITType, genAjaxService, sampleGenPrompt,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks,
     frozenHITTypeId = frozenGenerationHITTypeId)
