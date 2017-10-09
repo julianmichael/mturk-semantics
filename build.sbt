@@ -51,6 +51,8 @@ lazy val turksem = crossProject
     "com.typesafe.akka" %% "akka-actor" % "2.4.8",
     "com.typesafe.akka" %% "akka-http-experimental" % "2.4.9",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
+    "com.typesafe.slick" %% "slick" % "3.2.1",
+    "com.typesafe.slick" %% "slick-hikaricp" % "3.2.1",
     // java deps:
     "org.slf4j" % "slf4j-api" % "1.7.21" // decided to match scala-logging transitive dep
   )
