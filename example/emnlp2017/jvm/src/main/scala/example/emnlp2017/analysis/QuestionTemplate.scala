@@ -10,7 +10,13 @@ import cats.implicits._
 import nlpdata.util.Text
 import nlpdata.util.LowerCaseStrings._
 
-sealed trait TemplateToken[+Slot]
+sealed trait TemplateToken[+Slot] {
+  def isTemplateSlot: Boolean = this match {
+    case TemplateSlot(_) => true
+    case TemplateString(_) => false
+  }
+  def isTemplateString: Boolean = !isTemplateSlot
+}
 case class TemplateString(value: LowerCaseString) extends TemplateToken[Nothing]
 case class TemplateSlot[+Slot](s: Slot) extends TemplateToken[Slot]
 object TemplateToken {
@@ -148,6 +154,12 @@ case class QuestionTemplateAlignment[Slot](
   def sentenceId = sourcedQA.id.sentenceId
   def question = sourcedQA.question
 
+  if(template.size != alignments.size) {
+    println("=== Template v alignment size disagreement ===")
+    println(sourcedQA)
+    println(template)
+    println(alignments)
+  }
   val templateWithAlignmentLists = template.replaceSlots(alignments)
 
   def matches(iq: QuestionTemplate[ContiguousSpan]): Boolean =

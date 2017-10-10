@@ -415,9 +415,9 @@ object QuestionTemplating {
     } yield AbstractedVerbTemplate(wh, aux, subjAndLater, verbPOS, trailingWords)
   }
 
-  val kindClassifiers = Set("kind", "type", "sort").map(_.lowerCase)
+  val kindClassifiers = Set("kind", "type", "sort", "kinds", "types", "sorts").map(_.lowerCase)
 
-  val determiners = Set("the", "a", "an").map(_.lowerCase)
+  val determiners = Set("the", "a", "an", "this", "these", "those").map(_.lowerCase)
 
   val determinedNounPosTags = Set("NNP", "PRP", "DT")
   val undeterminedNounPosTags = Set("NNPS", "NN", "NNS")
@@ -451,7 +451,7 @@ object QuestionTemplating {
               case Some(auxIndex) =>
                 if(index == auxIndex) {
                   if(Inflections.doVerbs.contains(s) || Inflections.willVerbs.contains(s) || Inflections.modalVerbs.contains(s)) Some("<do>".lowerCase)
-                  else if(Inflections.beVerbs.contains(s)) Some("<be>".lowerCase)
+                  else if(Inflections.beVerbs.contains(s) && (index == 1 || s != "'s".lowerCase)) Some("<be>".lowerCase)
                   else if(Inflections.haveVerbs.contains(s)) Some("<have>".lowerCase)
                   else Some(s) // shouldn't actually happen since this is the aux-index
                 } else if(Inflections.auxiliaryVerbs.contains(s)) {
@@ -461,20 +461,21 @@ object QuestionTemplating {
           newTokenOpt.map(TemplateString(_))
         case (TemplateSlot(n), _) => Some(TemplateSlot(n))
       }
-      wordBeforeNoun <- template.templateTokens(nounSlotIndex - 1) match {
-        case TemplateString(s) => Some(s)
-        case _ => None
+      nounIsPrecededByDeterminer = template.templateTokens(nounSlotIndex - 1) match {
+        case TemplateString(s) => determiners.contains(s)
+        case _ => false
       }
-      newAbstractedTokens = if(determiners.contains(wordBeforeNoun)) {
-        abstractedTokens.take(nounSlotIndex - 1) ++ (
-          TemplateSlot("DNOUN") :: abstractedTokens.drop(nounSlotIndex + 1)
+      newNounSlotIndex <- abstractedTokens.findIndex(_.isTemplateSlot) // always should work
+      newAbstractedTokens = if(nounIsPrecededByDeterminer) {
+        abstractedTokens.take(newNounSlotIndex - 1) ++ (
+          TemplateSlot("DNOUN") :: abstractedTokens.drop(newNounSlotIndex + 1)
         )
       } else {
         val nounLabel =
           if(determinedNounPosTags.contains(nounPOS)) "DNOUN"
           else "NOUN"
-        abstractedTokens.take(nounSlotIndex) ++ (
-          TemplateSlot(nounLabel) :: abstractedTokens.drop(nounSlotIndex + 1)
+        abstractedTokens.take(newNounSlotIndex) ++ (
+          TemplateSlot(nounLabel) :: abstractedTokens.drop(newNounSlotIndex + 1)
         )
       }
       auxCollapsedAbstractedTokens = newAbstractedTokens.indexOpt(auxTemplateString) match {
@@ -527,5 +528,18 @@ object QuestionTemplating {
       ).orElse(abstractAdjectiveTemplate(qta.template)
       ).orElse(abstractNumberTemplate(qta.template))
     } yield qta.copy(template = abstTemplate)
+  }
+
+  def templatizeQuestionsFinal(
+    sqasById: Map[QAPairId[SentenceId], SourcedQA[SentenceId]]
+  ): Map[QAPairId[SentenceId], QuestionTemplateAlignment[String]] = {
+    for {
+      (sqaId, sqa) <- sqasById
+      qta <- templatizeQuestionSingleWordWithPOS(sqa)
+      abstTemplate <- abstractVerbTemplate(qta.template).map(_.abstractedTemplate).orElse(
+        abstractNounTemplate(qta.template)
+      ).orElse(abstractAdjectiveTemplate(qta.template)
+      ).orElse(abstractNumberTemplate(qta.template))
+    } yield sqaId -> qta.copy(template = abstTemplate)
   }
 }
