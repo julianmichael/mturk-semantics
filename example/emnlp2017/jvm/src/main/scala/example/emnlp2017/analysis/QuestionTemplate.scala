@@ -84,6 +84,8 @@ object QuestionTemplate {
     qt.map(a => Vector(a.show)).getTokens.mkString(" ")
   )
 
+  implicit def questionTemplateOrder[A : Show]: Order[QuestionTemplate[A]] = Order.by[QuestionTemplate[A], String](_.show)
+
   implicit val questionTemplateTraverse: Traverse[QuestionTemplate] = new Traverse[QuestionTemplate] {
     def traverse[G[_]: Applicative, A, B](
       fa: QuestionTemplate[A])(
@@ -156,6 +158,7 @@ case class QuestionTemplateAlignment[Slot](
 
   if(template.size != alignments.size) {
     println("=== Template v alignment size disagreement ===")
+    println(Text.render(sourcedQA.id.sentenceId))
     println(sourcedQA)
     println(template)
     println(alignments)

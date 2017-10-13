@@ -1,7 +1,8 @@
 package turksem
 
-import cats.data.NonEmptyList
+import cats.Order
 import cats.Foldable
+import cats.Reducible
 import cats.implicits._
 
 import nlpdata.util.LowerCaseStrings._
@@ -37,12 +38,27 @@ package object util extends PackagePlatformExtensions {
 
   def pctString(num: Int, denom: Int): String =
     f"$num%d (${num * 100.0 / denom}%.2f%%)"
-  def distString[N](iter: NonEmptyList[N])(implicit N : Numeric[N]): String =
+  def distString[F[_]: Reducible, N](iter: F[N])(implicit N : Numeric[N]): String =
     f"${N.toDouble(iter.sum)}%.2f (${iter.mean}%.2f ± ${iter.stdev}%.4f)"
-  def noSumDistString[N](iter: NonEmptyList[N])(implicit N : Numeric[N]): String =
+  def noSumDistString[F[_]: Reducible, N](iter: F[N])(implicit N : Numeric[N]): String =
     f"${iter.mean}%.2f ± ${iter.stdev}%.4f"
 
   def const[A](a: A): Any => A = _ => a
+
+  // for when a list is already nearly sorted
+  // def insertionSort[A : Order](la: List[A]) = la.foldLeft(List.empty[A]) {
+  //   case (reverseSortedSoFar, nextElem) =>
+  //     val (greater, lesser) = reverseSortedSoFar.partition(_ > nextElem)
+  //     greater ++ (nextElem :: lesser) // if already nearly sorted, greater will often be empty
+  // }.reverse
+
+  def mergeSortedLists[A : Order](xl: List[A], yl: List[A]): List[A] = (xl, yl) match {
+    case (Nil, ys) => ys
+    case (xs, Nil) => xs
+    case (x :: xs, y :: ys) =>
+      if(x < y) x :: mergeSortedLists(xs, y :: ys)
+      else y :: mergeSortedLists(x :: xs, ys)
+  }
 
   implicit class RichBoolean(val b: Boolean) extends AnyVal {
     def option[A](a: A) = if(b) Some(a) else None
@@ -62,15 +78,18 @@ package object util extends PackagePlatformExtensions {
     }
   }
 
-  // TODO change to reducible
-  implicit class RichNonEmptyList[A](val a: NonEmptyList[A]) extends AnyVal {
+  implicit class RichReducible[F[_]: Reducible, A](val a: F[A]) {
+
+    def head: A = a.reduceLeft { case (a, _) => a }
+
+    def last: A = a.reduceLeft { case (_, a) => a }
 
     def mean(implicit N: Numeric[A]): Double =
       N.toDouble(a.sum) / a.size
 
     def sse(implicit N: Numeric[A]): Double = {
       val m = a.mean
-      a.map(x => math.pow(N.toDouble(x) - m, 2)).sum
+      a.foldMap(x => math.pow(N.toDouble(x) - m, 2))
     }
 
     def variance(implicit N: Numeric[A]) = a.sse / a.size
@@ -79,7 +98,10 @@ package object util extends PackagePlatformExtensions {
   }
 
   implicit class RichFoldable[F[_]: Foldable, A](val fa: F[A]) {
+
     def sum(implicit N: Numeric[A]): A = fa.foldLeft(N.fromInt(0))(N.plus)
+
+    def product(implicit N: Numeric[A]): A = fa.foldLeft(N.fromInt(0))(N.times)
 
     def meanOpt(implicit N: Numeric[A]): Option[Double] = {
       val (sum, count) = fa.foldLeft(N.fromInt(0), N.fromInt(0)) {
@@ -93,6 +115,16 @@ package object util extends PackagePlatformExtensions {
         if(predicate(a)) (trues + 1, total + 1)
         else (trues, total + 1)
     } match { case (trues, total) => trues.toDouble / total }
+
+    def headOption: Option[A] = fa.foldLeft(None: Option[A]) {
+      case (None, a) => Some(a)
+      case (head, _) => head
+    }
+
+    def lastOption: Option[A] = fa.foldLeft(None: Option[A]) {
+      case (None, a) => Some(a)
+      case (_, a) => Some(a)
+    }
 
     // TODO other optional versions
 

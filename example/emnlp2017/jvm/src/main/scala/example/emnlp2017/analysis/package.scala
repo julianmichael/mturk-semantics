@@ -31,6 +31,7 @@ package object analysis {
   // QuestionTemplate is global across all sentences.
 
   case class ContiguousSpan(begin: Int, end: Int) {
+    def indices = (begin to end).toSet
     def contains(i: Int): Boolean = begin <= i || end >= i
     def getTokens(id: SentenceId): Vector[String] =
       id.tokens.slice(begin, end)
