@@ -52,12 +52,15 @@ package object util extends PackagePlatformExtensions {
   //     greater ++ (nextElem :: lesser) // if already nearly sorted, greater will often be empty
   // }.reverse
 
-  def mergeSortedLists[A : Order](xl: List[A], yl: List[A]): List[A] = (xl, yl) match {
-    case (Nil, ys) => ys
-    case (xs, Nil) => xs
-    case (x :: xs, y :: ys) =>
-      if(x < y) x :: mergeSortedLists(xs, y :: ys)
-      else y :: mergeSortedLists(x :: xs, ys)
+  def mergeSortedLists[A : Order](xs: List[A], ys: List[A]): List[A] = {
+    val (withAllXs, remGreaterYs) = xs.foldLeft((List.empty[A], ys)) {
+      case ((acc, Nil), x) => (x :: acc, Nil)
+      case ((acc, ysRemaining), x) =>
+        val (lesserYs, greaterYs) = ysRemaining.partition(_ < x)
+        val accWithLesserYs = lesserYs.foldLeft(acc) { case (a, y) => y :: a }
+        (x :: accWithLesserYs, greaterYs)
+    }
+    remGreaterYs.foldLeft(withAllXs) { case (acc, y) => y :: acc }.reverse
   }
 
   implicit class RichBoolean(val b: Boolean) extends AnyVal {

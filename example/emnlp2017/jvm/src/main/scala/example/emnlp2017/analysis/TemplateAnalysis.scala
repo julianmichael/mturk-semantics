@@ -152,7 +152,8 @@ class TemplateAnalysis(
         getAllPairwiseScores(qtasForWord.toList)
     }
   }.toVector.groupBy(tuple => (tuple._1, tuple._2)).iterator.collect {
-    case ((template1, template2), similarities) if template1 != template2 =>
+    case ((template1, template2), similarities)
+        if template1 != template2 && templateCounts(template1) > 1 && templateCounts(template2) > 1 =>
       AggregateSimilarity(template1, template2, similarities.map(_._3).toList.sum, similarities.size)
   }.toVector.sorted
 
@@ -163,16 +164,18 @@ class TemplateAnalysis(
   ) = {
     implicit val qtOrdering = QuestionTemplate.questionTemplateOrder[TriggerSlot].toOrdering
     var updatedSimilarities = chosenSimilarities.toList
-    var clusters = updatedSimilarities
-      .foldLeft(SetUnionFind.empty[QuestionTemplate[TriggerSlot]]) {
-      case (uf, AggregateSimilarity(t1, t2, _, _)) => uf.add(t1).add(t2)
+    val clusters = MutableUnionFind.empty[QuestionTemplate[TriggerSlot]]
+    updatedSimilarities.foreach {
+      case AggregateSimilarity(t1, t2, _, _) =>
+        clusters.add(t1)
+        clusters.add(t2)
     }
     while(updatedSimilarities.filter(_.numInstances >= numInstancesThreshold).headOption.fold(false)(s => s.meanScore >= accuracyThreshold)) {
       val nextIndex = updatedSimilarities.findIndex(_.numInstances >= numInstancesThreshold).get
       val AggregateSimilarity(t1, t2, totalScore, numInstances) = updatedSimilarities(nextIndex)
       println(f"UNITING: ${t1.show}%-50s ${t2.show}%-50s ${totalScore / numInstances}%5.2f $numInstances%d")
       updatedSimilarities = updatedSimilarities.take(nextIndex) ++ updatedSimilarities.drop(nextIndex + 1)
-      clusters = clusters.union(t1, t2).get
+      clusters.union(t1, t2)
       val newRep = clusters.find(t1).get
       val sortedChangedSimilarities = updatedSimilarities.collect {
         case AggregateSimilarity(x, y, totalScore, numInstances) if x == t1 || x == t2 || y == t1 || y == t2 =>
@@ -186,8 +189,15 @@ class TemplateAnalysis(
       }
       updatedSimilarities = mergeSortedLists(sortedChangedSimilarities, updatedSimilarities)
     }
-    (clusters.sets, updatedSimilarities)
+    (clusters, updatedSimilarities)
   }
+
+  // case class CrossTemplateAlignment(
+  //   source: QuestionTemplateAlignment[TriggerSlot],
+  //   target: QuestionTemplateAlignment[TriggerSlot],
+  //   permutation: List[Int]) {
+  //   // def isParaphrasePossible =
+  // }
 
   lazy val interestingQTAPairs = {
     alignmentsBySentenceId.iterator.flatMap { case (id, qtasForSentence) =>
@@ -291,7 +301,7 @@ class TemplateAnalysis(
     writeSlotTSV
     writeFreqTSV
     writeWordTSV
-    // writeClusterTSV
+    writeClusterTSV
   }
 
   def getTriggerSlotIndex(template: QuestionTemplate[TriggerSlot]): Int = {
@@ -348,6 +358,37 @@ class TemplateAnalysis(
         }
     }
     saveOutputFile(s"$label-templates-sentence.tsv", sb.toString)
+  }
+
+  def writeClusterTSV = {
+    val (clusters, _) = templateClusters()
+    val templateToRep = clusters.iterator.map { t =>
+      t -> clusters.find(t).getOrElse(t)
+    }.toMap.withDefault(identity)
+
+    val templateClusterByRep = alignmentsByTemplate.groupBy(p => templateToRep(p._1))
+    val templateClustersByTrigger = templateClusterByRep.groupBy(p => getTriggerSlot(p._1))
+    val sb = new StringBuilder
+    templateClustersByTrigger.foreach {
+      case (triggerSlot, clustersByRep) =>
+        sb.append(triggerSlot.label + "\n")
+        clustersByRep.toVector.sortBy(-_._2.map(_._2.size).sum).foreach {
+          case (rep, cluster) =>
+            val bestRep = cluster.maxBy(_._2.size)._1
+            val clusterSize = cluster.map(_._2.size).sum
+            if(clusterSize >= 1) {
+              sb.append(s"\t${bestRep.show}\t${clusterSize}\t")
+              cluster.toVector.sortBy(-_._2.size).foreach { case (template, qtas) =>
+                val qta = qtas.head
+                val id = qta.sourcedQA.id.sentenceId
+                sb.append(s"${template.show}\t${qtas.size}\t")
+                sb.append(s"${qta.sourcedQA.question}\t${Text.renderSpan(id, qta.sourcedQA.wqa.answer)}\t${Text.render(id)}\n\t\t\t")
+              }
+            }
+        }
+        sb.append("\n")
+    }
+    saveOutputFile(s"$label-templates-clusters.tsv", sb.toString)
   }
 
   def writeSlotTSV = {

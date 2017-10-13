@@ -32,5 +32,5 @@ object Datasets {
   lazy val ptbAMR = ptbAMRUnfiltered.filterByQA(isQAGood)
   lazy val ptbAll = new QAData(ptbTrain.all ++ ptbDev.all ++ ptbTest.all ++ ptbAMR.all)
 
-  lazy val testDevPTB = new QAData(train.all ++ dev.all ++ ptbAll.all)
+  lazy val trainDevPTB = new QAData(train.all ++ dev.all ++ ptbAll.all)
 }

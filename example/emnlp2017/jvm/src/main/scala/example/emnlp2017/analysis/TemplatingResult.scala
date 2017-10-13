@@ -403,6 +403,7 @@ object TemplatingPhase {
       case _ => None
     }.sequence
 
+  // TODO account for other words appearing before the verb
   def abstractVerbTemplate(template: QuestionTemplate[TriggerSlot]): Option[AbstractedVerbTemplate] = {
     for {
       TemplateString(initWh) :: initTail <- Option(template.templateTokens)
@@ -507,6 +508,7 @@ object TemplatingPhase {
         case TemplateSlot(TriggerSlot(pos, _)) => getPosLabel(pos).nonEmpty // first template token must have pos
         case _ => false
       }
+      if !template.exists(ts => PosTags.verbPosTags.contains(ts.label)) // exclude verb questions
       newTemplateTokens = template.templateTokens.zipWithIndex.flatMap {
         case (TemplateString(s), _) =>
           val newTokenOpt =
@@ -522,8 +524,11 @@ object TemplatingPhase {
             else TriggerSlot(getNounLabel(pos).getOrElse(pos), false)
           Some(TemplateSlot(slot))
       }
-      modalRemovedTemplateTokens = newTemplateTokens.foldRight((false, List.empty[TemplateToken[TriggerSlot]])) {
-        case (TemplateString(prevToken), (true, tail)) if Inflections.modalVerbs.contains(prevToken) => (false, tail)
+      extraAuxRemovedTemplateTokens = newTemplateTokens.foldRight((false, List.empty[TemplateToken[TriggerSlot]])) {
+        case (TemplateString(prevToken), (true, tail))
+            if Inflections.modalVerbs.contains(prevToken) ||
+            Inflections.willVerbs.contains(prevToken) ||
+            prevToken == "<be>".lowerCase => (false, tail)
         case (TemplateString(s), (_, tail)) if s == "<be>".lowerCase => (true, TemplateString(s) :: tail)
         case (t, (_, tail)) => (false, t :: tail)
       }._2
