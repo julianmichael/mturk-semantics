@@ -169,6 +169,7 @@ class TemplateAnalysis(
   ) = alignmentsBySentenceId.iterator.flatMap { case (id, qtasForSentence) =>
     qtasForSentence
       .map(_._2)
+      .filter(qta => templateCounts(qta.template) > 2)
       .groupBy(qta => getTriggerWordStem(qta))
       .flatMap { case (triggerStem, qtasForWord) =>
         def getAllPairwiseScores(
@@ -184,14 +185,14 @@ class TemplateAnalysis(
     }
   }.toVector.groupBy(tuple => (tuple._1, tuple._2)).iterator.collect {
     case ((template1, template2), similarities)
-        if template1 != template2 && templateCounts(template1) > 1 && templateCounts(template2) > 1 =>
+        if template1 != template2 && templateCounts(template1) > 2 && templateCounts(template2) > 2 =>
       AggregateSimilarity(template1, template2, similarities.map(_._3).toList.sum, similarities.size)
   }.toVector.sorted
 
   def templateClusters(
     chosenSimilarities: Vector[AggregateSimilarity] = similarities(computeSetwiseAnswerSimilarity),
-    numInstancesThreshold: Int = 2,
-    accuracyThreshold: Double = 0.85
+    numInstancesThreshold: Int = 4,
+    accuracyThreshold: Double = 0.9
   ) = {
     implicit val qtOrdering = QuestionTemplate.questionTemplateOrder[TriggerSlot].toOrdering
     var updatedSimilarities = chosenSimilarities.toList
@@ -397,7 +398,9 @@ class TemplateAnalysis(
       t -> clusters.find(t).getOrElse(t)
     }.toMap.withDefault(identity)
 
-    val templateClusterByRep = alignmentsByTemplate.groupBy(p => templateToRep(p._1))
+    val templateClusterByRep = alignmentsByTemplate
+      .filter(p => templateCounts(p._1) > 1)
+      .groupBy(p => templateToRep(p._1))
     val templateClustersByTrigger = templateClusterByRep.groupBy(p => getTriggerSlot(p._1))
     val sb = new StringBuilder
     templateClustersByTrigger.foreach {
@@ -415,6 +418,7 @@ class TemplateAnalysis(
                 sb.append(s"${template.show}\t${qtas.size}\t")
                 sb.append(s"${qta.sourcedQA.question}\t${Text.renderSpan(id, qta.sourcedQA.wqa.answer)}\t${Text.render(id)}\n\t\t\t")
               }
+              sb.append("\n")
             }
         }
         sb.append("\n")

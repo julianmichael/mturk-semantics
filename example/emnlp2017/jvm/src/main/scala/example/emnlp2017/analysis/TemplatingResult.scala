@@ -79,8 +79,6 @@ case class TemplatingPhase(
   )
 }
 
-// TODO: collapse contiguous proper nouns, maybe match up placeholders in noun templates
-
 object TemplatingPhase {
 
   def phaseFromOptionalTemplating(
@@ -462,7 +460,9 @@ object TemplatingPhase {
         case TemplateSlot(TriggerSlot(n, _)) if allNounPosTags.contains(n) => n
       }
       lastAuxIndexOpt = template.templateTokens.zipWithIndex.collect {
-        case (TemplateString(s), i) if Inflections.willVerbs.contains(s) || Inflections.modalVerbs.contains(s) || Inflections.doVerbs.contains(s) || Inflections.haveVerbs.contains(s) || Inflections.beVerbs.contains(s) => i
+        case (TemplateString(s), i) if (i == 1 || s != "'s".lowerCase) && (
+          Inflections.willVerbs.contains(s) || Inflections.modalVerbs.contains(s) || Inflections.doVerbs.contains(s) || Inflections.haveVerbs.contains(s) || Inflections.beVerbs.contains(s)
+        ) => i
       }.lastOption
       // isAuxAfterNoun = template.templateTokens.drop(nounSlotIndex + 1).exists {
       //   case TemplateString(s) => Inflections.doVerbs.contains(s) || Inflections.haveVerbs.contains(s) || Inflections.beVerbs.contains(s)
@@ -645,4 +645,8 @@ object TemplatingPhase {
       )
     }
   )
+
+  // val filterVocabularyPhase = phaseFromFilter(t =>
+  //   t.templateTokens.collect { case TemplateString(s) => s }.forall(acceptableVocabulary.contains)
+  // )
 }
