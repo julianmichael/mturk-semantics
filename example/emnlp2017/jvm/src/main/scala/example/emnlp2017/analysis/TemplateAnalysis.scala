@@ -23,9 +23,9 @@ import nlpdata.datasets.wiktionary.WiktionaryFileSystemService
 object TemplateAnalysis {
   import TemplatingPhase._
 
-  // TODO fold in genitive clitics too
-  val fullPos = posPhase andThen collapseContigProperNounsPhase
-  def postprocess(phase: TemplatingPhase) = phase andThen deleteRedundantDeterminersPhase andThen foldDeterminersPhase
+  // TODO fold in genitive clitics too? nah
+  val fullPos = posPhase
+  def postprocess(phase: TemplatingPhase) = phase andThen deleteRedundantDeterminersPhase
 
   val fullAbstractivePipeline =
     postprocess(abstractVerbsPhase) ::
@@ -39,9 +39,7 @@ object TemplateAnalysis {
       Nil
 
   lazy val defaultPipeline = List(
-    List(fullPos, oneWordOnlyPhase), fullAbstractivePipeline, List(dropPOSPhase),
-    List(fullPos), fullAbstractivePipeline, List(dropNonMatchingMultiPosTemplatesPhase, dropPOSPhase),
-    List(generalizePlaceholderObjectsPhase)
+    List(fullPos, oneWordOnlyPhase), fullAbstractivePipeline, List(dropPOSPhase)
   ).flatten
 
   def getDefaultAnalysis(label: String, data: QAData[SentenceId]) =
@@ -83,22 +81,37 @@ class TemplateAnalysis(
   val proportionQAsCovered = alignmentsById.size.toDouble / sqasById.size
   val cumulativeCoverage = templatesByFrequency.scanLeft(0)(_ + _._2)
 
-  case class AggregateSimilarity(
-    template1: QuestionTemplate[TriggerSlot],
-    template2: QuestionTemplate[TriggerSlot],
-    totalScore: Double,
-    numInstances: Int) {
-    def meanScore = totalScore / numInstances
-  }
-  object AggregateSimilarity {
-    implicit val aggregateSimilarityOrder = Order.by[AggregateSimilarity, (Double, Int)](s => s.meanScore -> s.numInstances).reverse
-    implicit val aggregateSimilarityOrdering = aggregateSimilarityOrder.toOrdering
-    implicit val aggregateSimilarityShow = new Show[AggregateSimilarity] {
-      def show(as: AggregateSimilarity) =
-        as.template1.show + "\t" + as.template2.show + "\t" +
-          f"${as.meanScore}%.2f" + "\t" + as.numInstances
-    }
-  }
+  // TODO LIST:
+  // - change back to letting <obj> appear in templates, in fact forget about folding in the more general ones for now
+  // - stop folding determiners into nouns
+  // - redo paraphrasing in the stricter way with alignment
+  // - add mirroring in addition to paraphrasing: each set corresponds to a "role", we can find it with the right trigger
+  // - make both paraphrasing and mirroring DIRECTIONAL (i.e. look like entailment)? regardless,
+  //   - mirroring should either not be transitive or not be symmetric, as a starting point.
+  // - for cases of mirroring, identify which side is the more useful trigger
+  // - change templating logic to replace all parts of speech as we see fit... maybe
+
+  // TODO redo paraphrasing in this much stricter way
+  // case class ParaphrasedTemplateAlignment(
+  //   template1: QuestionTemplateAlignment[TriggerSlot],
+  //   template2: QuestionTemplateAlignment[TriggerSlot],
+  //   permutation: List[Int] // only permutes question alignments
+  // )
+  // object ParaphrasedTemplateAlignment {
+  //   def getPossibleAlignments(
+  //     x: QuestionTemplateAlignment[TriggerSlot],
+  //     y: QuestionTemplateAlignment[TriggerSlot]
+  //   ): List[ParaphrasedTemplateAlignment] = {
+  //     val alignmentSizesMatch = x.alignments.size != y.alignments.size
+  //     val xTriggerLabel = getTriggerSlot(x).label.takeWhile(_ != '-')
+  //     val yTriggerLabel = getTriggerSlot(y).label.takeWhile(_ != '-')
+  //     val triggersMatch = xTriggerLabel == yTriggerLabel
+  //     if( || ) Nil
+  //     else {
+
+  //     }
+  //   }
+  // }
 
   def computeSingleWordAnswerSimilarity(
     x: QuestionTemplateAlignment[TriggerSlot],
@@ -129,6 +142,24 @@ class TemplateAnalysis(
       ).max
     )
   }
+
+  case class AggregateSimilarity(
+    template1: QuestionTemplate[TriggerSlot],
+    template2: QuestionTemplate[TriggerSlot],
+    totalScore: Double,
+    numInstances: Int) {
+    def meanScore = totalScore / numInstances
+  }
+  object AggregateSimilarity {
+    implicit val aggregateSimilarityOrder = Order.by[AggregateSimilarity, (Double, Int)](s => s.meanScore -> s.numInstances).reverse
+    implicit val aggregateSimilarityOrdering = aggregateSimilarityOrder.toOrdering
+    implicit val aggregateSimilarityShow = new Show[AggregateSimilarity] {
+      def show(as: AggregateSimilarity) =
+        as.template1.show + "\t" + as.template2.show + "\t" +
+          f"${as.meanScore}%.2f" + "\t" + as.numInstances
+    }
+  }
+
 
   def similarities(
     getSimilarityInstanceOpt: (

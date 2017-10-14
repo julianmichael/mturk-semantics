@@ -257,25 +257,33 @@ object TemplatingPhase {
   ).map(_.lowerCase)
 
 
-  val determiners = Set("the", "a", "an", "this", "these", "those").map(_.lowerCase)
+  val definiteDeterminers = Set("the", "this", "these", "those").map(_.lowerCase)
+  val indefiniteDeterminers = Set("a", "an").map(_.lowerCase)
 
-  val determinedNounPosTags = Set("NNP", "PRP", "DT")
-  val pluralNounPosTags = Set("NNS", "NNPS")
-  val undeterminedNounPosTags = Set("NN")
-  val allNounPosTags = determinedNounPosTags ++ pluralNounPosTags ++ undeterminedNounPosTags
-
-  def getNounLabel(pos: String): Option[String] =
-    if(determinedNounPosTags.contains(pos)) Some("NOUN-det")
-    else if(pluralNounPosTags.contains(pos)) Some("NOUN-pl")
-    else if(undeterminedNounPosTags.contains(pos)) Some("NOUN")
+  def getDeterminerToken(s: LowerCaseString): Option[LowerCaseString] =
+    if(definiteDeterminers.contains(s)) Some("the".lowerCase)
+    else if(indefiniteDeterminers.contains(s)) Some("a(n)".lowerCase)
     else None
+
+  def isDeterminerToken(s: LowerCaseString) = s == "the".lowerCase || s == "a(n)".lowerCase
+
+  val allNounPosTags = Set("NN", "NNS", "NNP", "NNPS", "PRP", "DT")
+
+  def getNounLabel(pos: String): Option[String] = pos match {
+    case "NN" => Some("NOUN")
+    case "NNS" => Some("NOUN-pl")
+    case "NNP" => Some("NOUN-prop")
+    case "NNPS" => Some("NOUN-prop-pl")
+    case "PRP" | "DT" => Some("NOUN-det")
+    case _ => None
+  }
 
   def deleteRedundantDeterminers(template: QuestionTemplate[TriggerSlot]): QuestionTemplate[TriggerSlot] = {
     QuestionTemplate(
       template.templateTokens.foldRight(List.empty[TemplateToken[TriggerSlot]]) {
-        case (TemplateString(prevWord), TemplateSlot(TriggerSlot("NOUN-det", isTrigger)) :: tail) if prevWord == "<the>".lowerCase =>
+        case (TemplateString(prevWord), TemplateSlot(TriggerSlot("NOUN-det", isTrigger)) :: tail) if isDeterminerToken(prevWord) =>
           TemplateSlot(TriggerSlot("NOUN-det", isTrigger)) :: tail
-        case (TemplateString(prevWord), TemplateString(s) :: tail) if prevWord == "<the>".lowerCase && s == "<obj>".lowerCase =>
+        case (TemplateString(prevWord), TemplateString(s) :: tail) if isDeterminerToken(prevWord) && s == "<obj>".lowerCase =>
           TemplateString("<obj>".lowerCase) :: tail
         case (prevToken, curTokens) => prevToken :: curTokens
       }
@@ -309,9 +317,9 @@ object TemplatingPhase {
         prevAlignments.map { case (id, qta) =>
           val nounIndicesWithDeterminers = qta.template.templateTokens.zipWithIndex.foldLeft((false, Set.empty[Int])) {
             case ((isPrevDeterminer, curIndices), (TemplateString(s), _)) =>
-              if(s == "<the>".lowerCase) (true, curIndices)
+              if(isDeterminerToken(s)) (true, curIndices)
               else (false, curIndices)
-            case ((true, curIndices), (TemplateSlot(TriggerSlot("NOUN" | "NOUN-pl", _)), index)) =>
+            case ((true, curIndices), (TemplateSlot(TriggerSlot(label, _)), index)) if label.startsWith("NOUN") =>
               (false, curIndices + index)
             case ((_, curIndices), _) =>
               (false, curIndices)
@@ -345,7 +353,7 @@ object TemplatingPhase {
     def abstractOtherTokens(ts: List[TemplateToken[TriggerSlot]]) = ts.map {
       case TemplateSlot(s) => TemplateSlot(getNounLabel(s.label).fold(s)(s.withLabel))
       case TemplateString(s) if nounPlaceholderWords.contains(s) => TemplateString("<obj>".lowerCase)
-      case TemplateString(s) if determiners.contains(s) => TemplateString("<the>".lowerCase)
+      case TemplateString(s) if getDeterminerToken(s).nonEmpty => TemplateString(getDeterminerToken(s).get)
       case x => x
     }
 
@@ -403,7 +411,7 @@ object TemplatingPhase {
       case _ => None
     }.sequence
 
-  // TODO account for other words appearing before the verb
+  // TODO account for other words appearing before the verb, like adverbs
   def abstractVerbTemplate(template: QuestionTemplate[TriggerSlot]): Option[AbstractedVerbTemplate] = {
     for {
       TemplateString(initWh) :: initTail <- Option(template.templateTokens)
@@ -425,7 +433,7 @@ object TemplatingPhase {
             case tt @ TemplateSlot(TriggerSlot(pos, _)) if getNounLabel(pos).nonEmpty => tt
           }
           (beforeSubj, subj) <- beforeVerb.lift(subjIndex - 1) match {
-            case Some(tt @ TemplateString(s)) if determiners.contains(s) =>
+            case Some(tt @ TemplateString(s)) if getDeterminerToken(s).nonEmpty =>
               extractAuxiliaryList(beforeVerb.take(subjIndex - 1)).map(_ -> List(tt, subjToken))
             case _ => extractAuxiliaryList(beforeVerb.take(subjIndex)).map(_ -> List(subjToken))
           }
@@ -466,18 +474,19 @@ object TemplatingPhase {
             if(kindClassifiers.contains(s)) Some("<kind>".lowerCase)
             else if(negationWords.contains(s)) None
             else if(nounPlaceholderWords.contains(s)) Some("<obj>".lowerCase)
-            else if(determiners.contains(s)) Some("<the>".lowerCase)
-            else lastAuxIndexOpt match {
-              case None => Some(s) // no auxes so the rest is irrelevant anyway
-              case Some(auxIndex) =>
-                if(index == auxIndex) {
-                  if(Inflections.doVerbs.contains(s) || Inflections.willVerbs.contains(s) || Inflections.modalVerbs.contains(s)) Some("<do>".lowerCase)
-                  else if(Inflections.beVerbs.contains(s) && (index == 1 || s != "'s".lowerCase)) Some("<be>".lowerCase)
-                  else if(Inflections.haveVerbs.contains(s)) Some("<have>".lowerCase)
-                  else Some(s) // shouldn't actually happen since this is the aux-index
-                } else if(Inflections.auxiliaryVerbs.contains(s)) {
-                  Some("<aux>".lowerCase)
-                } else Some(s)
+            else getDeterminerToken(s).orElse {
+              lastAuxIndexOpt match {
+                case None => Some(s) // no auxes so the rest is irrelevant anyway
+                case Some(auxIndex) =>
+                  if(index == auxIndex) {
+                    if(Inflections.doVerbs.contains(s) || Inflections.willVerbs.contains(s) || Inflections.modalVerbs.contains(s)) Some("<do>".lowerCase)
+                    else if(Inflections.beVerbs.contains(s) && (index == 1 || s != "'s".lowerCase)) Some("<be>".lowerCase)
+                    else if(Inflections.haveVerbs.contains(s)) Some("<have>".lowerCase)
+                    else Some(s) // shouldn't actually happen since this is the aux-index
+                  } else if(Inflections.auxiliaryVerbs.contains(s)) {
+                    Some("<aux>".lowerCase)
+                  } else Some(s)
+              }
             }
           newTokenOpt.map(TemplateString(_))
         case (TemplateSlot(ts), index) => Some(TemplateSlot(ts.withIsTrigger(index == nounSlotIndex)))
@@ -512,12 +521,11 @@ object TemplatingPhase {
       newTemplateTokens = template.templateTokens.zipWithIndex.flatMap {
         case (TemplateString(s), _) =>
           val newTokenOpt =
-            if(Inflections.beVerbs.contains(s)) Some("<be>")
-            else if(nounPlaceholderWords.contains(s)) Some("<obj>")
+            if(Inflections.beVerbs.contains(s)) Some("<be>".lowerCase)
+            else if(nounPlaceholderWords.contains(s)) Some("<obj>".lowerCase)
             else if((Inflections.negationWords + "n't".lowerCase).contains(s)) None
-            else if(determiners.contains(s)) Some("<the>")
-            else Some(s.toString)
-          newTokenOpt.map(newToken => TemplateString(newToken.lowerCase))
+            else getDeterminerToken(s).orElse(Some(s))
+          newTokenOpt.map(newToken => TemplateString(newToken))
         case (TemplateSlot(TriggerSlot(pos, _)), index) =>
           val slot =
             if(index == posSlotIndex) TriggerSlot(posLabel, true)
@@ -532,7 +540,7 @@ object TemplatingPhase {
         case (TemplateString(s), (_, tail)) if s == "<be>".lowerCase => (true, TemplateString(s) :: tail)
         case (t, (_, tail)) => (false, t :: tail)
       }._2
-    } yield QuestionTemplate(modalRemovedTemplateTokens)
+    } yield QuestionTemplate(extraAuxRemovedTemplateTokens)
   }
 
   val adjectivePosTags = Set("JJ", "JJR", "JJS")
