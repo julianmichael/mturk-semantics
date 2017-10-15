@@ -146,12 +146,21 @@ package object util extends PackagePlatformExtensions {
     def remove(i: Int) = as.take(i) ++ as.drop(i + 1)
     def tailOption: Option[List[A]] = if(as.nonEmpty) Some(as.tail) else None
     def indexOpt(a: A): Option[Int] = Some(as.indexOf(a)).filter(_ >= 0)
+    def collectWithIndex[B](f: PartialFunction[A, B]) =
+      as.zipWithIndex.flatMap(p => f.lift(p._1).map(_ -> p._2))
+    // TODO define in terms of above
     def collectFirstWithIndex[B](p: PartialFunction[A, B]): Option[(B, Int)] =
       as.zipWithIndex.collect {
         case (a, i) if p.isDefinedAt(a) => (p(a), i)
       }.headOption
-    def findIndex(p: A => Boolean): Option[Int] = as.zipWithIndex.find(pair => p(pair._1)).map(_._2)
+    def findIndex(p: A => Boolean): Option[Int] =
+      as.zipWithIndex.find(pair => p(pair._1)).map(_._2)
+    def collectIndices(f: PartialFunction[A, Boolean]) =
+      collectWithIndex(f).map(_._2)
+    def collectIndex(f: PartialFunction[A, Boolean]) =
+      collectIndices(f).headOption
     // TODO doesn't short circuit when it finds the guy
+    // TODO phase out for collect methods above
     def indicesYielding[B](f: A => Option[B]): Seq[(Int, B)] =
       as.zipWithIndex.flatMap(pair => f(pair._1).map(b => (pair._2, b)))
   }
