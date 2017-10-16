@@ -231,7 +231,7 @@ object TemplatingPhase {
               (t :: tokens, alignments, remainingAlignments)
             case (t @ TemplateSlot(_), (tokens, alignments, curAlignment :: remainingAlignments)) =>
               (t :: tokens, curAlignment :: alignments, remainingAlignments)
-          } // TODO is this above exhaustive
+          } // NOTE is this above exhaustive? should be if alignments match slots
           val newTemplate = QuestionTemplate(newTemplateTokens).map(
             TriggerSlot.label.modify {
               case "PNOUN" => "NNP"
@@ -245,6 +245,25 @@ object TemplatingPhase {
     }
   )
 
+  val filterAdjAndAdvPhase = phaseFromAlignmentProcessor(
+    "filter adjectives and adverbs", { qta =>
+      val (tokens, alignments) = qta.template.templateTokens.foldRight(
+        (Nil: List[TemplateToken[TriggerSlot]], Nil: List[List[ContiguousSpan]], qta.alignments.reverse, false)) {
+        case (TemplateSlot(TriggerSlot(pos, _)), (acc, finishedAlignments, a :: remainingAlignments, _))
+            if(PosTags.adverbPosTags.contains(pos)) => (acc, finishedAlignments, remainingAlignments, false)
+        case (t @ TemplateSlot(TriggerSlot(pos, false)), (acc, finishedAlignments, a :: remainingAlignments, isPrevNoun)) =>
+          if(isPrevNoun && PosTags.adjectivePosTags.contains(pos)) (acc, finishedAlignments, remainingAlignments, false)
+          else (t :: acc, a :: finishedAlignments, remainingAlignments, false)
+        case (t @ TemplateSlot(TriggerSlot(label, _)), (acc, finishedAlignments, a :: alignmentsToGo, _)) =>
+          (t :: acc, a :: finishedAlignments, alignmentsToGo, label.startsWith("NOUN"))
+        case (t @ TemplateSlot(_), (acc, finishedAlignments, a :: alignmentsToGo, _)) =>
+          (t :: acc, a :: finishedAlignments, alignmentsToGo, false)
+        case (t @ TemplateString(_), (acc, finishedAlignments, alignmentsToGo, _)) =>
+          (t :: acc, finishedAlignments, alignmentsToGo, false)
+      } match { case (toks, aligns, _, _) => (toks, aligns) }
+      Some(qta.copy(template = QuestionTemplate(tokens), alignments = alignments))
+    }
+  )
 
   val nounPlaceholderWords = Set(
     "someone", "something",
@@ -307,22 +326,36 @@ object TemplatingPhase {
       }
     )
 
+  // val lotsOfPrepositions = Set(
+	// 	"aboard", "about", "above", "across", "afore", "after", "against", "ahead", "along", "alongside", "amid",
+	// 	"amidst", "among", "amongst", "around", "as", "aside", "astride", "at", "atop", "before",
+	// 	"behind", "below", "beneath", "beside", "besides", "between", "beyond", "by", "despite", "down",
+	// 	"during", "except", "for", "from", "given", "in", "inside", "into", "near", "next",
+	// 	"of", "off", "on", "onto", "opposite", "out", "outside", "over", "pace", "per",
+	// 	"round", "since", "than", "through", "throughout", "till", "times", "to", "toward", "towards",
+	// 	"under", "underneath", "until", "unto", "up", "upon", "versus", "via", "with ", "within",
+	// 	"without"
+  // ).map(_.lowerCase)
+
+  // don't fold determiner in when directly preceding "of" since it always attaches low
   val foldDeterminersPhase = TemplatingPhase(
     "fold in determiners", { case TemplatingResult(_, prevAlignments, unalignedQuestions) =>
       val prevTemplates = prevAlignments.map(_._2.template).toSet
       TemplatingResult(
         prevAlignments,
         prevAlignments.map { case (id, qta) =>
-          val nounIndicesWithDeterminers = qta.template.templateTokens.zipWithIndex.foldLeft((false, Set.empty[Int])) {
-            case ((isPrevDeterminer, curIndices), (TemplateString(s), _)) =>
-              if(isDeterminerToken(s)) (true, curIndices)
-              else (false, curIndices)
-            case ((true, curIndices), (TemplateSlot(TriggerSlot(label, _)), index)) if label.startsWith("NOUN") =>
-              (false, curIndices + index)
-            case ((_, curIndices), _) =>
-              (false, curIndices)
-          }._2
-          val indexSetChoicesSorted = nounIndicesWithDeterminers.subsets.toVector.sortBy(-_.size)
+          val tokens = qta.template.templateTokens
+          val nounIndicesWithDeterminersAndNoOf = tokens.indices.filter { index =>
+            (tokens.lift(index - 1), tokens(index), tokens.lift(index + 1)) match {
+              case (Some(TemplateString(potentialDet)),
+                    TemplateSlot(TriggerSlot(label, _)),
+                    Some(TemplateString(potentialOf))
+              ) => isDeterminerToken(potentialDet) &&
+                  label.startsWith("NOUN") && potentialOf != "of".lowerCase
+              case _ => false
+            }
+          }.toSet
+          val indexSetChoicesSorted = nounIndicesWithDeterminersAndNoOf.subsets.toVector.sortBy(-_.size)
           val optionallyCollapsedTemplate =
             indexSetChoicesSorted.iterator
               .map(foldDeterminersBeforeIndices(qta.template))
@@ -336,6 +369,11 @@ object TemplatingPhase {
 
   val verbLabels = Set("VERB", "VERB-pss")
 
+  val adjLabels = Map(
+    "JJ" -> "ADJ",
+    "JJR" -> "ADJ-cmp",
+    "JJS" -> "ADJ-sup")
+
   // TODO harmlessly pass over non-auxiliaries appearing before the verb so we can see them in later steps
   case class AbstractedVerbTemplate(
     wh: LowerCaseString,
@@ -348,8 +386,17 @@ object TemplatingPhase {
     def isPassive = verbPOS == "VBN" && allAuxiliaries.exists(Inflections.beVerbs.contains)
     def verbLabel = if(isPassive) "VERB-pss" else "VERB"
 
-    def abstractOtherTokens(ts: List[TemplateToken[TriggerSlot]]) = ts.map {
+    def abstractSubjTokens(ts: List[TemplateToken[TriggerSlot]]) = ts.map {
       case TemplateSlot(s) => TemplateSlot(getNounLabel(s.label).fold(s)(s.withLabel))
+      case TemplateString(s) if nounPlaceholderWords.contains(s) => TemplateString("<obj>".lowerCase)
+      case TemplateString(s) if getDeterminerToken(s).nonEmpty => TemplateString(getDeterminerToken(s).get)
+      case x => x
+    }
+
+    def abstractTailTokens(ts: List[TemplateToken[TriggerSlot]]) = ts.map {
+      case TemplateSlot(s) => TemplateSlot(
+        getNounLabel(s.label).orElse(adjLabels.get(s.label)).fold(s)(s.withLabel)
+      )
       case TemplateString(s) if nounPlaceholderWords.contains(s) => TemplateString("<obj>".lowerCase)
       case TemplateString(s) if getDeterminerToken(s).nonEmpty => TemplateString(getDeterminerToken(s).get)
       case x => x
@@ -357,9 +404,9 @@ object TemplatingPhase {
 
     def labeledSubjOpt = for {
       (subj, _) <- subjectAndLaterAuxiliariesOpt
-    } yield abstractOtherTokens(subj)
+    } yield abstractSubjTokens(subj)
 
-    def abstractedTail = abstractOtherTokens(trailingTemplateTokens)
+    def abstractedTail = abstractTailTokens(trailingTemplateTokens)
 
     def verbSlot = TemplateSlot(TriggerSlot(verbLabel, isTrigger = true))
     // def trailingTemplateTokens = trailingWords.map { w =>
@@ -452,6 +499,46 @@ object TemplatingPhase {
 
   val negationWords = Inflections.negationWords + "n't".lowerCase
 
+  // for after verb extraction
+  def abstractSimpleNounTemplateAlignment(qta: QuestionTemplateAlignment[TriggerSlot]): Option[QuestionTemplateAlignment[TriggerSlot]] = {
+    object str {
+      def unapply(token: TemplateToken[TriggerSlot]): Option[String] = token match {
+        case TemplateString(s) => Some(s.toString)
+        case _ => None
+      }
+      def apply(str: String): TemplateToken[TriggerSlot] = TemplateString(str.lowerCase)
+    }
+    object noun {
+      val niceBareNouns = Set("NOUN", "NOUN-pl")
+      def unapply(token: TemplateToken[TriggerSlot]): Option[String] = token match {
+        case TemplateSlot(TriggerSlot(pos, _)) =>
+          getNounLabel(pos).filter(niceBareNouns.contains)
+        case _ => None
+      }
+      def apply(str: String): TemplateToken[TriggerSlot] = TemplateSlot(TriggerSlot(str, true))
+    }
+    val whatWhichWhose = Set("what", "which", "whose")
+    Option(
+      qta.template.templateTokens match {
+        case str("how") :: str("many") :: noun(n) :: _ => str("how") :: str("many") :: noun(n) :: str("?") :: Nil
+        case str("how") :: str("much") :: noun(n) :: _ => str("how") :: str("much") :: noun(n) :: str("?") :: Nil
+        case str("what") :: str(kind) :: str("of") :: noun(n) :: _
+            if kindClassifiers.contains(kind.lowerCase) => str("<what kind of>") :: noun(n) :: str("?") :: Nil
+        case str("what") :: str(kind) :: noun(n) :: _
+            if kindClassifiers.contains(kind.lowerCase) => str("<what kind of>") :: noun(n) :: str("?") :: Nil
+        case str(wh) :: noun(n) :: _ if whatWhichWhose.contains(wh) => str(wh) :: noun(n) :: str("?") :: Nil
+        case _ => null
+      }
+    ).map(newTokens =>
+      qta.copy(template = QuestionTemplate(newTokens), alignments = qta.alignments.take(1))
+    )
+  }
+
+  val abstractSimpleNounsPhase = phaseFromAlignmentProcessor(
+      "abstract simple nouns", abstractSimpleNounTemplateAlignment
+    )
+
+  // for after simple noun extraction
   def abstractNounTemplate(template: QuestionTemplate[TriggerSlot]): Option[QuestionTemplate[TriggerSlot]] = {
     for {
       firstSlot <- template.headOption // at least one slot
@@ -491,7 +578,9 @@ object TemplatingPhase {
           newTokenOpt.map(TemplateString(_))
         case (TemplateSlot(ts), index) => Some(TemplateSlot(ts.withIsTrigger(index == nounSlotIndex)))
       }
-      newAbstractedTokens = QuestionTemplate(abstractedTokens).map(ts => getNounLabel(ts.label).fold(ts)(ts.withLabel)).templateTokens
+      newAbstractedTokens = QuestionTemplate(abstractedTokens).map(ts =>
+        getNounLabel(ts.label).orElse(adjLabels.get(ts.label)).fold(ts)(ts.withLabel)
+      ).templateTokens
       auxCollapsedAbstractedTokens = newAbstractedTokens.indexOpt(auxTemplateString) match {
         case None => newAbstractedTokens
         case Some(i) => newAbstractedTokens.take(i + 1) ++ newAbstractedTokens.drop(i + 1).filterNot(
@@ -557,11 +646,6 @@ object TemplatingPhase {
   //   "abstract simple POS templates ", abstractPosGroupTemplate(posTagLabelMapping.get)
   // )
 
-  val adjLabels = Map(
-    "JJ" -> "ADJ",
-    "JJR" -> "ADJ-cmp",
-    "JJS" -> "ADJ-sup")
-
   val abstractAdjectivesPhase = phaseFromTemplateProcessor(
     "abstract adjectives", abstractPosGroupTemplate(adjLabels.get)
   )
@@ -599,10 +683,54 @@ object TemplatingPhase {
     "abstract prepositions", abstractPosGroupTemplate(prepLabels.get)
   )
 
-  def maskOutAllNouns(template: QuestionTemplate[TriggerSlot]) = QuestionTemplate(
+  def maskOutDetNouns(template: QuestionTemplate[TriggerSlot]) = QuestionTemplate(
     template.templateTokens.map {
       case TemplateSlot(TriggerSlot("NOUN-det", _)) => TemplateString("<obj>".lowerCase)
       case x => x
+    }
+  )
+
+  def allDetAndBareNounMaskings(template: QuestionTemplate[TriggerSlot]): List[QuestionTemplate[TriggerSlot]] =
+    template.templateTokens.foldRight(List(List.empty[TemplateToken[TriggerSlot]])) {
+      case (t @ TemplateSlot(TriggerSlot(label, _)), acc) if Set("NOUN-det", "NOUN").contains(label) =>
+        acc.flatMap(nextTokens =>
+          List(t, TemplateString("<noun(-det)>".lowerCase)).map(_ :: nextTokens)
+        )
+      case (t, acc) => acc.map(nextTokens => t :: nextTokens)
+    }.map(QuestionTemplate(_))
+
+  def maskOutPluralAndProperNouns(template: QuestionTemplate[TriggerSlot]) = QuestionTemplate(
+    template.templateTokens.map {
+      case TemplateSlot(TriggerSlot(label, _))
+          if Set("NOUN-pl", "NOUN-prop", "NOUN-prop-pl").contains(label) =>
+        TemplateString("<noun(-det)>".lowerCase)
+      case x => x
+    }
+  )
+
+  val collapseProperAndPluralNounsPhase = TemplatingPhase(
+    "collapse proper and plural nouns", {
+      case TemplatingResult(_, prevAlignments, prevUnalignedQuestions) =>
+        val bestNounTemplateByMaskedVersion = prevAlignments.values
+          .flatMap(qta => allDetAndBareNounMaskings(qta.template).map(_ -> qta.template))
+          .groupBy(_._1)
+          .map { case (abstTemplate, resultTemplates) =>
+            val bestResult = resultTemplates
+              .groupBy(_._2).map(p => p._1 -> p._2.size)
+              .maxBy(_._2)._1
+            abstTemplate -> bestResult
+        }.toMap
+        val transformedAlignments = prevAlignments.map {
+          case (id, qta) => id -> qta.copy(
+            template = bestNounTemplateByMaskedVersion
+              .get(maskOutPluralAndProperNouns(qta.template))
+              .getOrElse(qta.template)
+          )
+        }
+        TemplatingResult(
+          previousAlignments = prevAlignments,
+          resultAlignments = transformedAlignments,
+          unalignedQuestions = prevUnalignedQuestions)
     }
   )
 
@@ -610,11 +738,11 @@ object TemplatingPhase {
     "drop templates with nouns that don't match existing ones with placeholder nouns", {
       case TemplatingResult(_, prevAlignments, prevUnalignedQuestions) =>
         val templateWithPlaceholderCounts = prevAlignments.collect {
-          case (_, qta) if qta.template.size == 1 => maskOutAllNouns(qta.template)
+          case (_, qta) if qta.template.size == 1 => maskOutDetNouns(qta.template)
         }.groupBy(identity).map(p => p._1 -> p._2.size)
         val templatesWithPlaceholders = templateWithPlaceholderCounts.keySet
         val questionsToDrop = prevAlignments.collect {
-          case (id, qta) if !templatesWithPlaceholders.contains(maskOutAllNouns(qta.template)) =>
+          case (id, qta) if !templatesWithPlaceholders.contains(maskOutDetNouns(qta.template)) =>
             id -> qta.sourcedQA
         }
         TemplatingResult(

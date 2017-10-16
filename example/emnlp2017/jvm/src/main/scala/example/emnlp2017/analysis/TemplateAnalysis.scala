@@ -24,11 +24,13 @@ object TemplateAnalysis {
   import TemplatingPhase._
 
   // TODO fold in genitive clitics too? nah
-  val fullPos = posPhase
-  def postprocess(phase: TemplatingPhase) = phase andThen deleteRedundantDeterminersPhase
+  val fullPos = posPhase andThen filterAdjAndAdvPhase
+  def postprocess(phase: TemplatingPhase) =
+    phase andThen /* collapseContigProperNounsPhase andThen */ deleteRedundantDeterminersPhase
 
   val fullAbstractivePipeline =
     postprocess(abstractVerbsPhase) ::
+      postprocess(abstractSimpleNounsPhase) ::
       postprocess(abstractNounsPhase) ::
       postprocess(abstractAdjectivesPhase) ::
       postprocess(abstractNumbersPhase) ::
@@ -39,7 +41,10 @@ object TemplateAnalysis {
       Nil
 
   lazy val defaultPipeline = List(
-    List(fullPos, oneWordOnlyPhase), fullAbstractivePipeline, List(dropPOSPhase)
+    List(fullPos, oneWordOnlyPhase), fullAbstractivePipeline, List(dropPOSPhase),
+    List(fullPos), fullAbstractivePipeline,
+    List(generalizePlaceholderObjectsPhase, collapseProperAndPluralNounsPhase,
+         foldDeterminersPhase, dropPOSPhase)
   ).flatten
 
   def getDefaultAnalysis(label: String, data: QAData[SentenceId]) =

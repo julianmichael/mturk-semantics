@@ -26,7 +26,6 @@ package object analysis {
   import Datasets._
   import Reinflection._
   import TemplateToken._
-  import QuestionTemplating._
 
   // QuestionTemplate is global across all sentences.
 

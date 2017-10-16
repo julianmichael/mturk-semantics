@@ -1,4 +1,5 @@
-import example.emnlp2017
+import example.emnlp2017._
+import example.emnlp2017.analysis._
 import turksem.qamr._
 import turksem.util._
 import turkey._
@@ -27,7 +28,7 @@ def exit = {
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
 
-val data = new emnlp2017.DataExporter
+val data = new DataExporter
 
 // val setup = new emnlp2017.AnnotationSetup
 // val exp = setup.experiment
