@@ -1,4 +1,4 @@
-package example.emnlp2017.silly
+package turksem.iqa
 
 import nlpdata.datasets.wiktionary.InflectedForms
 

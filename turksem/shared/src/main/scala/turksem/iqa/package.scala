@@ -1,4 +1,6 @@
-package example.emnlp2017
+package turksem
+
+import turkey.tasks.ResponseRW
 
 import turksem.util._
 
@@ -7,52 +9,28 @@ import cats.implicits._
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.util.PosTags
 
-package object silly {
+package object iqa {
 
-  case class TemplateRepo(
-    verbTemplates: List[Template],
-    adjectiveTemplates: List[Template],
-    comparativeAdjectiveTemplates: List[Template],
-    superlativeAdjectiveTemplates: List[Template],
-    prepositionTemplates: List[Template],
-    miscTemplateGroups: List[List[Template]]) {
-    lazy val all = List(
-      verbTemplates,
-      adjectiveTemplates,
-      comparativeAdjectiveTemplates,
-      superlativeAdjectiveTemplates,
-      prepositionTemplates,
-      miscTemplateGroups.flatten
-    ).flatten
+  val iqaTaskKey = "iqa"
 
-    def getTriggerIndex(template: Template): Option[Int] =
-      if(verbTemplates.contains(template)) template.arguments.collectIndex {
-        case AlignedVerb(_) => true
-      } else if(
-        adjectiveTemplates.contains(template) ||
-          comparativeAdjectiveTemplates.contains(template) ||
-          superlativeAdjectiveTemplates.contains(template)
-      ) template.arguments.collectIndex {
-        case Adjective(_) => true
-      } else if(prepositionTemplates.contains(template)) template.arguments.collectIndex {
-        case Preposition => true
-      } else None
+  case class IQAPrompt[SID](id: SID)
 
-    def getTriggers(templates: List[Template]) = {
-      templates.flatMap(t => getTriggerIndex(t).map(t -> _))
-    }
+  case class IQAResponse(qas: List[TemplatedQA])
 
-    def getGroupForPosTag(posTag: String): Option[List[(Template, Int)]] = {
-      if(PosTags.verbPosTags.contains(posTag)) Some(getTriggers(verbTemplates))
-      else posTag match {
-        case "JJ" => Some(getTriggers(adjectiveTemplates))
-        case "JJR" => Some(getTriggers(comparativeAdjectiveTemplates))
-        case "JJS" => Some(getTriggers(superlativeAdjectiveTemplates))
-        case "IN" => Some(getTriggers(prepositionTemplates))
-        case _ => None
-      }
+  case class IQAAjaxRequest[SID](id: SID) {
+    type Response = IQAAjaxResponse
+  }
+  object IQAAjaxRequest {
+    import upickle.default._
+    implicit def responseRW[SID] = new ResponseRW[IQAAjaxRequest[SID]] {
+      override def getReader(request: IQAAjaxRequest[SID]) = implicitly[Reader[IQAAjaxResponse]]
+      override def getWriter(request: IQAAjaxRequest[SID]) = implicitly[Writer[IQAAjaxResponse]]
     }
   }
+
+  case class IQAAjaxResponse(
+    inflectedTokens: Vector[InflectionalWord]
+  )
 
   lazy val templates: TemplateRepo = {
     import scala.language.implicitConversions
@@ -125,5 +103,14 @@ package object silly {
       prepositionTemplates = prepositions.map(Template(_)),
       miscTemplateGroups = List(List(Template(t(NV, is, NV))))
     )
+  }
+
+  import nlpdata.util.LowerCaseStrings._
+
+  implicit val lowerCaseStringReader = upickle.default.Reader[LowerCaseString] {
+    case upickle.Js.Str(s) => s.lowerCase // just for typing. whatever
+  }
+  implicit val lowerCaseStringWriter = upickle.default.Writer[LowerCaseString] {
+    case s => upickle.Js.Str(s.toString)
   }
 }

@@ -43,6 +43,7 @@ class SpanHighlightingComponent[Index] {
 
   case class SpanHighlightingProps(
     isEnabled: Boolean,
+    enableSpanOverlap: Boolean = false,
     update: SpanHighlightingState => Callback,
     render: (SpanHighlightingState, SpanHighlightingContext) => VdomElement)
 
@@ -57,13 +58,17 @@ class SpanHighlightingComponent[Index] {
       scope.props >>= { props =>
         if(!props.isEnabled) Callback.empty else scope.state >>= { state =>
           val newState = f(state)
-          scope.setState(newState) >> props.update(newState)
+          if(newState != state) {
+            scope.setState(newState) >> props.update(newState)
+          } else Callback.empty
         }
       }
 
-    def hover(index: Index)(endpoint: Int) = modStateWithUpdate {
+    def hover(props: SpanHighlightingProps)(index: Index)(endpoint: Int) = modStateWithUpdate {
       case SpanHighlightingState(spans, Highlighting(`index`, anchor, _)) =>
-        val relevantSpans = spans.values.toList.flatten
+        val relevantSpans = if(props.enableSpanOverlap) {
+          spans.get(index).getOrElse(Nil)
+        } else spans.values.toList.flatten
         val range = if(anchor <= endpoint) (anchor to endpoint)
                     else (anchor to endpoint by -1)
         val newExtremum = range.takeWhile(i =>
@@ -73,16 +78,22 @@ class SpanHighlightingComponent[Index] {
       case x => x
     }
 
-    def touch(index: Index)(wordIndex: Int): Callback = modStateWithUpdate {
+    def touch(props: SpanHighlightingProps)(index: Index)(wordIndex: Int): Callback = modStateWithUpdate {
       case SpanHighlightingState(spans, NoSpan) => spans(index).findIndex(_.contains(wordIndex)) match {
         case None =>
-          if(spans.values.toList.flatten.exists(_.contains(wordIndex))) SpanHighlightingState(spans, NoSpan) // do nothing
+          val relevantSpans = if(props.enableSpanOverlap) {
+            spans.get(index).getOrElse(Nil)
+          } else spans.values.toList.flatten
+          if(relevantSpans.exists(_.contains(wordIndex))) SpanHighlightingState(spans, NoSpan) // do nothing
           else SpanHighlightingState(spans, Highlighting(index, wordIndex, wordIndex)) // start highlighting
         case Some(i) => // remove span
           SpanHighlightingState(spans.updated(index, spans(index).remove(i)), NoSpan)
       }
       case SpanHighlightingState(spans, Highlighting(`index`, x, y)) =>
-        if(spans.values.toList.flatten.exists(_.contains(wordIndex))) SpanHighlightingState(spans, Highlighting(index, x, y)) // do nothing
+        val relevantSpans = if(props.enableSpanOverlap) {
+          spans.get(index).getOrElse(Nil)
+        } else spans.values.toList.flatten
+        if(relevantSpans.exists(_.contains(wordIndex))) SpanHighlightingState(spans, Highlighting(index, x, y)) // do nothing
         else SpanHighlightingState(spans.updated(index, ContiguousSpan(x, y) :: spans(index)), NoSpan) // finish span
       case x => x
     }
@@ -90,7 +101,7 @@ class SpanHighlightingComponent[Index] {
     def cancel = modStateWithUpdate(SpanHighlightingState.status.set(NoSpan))
 
     def render(props: SpanHighlightingProps, state: SpanHighlightingState) =
-      props.render(state, SpanHighlightingContext(setSpan, hover, touch, cancel))
+      props.render(state, SpanHighlightingContext(setSpan, hover(props), touch(props), cancel))
   }
 
   val SpanHighlighting = ScalaComponent.builder[SpanHighlightingProps]("Span Highlighting")

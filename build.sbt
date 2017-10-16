@@ -2,7 +2,12 @@ val scalaJSReactVersion = "1.1.0"
 val monocleVersion = "1.4.0-M2"
 
 lazy val root = project.in(file("."))
-  .aggregate(turksemJVM, turksemJS, emnlp2017JVM, emnlp2017JS, ai2JVM, ai2JS, multitaskJVM, multitaskJS)
+  .aggregate(turksemJVM, turksemJS,
+             emnlp2017JVM, emnlp2017JS,
+             ai2JVM, ai2JS,
+             multitaskJVM, multitaskJS,
+             tqaJVM, tqaJS,
+             interactiveJVM, interactiveJS)
   .settings(
   publish := {},
   publishLocal := {})
@@ -173,4 +178,17 @@ lazy val tqaJVM = tqa.jvm.dependsOn(turksemJVM).settings(
   (resources in Compile) += (fastOptJS in (tqaJS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (tqaJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (tqaJS, Compile)).value
+)
+
+lazy val interactive = crossProject.in(file("example/interactive"))
+  .settings(name := "turksem-interactive", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(exampleProjectJSSettings)
+
+lazy val interactiveJS = interactive.js.dependsOn(turksemJS, emnlp2017JS)
+lazy val interactiveJVM = interactive.jvm.dependsOn(turksemJVM, emnlp2017JVM).settings(
+  (resources in Compile) += (fastOptJS in (interactiveJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (interactiveJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (interactiveJS, Compile)).value
 )
