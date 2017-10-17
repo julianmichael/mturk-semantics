@@ -418,7 +418,7 @@ class IQAClient[SID : Writer : Reader](
                           ^.classSet1("btn btn-primary btn-lg btn-block"),
                           ^.margin := "5px",
                           ^.`type` := "submit",
-                          ^.disabled := true, // readyToSubmit(state),
+                          ^.disabled := false, // readyToSubmit(state),
                           ^.id := FieldLabels.submitButtonLabel,
                           ^.value := (
                             "Submit"
