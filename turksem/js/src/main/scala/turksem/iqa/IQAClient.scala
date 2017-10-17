@@ -418,12 +418,13 @@ class IQAClient[SID : Writer : Reader](
                           ^.classSet1("btn btn-primary btn-lg btn-block"),
                           ^.margin := "5px",
                           ^.`type` := "submit",
-                          ^.disabled := readyToSubmit(state),
+                          ^.disabled := true, // readyToSubmit(state),
                           ^.id := FieldLabels.submitButtonLabel,
                           ^.value := (
-                            if(isNotAssigned) "You must accept the HIT to submit results"
-                            else if(!readyToSubmit(state)) "You must respond to at least 5 questions to submit results"
-                            else "Submit"
+                            "Submit"
+                            // if(isNotAssigned) "You must accept the HIT to submit results"
+                            // else if(!readyToSubmit(state)) "You must respond to at least 5 questions to submit results"
+                            // else "Submit"
                           ))
                       )
                   }

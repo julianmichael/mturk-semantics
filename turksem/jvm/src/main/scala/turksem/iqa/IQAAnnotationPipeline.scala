@@ -134,7 +134,7 @@ class IQAAnnotationPipeline[SID : Reader : Writer : HasTokens](
             initQuestionGuesser = initialQuestionGuesser,
             numAssignmentsForPrompt = (p: IQAPrompt[SID]) => 1,
             initNumHITsToKeepActive = 3,
-            _promptSource = List(sampleGenPrompt).iterator)
+            _promptSource = allPrompts.iterator)
       genManagerPeek
     })
 
