@@ -38,7 +38,8 @@ object QuestioningState {
   def initFromSentence(sentence: Vector[InflectionalWord]) = {
     QuestioningState(
       sentence,
-      sentence.filter(_.pos != "IN").flatMap { w => // skipping prepositions for now
+      sentence.filter(w => w.pos != "IN" && w.inflectedFormsOpt.nonEmpty)
+        .flatMap { w => // skipping prepositions for now
         allTemplates.getGroupForPosTag(w.pos).map { triggerTemplates =>
           TriggerGroup(w, triggerTemplates, Vector.empty[TemplatedQA])
         }
