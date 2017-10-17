@@ -130,6 +130,10 @@ object TemplatingPhase {
     "retain one-word templates only", _.template.size == 1
   )
 
+  val dropNoSlotTemplatePhase = phaseFromFilter(
+    "drop templates with no slots", _.template.size != 0
+  )
+
   val dropPOSPhase = phaseFromFilter(
     "drop POS templates", qta => !qta.template.exists(ts => PosTags.allPosTags.contains(ts.label))
   )
@@ -201,6 +205,8 @@ object TemplatingPhase {
     QuestionTemplateAlignment(sqa, QuestionTemplate(templateTokens), finalAlignments)
   }
 
+  // fix the thing where it's getting rid of 's genitive clitics
+
   lazy val posPhase = phaseFromOptionalTemplating("POS", (templatizeByPos _) andThen Option.apply)
 
   val collapseContigProperNounsPhase = TemplatingPhase(
@@ -251,7 +257,7 @@ object TemplatingPhase {
         (Nil: List[TemplateToken[TriggerSlot]], Nil: List[List[ContiguousSpan]], qta.alignments.reverse, false)) {
         case (TemplateSlot(TriggerSlot(pos, _)), (acc, finishedAlignments, a :: remainingAlignments, _))
             if(PosTags.adverbPosTags.contains(pos)) => (acc, finishedAlignments, remainingAlignments, false)
-        case (t @ TemplateSlot(TriggerSlot(pos, false)), (acc, finishedAlignments, a :: remainingAlignments, isPrevNoun)) =>
+        case (t @ TemplateSlot(TriggerSlot(pos, _)), (acc, finishedAlignments, a :: remainingAlignments, isPrevNoun)) =>
           if(isPrevNoun && PosTags.adjectivePosTags.contains(pos)) (acc, finishedAlignments, remainingAlignments, false)
           else (t :: acc, a :: finishedAlignments, remainingAlignments, false)
         case (t @ TemplateSlot(TriggerSlot(label, _)), (acc, finishedAlignments, a :: alignmentsToGo, _)) =>
@@ -261,7 +267,17 @@ object TemplatingPhase {
         case (t @ TemplateString(_), (acc, finishedAlignments, alignmentsToGo, _)) =>
           (t :: acc, finishedAlignments, alignmentsToGo, false)
       } match { case (toks, aligns, _, _) => (toks, aligns) }
-      Some(qta.copy(template = QuestionTemplate(tokens), alignments = alignments))
+      val hasTrigger = tokens.collect {
+        case TemplateSlot(TriggerSlot(_, true)) => true
+      }.nonEmpty
+      val resultTokens = if(hasTrigger) {
+        tokens
+      } else {
+        tokens.collectFirstWithIndex {
+          case TemplateSlot(TriggerSlot(pos, _)) => TemplateSlot(TriggerSlot(pos, true))
+        }.fold(tokens) { case (newSlot, index) => tokens.updated(index, newSlot) }
+      }
+      Some(qta.copy(template = QuestionTemplate(resultTokens), alignments = alignments))
     }
   )
 
@@ -509,7 +525,7 @@ object TemplatingPhase {
       def apply(str: String): TemplateToken[TriggerSlot] = TemplateString(str.lowerCase)
     }
     object noun {
-      val niceBareNouns = Set("NOUN", "NOUN-pl")
+      val niceBareNouns = Set("NOUN", "NOUN-pl", "NOUN-prop-pl", "NOUN-prop")
       def unapply(token: TemplateToken[TriggerSlot]): Option[String] = token match {
         case TemplateSlot(TriggerSlot(pos, _)) =>
           getNounLabel(pos).filter(niceBareNouns.contains)

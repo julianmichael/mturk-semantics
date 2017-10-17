@@ -1,5 +1,6 @@
 package example.interactive
 
+import turksem.FileSystemAnnotationDataService
 import turksem.util._
 import turksem.iqa._
 
@@ -64,9 +65,24 @@ class InteractiveAnnotationSetup(label: String)(implicit config: TaskConfig) {
     Files.lines(path).iterator.asScala.toList
   }
 
-  def numGenerationAssignmentsForPrompt(p: IQAPrompt[SentenceId]) = 1
+  import java.nio.file.{Paths, Path, Files}
+  private[this] val liveDataPath = if(config.isProduction) {
+    Paths.get(s"data/interactive/$label/live/production")
+  } else {
+    Paths.get(s"data/interactive/$label/live/sandbox")
+  }
+  implicit val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  lazy val allPrompts = allIds.map(IQAPrompt(_))
+  // def numGenerationAssignmentsForPrompt(p: IQAPrompt[SentenceId]) = 1
 
-  lazy val experiment = new IQAAnnotationPipeline(allPrompts)
+  lazy val allPrompts = IQAPrompt(
+    allIds.head
+  ) +: (new scala.util.Random(622437L)).shuffle(allIds.tail.map(IQAPrompt(_)))
+
+  lazy val experiment = new IQAAnnotationPipeline(
+    allPrompts,
+    CountBasedQuestionGuesser(
+      QuestionGuessingSandbox.templatePseudoCounts
+      // QuestionGuessingSandbox.templateCorrespondencePseudoCounts
+    ))
 }

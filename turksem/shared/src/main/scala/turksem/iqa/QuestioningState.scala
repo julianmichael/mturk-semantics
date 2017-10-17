@@ -13,38 +13,45 @@ import monocle.macros.GenPrism
 
 @Lenses case class QuestioningState(
   sentence: Vector[InflectionalWord],
-  qas: Vector[TemplatedQA]
+  triggerGroups: Vector[TriggerGroup]
 ) {
 
-  val entityStrings = qas.zipWithIndex.flatMap {
-    case (qa, index) => qa.judgment.getAnswer.map(a => index -> a.standin)
+  val entityStrings = triggerGroups.zipWithIndex.flatMap {
+    case (group, groupIndex) => group.qas.zipWithIndex.flatMap {
+      case (qa, questionIndex) => qa.judgment.getAnswer.map(
+        a => (groupIndex -> questionIndex) -> a.standin
+      )
+    }
   }.toMap
 
   // TODO more general for fancy question stuff. maybe need to make changes in TemplatedQuestion
-  def renderQuestion(index: Int): Option[String] = {
-    qas.lift(index).map(_.question.renderQuestion(sentence, entityStrings))
-  }
-
-  lazy val triggerGroups = sentence.flatMap { w =>
-    templates.getGroupForPosTag(w.pos).map { triggerTemplates =>
-      val qasForTrigger = qas.zipWithIndex.filter { case (tqa, _) =>
-        templates.getTriggerIndex(tqa.question.template).fold(false) { triggerIndex =>
-          tqa.question.argsWithAnswerPlaceholder(triggerIndex) match {
-            case Some(SentenceWord(i)) if i == w.index => true
-            case _ => false
-          }
-        }
-      }.map { case (tqa, index) => index -> tqa }.toMap
-
-      TriggerGroup(w, triggerTemplates, qasForTrigger)
-    }
+  def renderQuestion(groupIndex: Int, qaIndex: Int): Option[String] = {
+    triggerGroups.lift(groupIndex).flatMap(_.qas.lift(qaIndex)).map(
+      _.question.renderQuestion(
+        sentence, entityStrings.collect {
+          case ((`groupIndex`, qaIndex), s) => qaIndex -> s
+        })
+    )
   }
 }
+object QuestioningState {
+  def initFromSentence(sentence: Vector[InflectionalWord]) = {
+    QuestioningState(
+      sentence,
+      sentence.filter(_.pos != "IN").flatMap { w => // skipping prepositions for now
+        allTemplates.getGroupForPosTag(w.pos).map { triggerTemplates =>
+          TriggerGroup(w, triggerTemplates, Vector.empty[TemplatedQA])
+        }
+      }
+    )
+  }
+  def empty = QuestioningState(Vector(), Vector())
+}
 
-case class TriggerGroup(
+@Lenses case class TriggerGroup(
   trigger: InflectionalWord,
   templates: List[(Template, Int)],
-  qas: Map[Int, TemplatedQA]) { // map from original index
+  qas: Vector[TemplatedQA]) { // map from original index
                                 // TODO calculate alignments
 }
 
@@ -89,6 +96,11 @@ case class TemplatedQuestion(
   targetIndex: Int,
   tenseAspect: TenseAspect,
   arguments: List[ArgumentSpecifier]) {
+
+  def getPrepositionSpecifiers =
+    template.arguments.zip(argsWithAnswerPlaceholder).collect {
+      case (Preposition, spec) => spec
+    }
 
   def argsWithAnswerPlaceholder: List[Option[ArgumentSpecifier]] = arguments.zipWithIndex.flatMap {
     case (arg, `targetIndex`) => List(None, Some(arg))
@@ -137,7 +149,7 @@ case class TemplatedQuestion(
       case (st, a: GappableArgument) if st.nextArgIndex == targetIndex =>
         st.copy(
           nextArgIndex = st.nextArgIndex + 1,
-          tokens = a.gap.fold(st.tokens)(st.tokens ++ List(_)))
+          tokens = st.tokens ++ a.gap.map(_.string.toString))
       case (st, a: Argument) => st.argumentsRemaining match {
         case Nil => ??? // should never happen
         case arg :: args =>

@@ -13,12 +13,13 @@ import turksem.qamr.QAPairId
 
 import turksem.util._
 
+import nlpdata.datasets.wiktionary.Inflections
+import nlpdata.datasets.wiktionary.WiktionaryFileSystemService
+import nlpdata.structure.Word
 import nlpdata.util.Text
 import nlpdata.util.PosTags
 import nlpdata.util.HasTokens.ops._
 import nlpdata.util.LowerCaseStrings._
-import nlpdata.datasets.wiktionary.Inflections
-import nlpdata.datasets.wiktionary.WiktionaryFileSystemService
 
 object TemplateAnalysis {
   import TemplatingPhase._
@@ -44,7 +45,7 @@ object TemplateAnalysis {
     List(fullPos, oneWordOnlyPhase), fullAbstractivePipeline, List(dropPOSPhase),
     List(fullPos), fullAbstractivePipeline,
     List(generalizePlaceholderObjectsPhase, collapseProperAndPluralNounsPhase,
-         foldDeterminersPhase, dropPOSPhase)
+         foldDeterminersPhase, dropNoSlotTemplatePhase, dropPOSPhase)
   ).flatten
 
   def getDefaultAnalysis(label: String, data: QAData[SentenceId]) =
@@ -86,9 +87,74 @@ class TemplateAnalysis(
   val proportionQAsCovered = alignmentsById.size.toDouble / sqasById.size
   val cumulativeCoverage = templatesByFrequency.scanLeft(0)(_ + _._2)
 
+  object PosMatchers {
+    object noun {
+      def unapply(w: Word): Option[Int] =
+        if(PosTags.nounPosTags.contains(w.pos) || w.pos == "PRP") Some(w.index) else None
+    }
+    object verb {
+      def unapply(w: Word): Option[Int] =
+        if(PosTags.verbPosTags.contains(w.pos)) Some(w.index) else None
+    }
+
+    object adj { def unapply(w: Word): Boolean = PosTags.adjectivePosTags.contains(w.pos) }
+    object det { def unapply(w: Word): Boolean = w.pos == "DT" }
+    object gen { def unapply(w: Word): Boolean = w.pos == "PRP$" }
+    object pos { def unapply(w: Word): Boolean = w.pos == "POS" }
+    object num { def unapply(w: Word): Boolean = w.pos == "CD" }
+    object prep { def unapply(w: Word): Boolean = w.pos == "IN" }
+
+    object MatchBareNoun {
+      def unapply(ws: List[Word]): Option[Int] = ws match {
+        case noun(i) :: Nil => Some(i)
+        case adj :: noun(i) :: Nil => Some(i)
+        case noun(_) :: pos :: noun(i) :: Nil => Some(i)
+        case noun(_) :: pos :: adj :: noun(i) :: Nil => Some(i)
+        case num :: noun(i) :: Nil => Some(i)
+        case _ => None
+      }
+    }
+
+    object MatchAnyNoun {
+      def unapply(ws: List[Word]): Option[Int] = ws match {
+        case MatchBareNoun(i) => Some(i)
+        case det :: MatchBareNoun(i) => Some(i)
+        case noun(_) :: pos :: MatchBareNoun(i) => Some(i)
+        case gen :: MatchBareNoun(i) => Some(i)
+        case _ => None
+      }
+    }
+  }
+
+  val alignmentsWithLabeledAnswers = alignmentsById.flatMap { case (id, qta) =>
+    val sid = id.sentenceId
+    val posTaggedSentence = PosTagger.posTag(sid.tokens)
+    import PosMatchers._
+    val matchies = qta.answers.map(a => a.toList.sorted.map(posTaggedSentence)).map {
+      case MatchAnyNoun(i) => Some("NOUN" -> i)
+      case verb(i) :: _ => Some("VERB" -> i)
+      case _ => None
+    }
+    if(matchies.flatten.isEmpty) None
+    else {
+      val matchiesSortedByCount = matchies.flatten
+        .groupBy(identity)
+        .toVector
+        .sortBy(-_._2.size)
+      val mostCommonMatchies = matchiesSortedByCount
+        .takeWhile(_._2 == matchiesSortedByCount.head._2)
+        .map(_._1)
+      val (matchLabel, answerIndex) = {
+        if(mostCommonMatchies.size == 1) mostCommonMatchies.head
+        else getTriggerSpan(qta).fold(mostCommonMatchies.head) { triggerSpan =>
+          mostCommonMatchies.sortBy(p => math.abs(p._2 - triggerSpan.begin)).head
+        }
+      }
+      Some(id -> (qta, matchLabel, answerIndex))
+    }
+  }
+
   // TODO LIST:
-  // - change back to letting <obj> appear in templates, in fact forget about folding in the more general ones for now
-  // - stop folding determiners into nouns
   // - redo paraphrasing in the stricter way with alignment
   // - add mirroring in addition to paraphrasing: each set corresponds to a "role", we can find it with the right trigger
   // - make both paraphrasing and mirroring DIRECTIONAL (i.e. look like entailment)? regardless,

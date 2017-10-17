@@ -91,9 +91,9 @@ sealed trait GappableArgument extends Argument {
     case Noun(DetOrVerb) => "something"
     case ToVerb => "to do something"
   }
-  def gap: Option[String] = this match {
-    case ToVerb => Some("to do")
-    case Noun(_) => None
+  def gap: List[StringToken] = this match {
+    case ToVerb => List(StringToken("to".lowerCase), StringToken("do".lowerCase))
+    case Noun(_) => Nil
   }
 }
 case class Noun(constraint: NounConstraint) extends GappableArgument

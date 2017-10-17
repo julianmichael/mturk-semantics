@@ -152,7 +152,7 @@ case class QuestionTemplateAlignment[Slot](
   sourcedQA: SourcedQA[SentenceId],
   template: QuestionTemplate[Slot],
   alignments: List[List[ContiguousSpan]]) {
-  val answers = sourcedQA.answers.map(indices => ContiguousSpan(indices.min, indices.max + 1))
+  def answers = sourcedQA.answers
   def sentenceId = sourcedQA.id.sentenceId
   def question = sourcedQA.question
 

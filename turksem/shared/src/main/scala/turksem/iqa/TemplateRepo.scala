@@ -14,14 +14,16 @@ case class TemplateRepo(
   superlativeAdjectiveTemplates: List[Template],
   prepositionTemplates: List[Template],
   miscTemplateGroups: List[List[Template]]) {
-  lazy val all = List(
+  lazy val groups = List(
     verbTemplates,
     adjectiveTemplates,
     comparativeAdjectiveTemplates,
     superlativeAdjectiveTemplates,
     prepositionTemplates,
     miscTemplateGroups.flatten
-  ).flatten
+  )
+
+  lazy val all = groups.flatten
 
   def getTriggerIndex(template: Template): Option[Int] =
     if(verbTemplates.contains(template)) template.arguments.collectIndex {

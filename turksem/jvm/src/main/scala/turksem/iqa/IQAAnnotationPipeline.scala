@@ -20,7 +20,6 @@ import turkey.tasks.TaskConfig
 import turkey.tasks.TaskSpecification
 import turkey.tasks.TaskManager
 import turkey.tasks.HITManager
-import turkey.tasks.NumAssignmentsHITManager
 import turkey.tasks.Server
 import turkey.tasks.Service
 import turkey.tasks.SetNumHITsActive
@@ -33,14 +32,32 @@ import upickle.default._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
+import AdaptiveQuestionGuesser.ops._
+
 /**
   * Annotation pipeline object: construct one of these to start running an annotation job.
   */
 class IQAAnnotationPipeline[SID : Reader : Writer : HasTokens](
-  val allPrompts: Vector[IQAPrompt[SID]],
+  val _prompts: Vector[IQAPrompt[SID]],
+  val initialQuestionGuesser: CountBasedQuestionGuesser,
   frozenGenerationHITTypeID: Option[String] = None)(
   implicit config: TaskConfig, // determines production/sandbox, how to store HIT data, etc.
+  annotationDataService: AnnotationDataService,
   inflections: Inflections) { // inflections object constructed by the caller for all tokens in the inputs
+
+  def getInflectedTokens(sid: SID) = {
+    val tokens = sid.tokens
+    PosTagger.posTag(tokens).map(w =>
+      InflectionalWord(
+        token = w.token,
+        pos = w.pos,
+        index = w.index,
+        inflectedFormsOpt = inflections.getInflectedForms(tokens(w.index).lowerCase)))
+  }
+
+  val allPrompts = _prompts.filter { p =>
+    QuestioningState.initFromSentence(getInflectedTokens(p.id)).triggerGroups.nonEmpty
+  }
 
   val genHITType = HITType(
     title = s"Help write and answer a series of questions about a sentence",
@@ -56,15 +73,11 @@ class IQAAnnotationPipeline[SID : Reader : Writer : HasTokens](
   lazy val genAjaxService = new Service[IQAAjaxRequest[SID]] {
     override def processRequest(request: IQAAjaxRequest[SID]) = request match {
       case IQAAjaxRequest(id) =>
-        val tokens = id.tokens
-        IQAAjaxResponse(
-          PosTagger.posTag(tokens).map(w =>
-            InflectionalWord(
-              token = w.token,
-              pos = w.pos,
-              index = w.index,
-              inflectedFormsOpt = inflections.getInflectedForms(tokens(w.index).lowerCase)))
+        val response = IQAAjaxResponse(
+          getInflectedTokens(id),
+          genManagerPeek.questionGuesser // this is bad hehe oopsie
         )
+        response
     }
   }
 
@@ -107,7 +120,7 @@ class IQAAnnotationPipeline[SID : Reader : Writer : HasTokens](
   // this is here just so you can peek from the console into what's going on in the HIT manager.
   // do NOT mutate fields of the HIT manager through this object---that is not thread-safe!
   // Instead, define some message types and send those messages to it.
-  var genManagerPeek: NumAssignmentsHITManager[IQAPrompt[SID], IQAResponse] = null
+  var genManagerPeek: IQAHITManager[SID] = null
 
   // The HIT Manager keeps track of what's running on MTurk and reviews assignments.
   // You would implement any interesting quality control, coordination between tasks, etc., in a custom HITManager.
@@ -115,11 +128,15 @@ class IQAAnnotationPipeline[SID : Reader : Writer : HasTokens](
   // Here we are using a simple default implementation from the turkey library.
   lazy val genHelper = new HITManager.Helper(genTaskSpec)
   lazy val genManager = actorSystem.actorOf(
-    Props(NumAssignmentsHITManager.constAssignments[IQAPrompt[SID], IQAResponse](
+    Props{
+      genManagerPeek = new IQAHITManager(
             helper = genHelper,
-            numAssignmentsPerPrompt = 1,
+            initQuestionGuesser = initialQuestionGuesser,
+            numAssignmentsForPrompt = (p: IQAPrompt[SID]) => 1,
             initNumHITsToKeepActive = 3,
-            _promptSource = List(sampleGenPrompt).iterator)))
+            _promptSource = List(sampleGenPrompt).iterator)
+      genManagerPeek
+    })
 
   // instantiating this object starts the webserver that hosts the task & previews.
   lazy val server = new Server(List(genTaskSpec))
@@ -150,9 +167,6 @@ class IQAAnnotationPipeline[SID : Reader : Writer : HasTokens](
     server
     genActor ! Update
   }
-
-  // these functions are for you to run on the console to check on the results that have been completed so far.
-  // Ideally you could hook up the job to a web dashboard like I've done in the QAMR and QA-SRL projects.
 
   def allGenInfos = config.hitDataService.getAllHITInfo[IQAPrompt[SID], IQAResponse](genTaskSpec.hitTypeId).get
 

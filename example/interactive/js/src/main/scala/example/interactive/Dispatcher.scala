@@ -2,7 +2,7 @@ package example.interactive
 
 import example.emnlp2017.SentenceId
 
-import turksem.iqa.IQADispatcher
+import turksem.iqa._
 
 import turkey.tasks._
 

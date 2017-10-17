@@ -42,6 +42,7 @@ def exit = {
 val setup = new InteractiveAnnotationSetup(label)
 
 val exp = setup.experiment
+exp.genManager
 exp.server
 
 def getId(i: Int) =

@@ -15,7 +15,7 @@ package object iqa {
 
   case class IQAPrompt[SID](id: SID)
 
-  case class IQAResponse(qas: List[TemplatedQA])
+  case class IQAResponse(qas: List[(InflectionalWord, TemplatedQA)])
 
   case class IQAAjaxRequest[SID](id: SID) {
     type Response = IQAAjaxResponse
@@ -29,10 +29,14 @@ package object iqa {
   }
 
   case class IQAAjaxResponse(
-    inflectedTokens: Vector[InflectionalWord]
-  )
+    inflectedTokens: Vector[InflectionalWord],
+    questionGuesser: CountBasedQuestionGuesser)
 
-  lazy val templates: TemplateRepo = {
+  lazy val qaTemplatesToAlignments = allTemplates.all
+    .flatMap(_.makeAllAlignedQATemplates)
+    .groupBy(_.qaTemplate)
+
+  lazy val allTemplates: TemplateRepo = {
     import scala.language.implicitConversions
     def t(tokens: Token*): List[Token] = tokens.toList
     def g(tokens: Token*): List[List[Token]] = List(tokens.toList)
@@ -67,17 +71,17 @@ package object iqa {
       }
     }
 
+    val optionalObject = List(List(NV), Nil)
+
     val objArgumentLists =
       List(List(NV, P), List(P, NV), List(NV), List(P), Nil)
 
-    val adjectiveVerbArguments = List(
-      List(List(NV), Nil),
+    val adjectiveVerbArguments =
       List(List(J.reg), List(J.cmp), List(J.sup))
-    ).sequence.map(_.flatten).distinct
 
     val activeVerbs =
       List(
-        adjectiveVerbArguments,
+        List(optionalObject, adjectiveVerbArguments).sequence.map(_.flatten).distinct,
         List(objArgumentLists, obliqueArgumentLists).sequence.map(_.flatten).distinct
       ).flatten.map(t(NV, V.act) ++ _)
 
@@ -95,8 +99,10 @@ package object iqa {
     // g("how", J.reg),
     // g("how", "much", J.cmp),
 
+    // no passive verbs either
+
     TemplateRepo(
-      verbTemplates = (activeVerbs ++ passiveVerbs).map(Template(_)),
+      verbTemplates = (activeVerbs ++ List(t(NV, V.pss))).map(Template(_)),
       adjectiveTemplates = adjectives.map(Template(_)),
       comparativeAdjectiveTemplates = comparatives.map(Template(_)),
       superlativeAdjectiveTemplates = superlatives.map(Template(_)),
