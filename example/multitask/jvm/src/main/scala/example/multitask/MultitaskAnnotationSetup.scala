@@ -168,6 +168,8 @@ class MultitaskAnnotationSetup(
     Wiktionary.getInflectionsForTokens(tokens)
   }
 
+  lazy val pierreVinkenId = PTBSentenceId(PTB3SentencePath(WSJPath(0, 1), 0))
+
   def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[SentenceId]) = 1
 
   lazy val experiment = new QASRLAnnotationPipeline(
