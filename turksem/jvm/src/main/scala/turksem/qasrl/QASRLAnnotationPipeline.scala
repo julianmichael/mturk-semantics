@@ -97,8 +97,8 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   val localeQualificationTypeID = "00000000000000000071"
   val localeRequirement = new QualificationRequirement()
     .withQualificationTypeId(localeQualificationTypeID)
-    .withComparator("EqualTo")
-    .withLocaleValues(new Locale().withCountry("US"))
+    .withComparator("NotEqualTo")
+    .withLocaleValues(new Locale().withCountry("IN"))
     .withRequiredToPreview(false)
 
   val genAccDisqualTypeLabelString = generationAccuracyDisqualTypeLabel.fold("")(x => s"[$x] ")
@@ -238,7 +238,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     reward = settings.generationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, /* localeRequirement, */ genAccuracyRequirement, genCoverageRequirement
+      approvalRateRequirement, localeRequirement, genAccuracyRequirement, genCoverageRequirement
     ))
 
   lazy val genAjaxService = new Service[QASRLGenerationAjaxRequest[SID]] {
@@ -283,7 +283,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     reward = settings.validationReward,
     keywords = "language,english,question answering",
     qualRequirements = Array[QualificationRequirement](
-      approvalRateRequirement, /* localeRequirement, */ valAgreementRequirement
+      approvalRateRequirement, localeRequirement, valAgreementRequirement
     ))
 
   lazy val valAjaxService = new Service[QASRLValidationAjaxRequest[SID]] {
