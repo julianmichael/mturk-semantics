@@ -197,6 +197,14 @@ class QASRLGenerationClient[SID : Reader : Writer](
         val QAPair(question, answers, qaState) = qas(qaIndex)
 
         case class Suggestion(fullText: String, isComplete: Boolean)
+        object Suggestion {
+          implicit val suggestionOrder: Order[Suggestion] = new Order[Suggestion] {
+            override def compare(x: Suggestion, y: Suggestion) =
+              if(x.isComplete == y.isComplete) {
+                x.fullText.compare(y.fullText)
+              } else if(x.isComplete) -1 else 1
+          }
+        }
 
         case class AutocompleteState(suggestions: NonEmptyList[Suggestion], badStartIndexOpt: Option[Int])
 
@@ -243,7 +251,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                 }
               ).take(4) // number of suggested questions capped at 4 to filter out crowd of bad ones
               makeList(goodStates).map { options =>
-                AutocompleteState(NonEmptyList.fromList(questionSuggestions).fold(options)(sugg => (sugg ++ options.toList).distinct(Order.by[Suggestion, String](_.fullText))), None)
+                AutocompleteState(NonEmptyList.fromList(questionSuggestions).fold(options)(sugg => (sugg ++ options.toList).distinct), None)
               }
           }
         }

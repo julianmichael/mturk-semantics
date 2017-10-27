@@ -112,12 +112,12 @@ class TemplateStateMachine(
 
   val nonToEndingPrepositions = NonEmptyList.of(
     TemplateStateMachine.mostCommonPrepositions.head,
-    allChosenPrepositions.filterNot(_.endsWith("to")).toSeq: _*
+    allChosenPrepositions.filterNot(_.endsWith("to".lowerCase)).toSeq: _*
   ).distinct
 
   val toEndingPrepositions = NonEmptyList.of(
     "to".lowerCase,
-    allChosenPrepositions.filter(_.endsWith("to")).toSeq: _*
+    allChosenPrepositions.filter(_.endsWith("to".lowerCase)).toSeq: _*
   ).distinct
 
   import verbInflectedForms._

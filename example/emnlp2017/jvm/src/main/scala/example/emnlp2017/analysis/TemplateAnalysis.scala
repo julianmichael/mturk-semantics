@@ -45,7 +45,8 @@ object TemplateAnalysis {
     List(fullPos, oneWordOnlyPhase), fullAbstractivePipeline, List(dropPOSPhase),
     List(fullPos), fullAbstractivePipeline,
     List(generalizePlaceholderObjectsPhase, collapseProperAndPluralNounsPhase,
-         foldDeterminersPhase, dropNoSlotTemplatePhase, dropPOSPhase)
+         foldDeterminersPhase, dropNoSlotTemplatePhase, dropPOSPhase,
+         filterInfrequentTemplatesPhase(5))
   ).flatten
 
   def getDefaultAnalysis(label: String, data: QAData[SentenceId]) =
@@ -240,7 +241,6 @@ class TemplateAnalysis(
   ) = alignmentsBySentenceId.iterator.flatMap { case (id, qtasForSentence) =>
     qtasForSentence
       .map(_._2)
-      .filter(qta => templateCounts(qta.template) > 2)
       .groupBy(qta => getTriggerWordStem(qta))
       .flatMap { case (triggerStem, qtasForWord) =>
         def getAllPairwiseScores(
@@ -255,15 +255,14 @@ class TemplateAnalysis(
         getAllPairwiseScores(qtasForWord.toList)
     }
   }.toVector.groupBy(tuple => (tuple._1, tuple._2)).iterator.collect {
-    case ((template1, template2), similarities)
-        if template1 != template2 && templateCounts(template1) > 2 && templateCounts(template2) > 2 =>
+    case ((template1, template2), similarities) if template1 != template2 =>
       AggregateSimilarity(template1, template2, similarities.map(_._3).toList.sum, similarities.size)
   }.toVector.sorted
 
   def templateClusters(
     chosenSimilarities: Vector[AggregateSimilarity] = similarities(computeSetwiseAnswerSimilarity),
-    numInstancesThreshold: Int = 4,
-    accuracyThreshold: Double = 0.9
+    numInstancesThreshold: Int = 10,
+    accuracyThreshold: Double = 0.98
   ) = {
     implicit val qtOrdering = QuestionTemplate.questionTemplateOrder[TriggerSlot].toOrdering
     var updatedSimilarities = chosenSimilarities.toList
@@ -329,6 +328,59 @@ class TemplateAnalysis(
   lazy val interestingTemplatePairCounts = interestingQTAPairs
     .groupBy { case (qta1, qta2) => (qta1.template, qta2.template) }
     .toVector.sortBy(-_._2.size)
+
+  sealed trait TemplateAlignmentIndex
+  case class QuestionSlotIndex(i: Int) extends TemplateAlignmentIndex
+  case object AnswerIndex extends TemplateAlignmentIndex
+  object TemplateAlignmentIndex {
+    implicit val TemplateAlignmentIndexShow: Show[TemplateAlignmentIndex] = new Show[TemplateAlignmentIndex] {
+      override def show(tai: TemplateAlignmentIndex): String = tai match {
+        case QuestionSlotIndex(i) => s"$i"
+        case AnswerIndex => "A"
+      }
+    }
+  }
+  case class DirectedTemplateAlignment(
+    source: QuestionTemplate[TriggerSlot],
+    target: QuestionTemplate[TriggerSlot],
+    alignments: List[TemplateAlignmentIndex] // length = number of slots in target, each is index into source QA
+  )
+  object DirectedTemplateAlignment {
+    // implicit val directedTemplateAlignmentShow: Show[DirectedTemplateAlignment] = new Show[DirectedTemplateAlignment] {
+    //   override def show(dta: DirectedTemplateAlignment): String = {
+    //     dta.source.mapWithIndex(_._2).show + " / A \t-->\t" + dta.target.mapWithZippedList(dta.alignments, _._2).show
+    //   }
+    // }
+  }
+  // TODO make use of clusters to get better alignments?
+  lazy val directedTemplateAlignments = {
+    alignmentsBySentenceId.iterator.flatMap { case (id, qtasForSentence) =>
+      qtasForSentence.flatMap { case (_, qta) =>
+        val singleWordAnswerIndices = qta.sourcedQA.answers.filter(_.size == 1).map(_.head)
+        val singleWordQuestionAlignments = qta.alignments.map(_.filter(_.indices.size == 1).map(_.begin))
+        // excludes questions with noun placeholders
+        val allSourceAlignments = (singleWordAnswerIndices :: singleWordQuestionAlignments).sequence
+        for {
+          (_, otherQTA) <- qtasForSentence
+          if otherQTA != qta
+          result <- {
+            // excludes questions with noun placeholders
+            val targetQuestionIndexChoices = otherQTA.alignments
+              .map(_.filter(_.indices.size == 1).map(_.begin))
+              .sequence.toSet
+            for {
+              sourceAnswerIndex :: sourceQuestionAlignedIndices <- allSourceAlignments
+              targetQuestionAlignedIndices <- targetQuestionIndexChoices
+              crossTemplateAlignment <- targetQuestionAlignedIndices.map(i =>
+                (if(i == sourceAnswerIndex) List(AnswerIndex) else Nil) ++
+                  sourceQuestionAlignedIndices.collectIndices{ case `i` => true }.map(QuestionSlotIndex(_))
+              ).sequence
+            } yield DirectedTemplateAlignment(qta.template, otherQTA.template, crossTemplateAlignment)
+          }
+        } yield result
+      }
+    }.toVector
+  }
 
   def printAnalysis = {
     println(s"Intermediate results:")

@@ -203,6 +203,18 @@ class MultitaskAnnotationSetup(
         experiment.allGenInfos,
         experiment.allValInfos)
     )
+    saveOutputFile(
+      s"$filename-negative.tsv",
+      DataIO.makeNegExamplesTSV(
+        ids.toList,
+        SentenceId.toString,
+        experiment.allGenInfos,
+        experiment.allValInfos)
+    )
+  }
+
+  def writeOneTSV = {
+    saveAnnotationData("brown-dev", brownDev)
   }
 
   def writeAllTSVs = {

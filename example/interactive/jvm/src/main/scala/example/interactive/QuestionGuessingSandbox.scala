@@ -23,7 +23,7 @@ object QuestionGuessingSandbox {
 		"without"
   ).map(_.lowerCase)
 
-  lazy val templateAnalysis = TemplateAnalysis.getDefaultAnalysis("tiny", Datasets.ptbDev)
+  lazy val templateAnalysis = TemplateAnalysis.getDefaultAnalysis("consolidated", Datasets.trainDevPTB)
   lazy val qtasByInteractiveTemplate = templateAnalysis.alignmentsWithLabeledAnswers.flatMap {
     case (id, (qta, matchLabel, answerIndex)) =>
       val sentence = id.sentenceId.tokens

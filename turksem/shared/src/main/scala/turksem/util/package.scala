@@ -3,6 +3,8 @@ package turksem
 import cats.Order
 import cats.Foldable
 import cats.Reducible
+import cats.Traverse
+import cats.data.State
 import cats.implicits._
 
 import nlpdata.util.LowerCaseStrings._
@@ -142,6 +144,20 @@ package object util extends PackagePlatformExtensions {
     // def stdevSample(implicit N: Numeric[A]) = math.sqrt(a.varianceSample)
   }
 
+  implicit class RichTraverse[F[_]: Traverse, A](val fa: F[A]) {
+
+    def mapWithZippedList[B, C](bs: List[B], f: (A, Option[B]) => C): F[C] =
+      fa.traverse[State[List[B], ?], C](a =>
+        State((l: List[B]) =>
+          l match {
+            case Nil => (Nil, f(a, None))
+            case x :: xs => (xs, f(a, Some(x)))
+          })
+      ).runA(bs).value
+
+    def zipWithList[B](bs: List[B]): F[(A, Option[B])] = mapWithZippedList(bs, (_: A, _: Option[B]))
+  }
+
   implicit class RichList[A](val as: List[A]) extends AnyVal {
     def remove(i: Int) = as.take(i) ++ as.drop(i + 1)
     def tailOption: Option[List[A]] = if(as.nonEmpty) Some(as.tail) else None
@@ -180,7 +196,7 @@ package object util extends PackagePlatformExtensions {
       case None => Nil
       case Some((head, tailToGo)) => head :: tailToGo.unfoldList(f)
     }
-    def unfoldList[B](f: PartialFunction[A, (B, A)]): List[B] = a.unfoldList(f.lift)
+    def unfoldListPartial[B](f: PartialFunction[A, (B, A)]): List[B] = a.unfoldList(f.lift)
   }
 
   implicit class RichIterator[A](val t: Iterator[A]) extends AnyVal {

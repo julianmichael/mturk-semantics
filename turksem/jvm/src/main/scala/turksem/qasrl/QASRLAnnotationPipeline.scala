@@ -662,26 +662,4 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       println(f"${"Num invalids:"}%-20s$numInvalidAnswers%d")
       println(f"${"Total cost:"}%-20s$totalCost%.2f")
   }
-
-  // def allSentenceStats: Map[SID, SentenceStats[SID]] = {
-  //   val genInfosById = allGenInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
-  //   val valInfosById = allValInfos.groupBy(_.hit.prompt.genPrompt.id).withDefaultValue(Nil)
-  //   allIds.map { id =>
-  //     val afterGen = genInfosById(id)
-  //       .map(_.hit.prompt.keywords.toSet)
-  //       .foldLeft(emptyStatus(id))(_ withKeywords _)
-  //     val valStart = valInfosById(id)
-  //       .map(_.hit.prompt)
-  //       .foldLeft(afterGen)(_ beginValidation _)
-  //     val valFinish = valInfosById(id)
-  //       .foldLeft(valStart) {
-  //       case (status, hitInfo) => status.finishValidation(hitInfo.hit.prompt, hitInfo.assignments)
-  //     }
-  //     id -> QASRLSentenceTracker.makeStats(valFinish, genTaskSpec.hitTypeId, valTaskSpec.hitTypeId)
-  //   }.toMap
-  // }
-
-  // def aggSentenceStats: AggregateSentenceStats = AggregateSentenceStats.aggregate(
-  //   allSentenceStats.values.toList
-  // )
 }

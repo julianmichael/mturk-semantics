@@ -138,6 +138,24 @@ object TemplatingPhase {
     "drop POS templates", qta => !qta.template.exists(ts => PosTags.allPosTags.contains(ts.label))
   )
 
+  def filterInfrequentTemplatesPhase(threshold: Int) =
+    TemplatingPhase(
+      s"filter out templates appearing less than $threshold times", prev => {
+        val allowedTemplates = counts(prev.resultAlignments.map(_._2.template).toList)
+          .filter(_._2 >= threshold)
+          .map(_._1)
+          .toSet
+        val resultingAlignments = prev.resultAlignments.filter(pair => allowedTemplates.contains(pair._2.template))
+        val questionsToDrop = prev.resultAlignments.collect {
+          case (id, qta) if !allowedTemplates.contains(qta.template) => id -> qta.sourcedQA
+        }
+        TemplatingResult(
+          previousAlignments = prev.resultAlignments,
+          resultAlignments = resultingAlignments,
+          unalignedQuestions = prev.unalignedQuestions ++ questionsToDrop)
+      }
+    )
+
   val preStemAuxes = Set(
     "do", "did", "does", "to"
   ).map(_.lowerCase) ++ Inflections.willVerbs ++ Inflections.modalVerbs ++ Inflections.wouldVerbs
@@ -202,7 +220,15 @@ object TemplatingPhase {
     val templateTokens = posPairs.foldLeft(qTokens.toList.map(tok => TemplateString(tok.lowerCase): TemplateToken[TriggerSlot])) {
       case (tokens, (alignedQIndex, pos)) => tokens.updated(alignedQIndex, TemplateSlot(TriggerSlot(pos)))
     }
-    QuestionTemplateAlignment(sqa, QuestionTemplate(templateTokens), finalAlignments)
+    val triggerIndexOpt = templateTokens.collectFirstWithIndex {
+      case TemplateSlot(TriggerSlot(pos, _)) if PosTags.verbPosTags.contains(pos) => pos
+    } orElse templateTokens.collectFirstWithIndex {
+      case TemplateSlot(TriggerSlot(pos, _)) => pos
+    }
+    val templateTokensMaybeWithTrigger = triggerIndexOpt.fold(templateTokens) {
+      case (pos, i) => templateTokens.updated(i, TemplateSlot(TriggerSlot(pos, true)))
+    }
+    QuestionTemplateAlignment(sqa, QuestionTemplate(templateTokensMaybeWithTrigger), finalAlignments)
   }
 
   // fix the thing where it's getting rid of 's genitive clitics
@@ -259,11 +285,7 @@ object TemplatingPhase {
             if(PosTags.adverbPosTags.contains(pos)) => (acc, finishedAlignments, remainingAlignments, false)
         case (t @ TemplateSlot(TriggerSlot(pos, _)), (acc, finishedAlignments, a :: remainingAlignments, isPrevNoun)) =>
           if(isPrevNoun && PosTags.adjectivePosTags.contains(pos)) (acc, finishedAlignments, remainingAlignments, false)
-          else (t :: acc, a :: finishedAlignments, remainingAlignments, false)
-        case (t @ TemplateSlot(TriggerSlot(label, _)), (acc, finishedAlignments, a :: alignmentsToGo, _)) =>
-          (t :: acc, a :: finishedAlignments, alignmentsToGo, label.startsWith("NOUN"))
-        case (t @ TemplateSlot(_), (acc, finishedAlignments, a :: alignmentsToGo, _)) =>
-          (t :: acc, a :: finishedAlignments, alignmentsToGo, false)
+          else (t :: acc, a :: finishedAlignments, remainingAlignments, getNounLabel(pos).nonEmpty)
         case (t @ TemplateString(_), (acc, finishedAlignments, alignmentsToGo, _)) =>
           (t :: acc, finishedAlignments, alignmentsToGo, false)
       } match { case (toks, aligns, _, _) => (toks, aligns) }
@@ -371,13 +393,8 @@ object TemplatingPhase {
               case _ => false
             }
           }.toSet
-          val indexSetChoicesSorted = nounIndicesWithDeterminersAndNoOf.subsets.toVector.sortBy(-_.size)
-          val optionallyCollapsedTemplate =
-            indexSetChoicesSorted.iterator
-              .map(foldDeterminersBeforeIndices(qta.template))
-              .find(prevTemplates.contains)
-              .get // will always be present because the last set is empty so it's the original template
-          id -> qta.copy(template = optionallyCollapsedTemplate)
+          val newTemplate = foldDeterminersBeforeIndices(qta.template)(nounIndicesWithDeterminersAndNoOf)
+          id -> qta.copy(template = newTemplate)
         },
         unalignedQuestions)
     }
@@ -515,6 +532,7 @@ object TemplatingPhase {
 
   val negationWords = Inflections.negationWords + "n't".lowerCase
 
+  // TODO simple adjectives too?
   // for after verb extraction
   def abstractSimpleNounTemplateAlignment(qta: QuestionTemplateAlignment[TriggerSlot]): Option[QuestionTemplateAlignment[TriggerSlot]] = {
     object str {
