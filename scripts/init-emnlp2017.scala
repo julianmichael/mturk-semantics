@@ -6,6 +6,7 @@ import turkey._
 import turkey.tasks._
 import akka.pattern.ask
 import scala.concurrent.duration._
+import cats.implicits._
 val annotationPath = java.nio.file.Paths.get("annotations")
 implicit val timeout = akka.util.Timeout(5.seconds)
 implicit val config: TaskConfig = {

@@ -7,7 +7,8 @@ lazy val root = project.in(file("."))
              ai2JVM, ai2JS,
              multitaskJVM, multitaskJS,
              tqaJVM, tqaJS,
-             interactiveJVM, interactiveJS)
+             interactiveJVM, interactiveJS,
+             qposeJVM, qposeJS)
   .settings(
   publish := {},
   publishLocal := {})
@@ -16,12 +17,13 @@ lazy val commonSettings = Seq(
   organization := "com.github.julianmichael",
   scalaOrganization in ThisBuild := "org.typelevel", // for fixing stupid serialization woes
   scalaVersion in ThisBuild := "2.11.8",
-  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds"),
+  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds"/*, "-Ypartial-unification"*/),
   addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full),
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4"),
+  // addCompilerPlugin("io.tryp" %% "splain" % "0.2.6"),
   resolvers += Resolver.sonatypeRepo("snapshots"),
   libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
-  libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.10.0",
+  libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.11.0",
   libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
   libraryDependencies += "com.lihaoyi" %%% "upickle" % "0.4.3",
@@ -31,6 +33,7 @@ lazy val commonSettings = Seq(
 
 lazy val commonJVMSettings = Seq(
   fork in console := true,
+  connectInput in run := true,
   libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0",
   libraryDependencies += "edu.stanford.nlp" % "stanford-corenlp" % "3.6.0" classifier "models" // for automatically downloading pos-tagging model
 )
@@ -191,4 +194,17 @@ lazy val interactiveJVM = interactive.jvm.dependsOn(turksemJVM, emnlp2017JVM).se
   (resources in Compile) += (fastOptJS in (interactiveJS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (interactiveJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (interactiveJS, Compile)).value
+)
+
+lazy val qpose = crossProject.in(file("example/qpose"))
+  .settings(name := "turksem-qpose", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(exampleProjectJSSettings)
+
+lazy val qposeJS = qpose.js.dependsOn(turksemJS, emnlp2017JS)
+lazy val qposeJVM = qpose.jvm.dependsOn(turksemJVM, emnlp2017JVM).settings(
+  (resources in Compile) += (fastOptJS in (qposeJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (qposeJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (qposeJS, Compile)).value
 )

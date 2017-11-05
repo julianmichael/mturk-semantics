@@ -1,7 +1,7 @@
-package example.emnlp2017.analysis
+package turksem.gapfill
 
+import turksem.util.ContiguousSpan
 import turksem.qamr._
-import example.emnlp2017._
 
 import cats._
 import cats.data._
@@ -46,12 +46,6 @@ case class QuestionTemplate[+Slot](templateTokens: List[TemplateToken[Slot]]) {
     renderSlot: Slot => Vector[LowerCaseString]
   ): Vector[LowerCaseString] =
     fillSpansA[Id](renderSlot)
-
-  def fillSpansId(
-    id: SentenceId)(
-    implicit ev: Slot <:< ContiguousSpan
-  ): Vector[LowerCaseString] =
-    fillSpans((span: Slot) => span.getTokens(id).map(_.lowerCase))
 
   def substituteSlots[Arg, Out](
     arguments: List[Arg],
@@ -114,55 +108,23 @@ object QuestionTemplate {
   }
 }
 
-sealed trait Reinflection
-case object NoReinflection extends Reinflection
-case class VerbReinflection(form: Int) extends Reinflection
-case class NounReinflection(form: Int) extends Reinflection
-
-object Reinflection {
-
-  val noReinflection: Reinflection = NoReinflection
-  def verbReinflection(form: Int): Reinflection = VerbReinflection(form)
-  def nounReinflection(form: Int): Reinflection = NounReinflection(form)
-
-  implicit val reinflectionShow: Show[Reinflection] = Show.show { reinflection =>
-    reinflection match {
-      case NoReinflection => "_"
-      case VerbReinflection(form) => form match {
-        case 0 => s"_-vstem" // base/inf
-        case 1 => s"_-s(v)" // present
-        case 2 => s"_-ing(v)" // present participle
-        case 3 => s"_-ed(v)" // past
-        case 4 => s"_-en(v)" // past participle
-      }
-      case NounReinflection(form) => form match {
-        case 0 => s"_-nstem"
-        case 1 => s"_-s(n)"
-        case 2 => s"_-ing(n)"
-        case 3 => s"_-ed(n)"
-        case 4 => s"_-en(n)"
-      }
-    }
-  }
-}
-
 // QuestionTemplateAlignment is specific to a sentence and question about that sentence.
 
-case class QuestionTemplateAlignment[Slot](
-  sourcedQA: SourcedQA[SentenceId],
+case class QuestionTemplateAlignment[SID, Slot](
+  sourcedQA: SourcedQA[SID],
   template: QuestionTemplate[Slot],
   alignments: List[List[ContiguousSpan]]) {
   def answers = sourcedQA.answers
   def sentenceId = sourcedQA.id.sentenceId
   def question = sourcedQA.question
 
-  if(template.size != alignments.size) {
-    println("=== Template v alignment size disagreement ===")
-    println(Text.render(sourcedQA.id.sentenceId))
-    println(sourcedQA)
-    println(template)
-    println(alignments)
-  }
+  // if(template.size != alignments.size) {
+  //   println("=== Template v alignment size disagreement ===")
+  //   println(Text.render(sourcedQA.id.sentenceId))
+  //   println(sourcedQA)
+  //   println(template)
+  //   println(alignments)
+  // }
   val templateWithAlignmentLists = template.replaceSlots(alignments)
 
   def matches(iq: QuestionTemplate[ContiguousSpan]): Boolean =

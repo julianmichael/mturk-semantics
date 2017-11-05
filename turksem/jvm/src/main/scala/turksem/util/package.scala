@@ -1,11 +1,18 @@
 package turksem.util
 
+import cats.implicits._
+
 import java.io.StringWriter
 import java.io.PrintWriter
 
 import scala.util.{Try, Success, Failure}
 
 import com.typesafe.scalalogging.Logger
+
+import nlpdata.datasets.wiktionary.Inflections
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
+import nlpdata.util.LowerCaseStrings._
 
 trait PackagePlatformExtensions {
   def sendToClipboard(s: String): Unit = {
@@ -29,4 +36,18 @@ trait PackagePlatformExtensions {
         None
     }
   }
+
+  def getInflectionalSentence[SID : HasTokens](sid: SID)(
+    implicit inflections: Inflections
+  ) = {
+    PosTagger.posTag(sid.tokens).map { w =>
+      InflectionalWord(
+        token = w.token,
+        pos = w.pos,
+        index = w.index,
+        inflectedFormsOpt = inflections.getInflectedForms(w.token.lowerCase)
+      )
+    }.toVector
+  }
+
 }

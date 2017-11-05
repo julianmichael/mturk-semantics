@@ -1,7 +1,6 @@
 package example.emnlp2017
 
 import nlpdata.datasets.wiktionary.Inflections
-import turksem.qamr.IsStopword
 import turksem.qamr._
 import turksem.util._
 

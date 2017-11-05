@@ -1,5 +1,7 @@
 package turksem.iqa
 
+import turksem.util.InflectionalWord
+
 import simulacrum._
 import scala.language.implicitConversions
 

@@ -2,6 +2,8 @@ package turksem.iqa
 
 import cats.implicits._
 
+import turksem.util.InflectionalWord
+
 import nlpdata.util.LowerCaseStrings._
 
 case class CountBasedQuestionGuesser(

@@ -1,6 +1,5 @@
-package example.emnlp2017.analysis
+package example.emnlp2017
 
-import example.emnlp2017._
 import turksem.qamr._
 import turksem.util._
 

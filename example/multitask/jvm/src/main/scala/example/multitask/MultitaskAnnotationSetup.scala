@@ -213,10 +213,6 @@ class MultitaskAnnotationSetup(
     )
   }
 
-  def writeOneTSV = {
-    saveAnnotationData("brown-dev", brownDev)
-  }
-
   def writeAllTSVs = {
     saveAnnotationData("brown-train", brownTrain)
     saveAnnotationData("brown-dev", brownDev)

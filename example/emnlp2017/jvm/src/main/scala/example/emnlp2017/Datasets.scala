@@ -1,7 +1,4 @@
-package example.emnlp2017.analysis
-
-import example.emnlp2017.SentenceId
-import example.emnlp2017.loadOutputFile
+package example.emnlp2017
 
 import turksem.qamr.QAData
 import turksem.qamr.SourcedQA

@@ -69,9 +69,19 @@ object DataIO {
     sb.toString
   }
 
-
   // how much and how long must come first so we register them as question prefix
   val whPhrases = List("how much", "how long", "who", "what", "when", "where", "why", "how").map(_.lowerCase)
+
+  // def makeNegExamplesTSV[SID : HasTokens](
+  //   ids: List[SID],
+  //   writeId: SID => String, // serialize sentence ID for distribution in data file
+  //   questionsById: Map[SID, Map[Int, List[String]]])(
+  //   implicit inflections: Inflections
+  // ) = {
+  //   for {
+
+  //   }
+  // }
 
   def makeNegExamplesTSV[SID : HasTokens](
     ids: List[SID],

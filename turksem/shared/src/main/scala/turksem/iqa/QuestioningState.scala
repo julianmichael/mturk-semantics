@@ -1,6 +1,7 @@
 package turksem.iqa
 
 import turksem.util.ContiguousSpan
+import turksem.util.InflectionalWord
 
 import cats.implicits._
 

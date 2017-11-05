@@ -47,6 +47,10 @@ package object util extends PackagePlatformExtensions {
 
   def const[A](a: A): Any => A = _ => a
 
+  object IntMatch {
+    def unapply(s: String): Option[Int] = scala.util.Try(s.toInt).toOption
+  }
+
   // for when a list is already nearly sorted
   // def insertionSort[A : Order](la: List[A]) = la.foldLeft(List.empty[A]) {
   //   case (reverseSortedSoFar, nextElem) =>
@@ -104,6 +108,11 @@ package object util extends PackagePlatformExtensions {
 
   implicit class RichFoldable[F[_]: Foldable, A](val fa: F[A]) {
 
+    def getAtIndex(i: Int): Option[A] = fa.foldM[Either[A, ?], Int](i) {
+      case (0, a) => Left(a)
+      case (i, _) => Right(i - 1)
+    }.swap.toOption
+
     def sum(implicit N: Numeric[A]): A = fa.foldLeft(N.fromInt(0))(N.plus)
 
     def product(implicit N: Numeric[A]): A = fa.foldLeft(N.fromInt(0))(N.times)
@@ -145,6 +154,12 @@ package object util extends PackagePlatformExtensions {
   }
 
   implicit class RichTraverse[F[_]: Traverse, A](val fa: F[A]) {
+
+    def mapWithIndex[B](f: (A, Int) => B): F[B] =
+      fa.traverse[State[Int, ?], B](a => State((s: Int) => (s + 1, f(a, s)))).runA(0).value
+
+    def zipWithIndex: F[(A, Int)] =
+      fa.mapWithIndex(_ -> _)
 
     def mapWithZippedList[B, C](bs: List[B], f: (A, Option[B]) => C): F[C] =
       fa.traverse[State[List[B], ?], C](a =>

@@ -29,6 +29,7 @@ case class TenseAspect(
 object TenseAspect {
 
   def simplePast = TenseAspect(PastTense, false, false, false)
+  def singularPresent = TenseAspect(PresentTense, false, false, false)
 
   class VerbRenderer(
     verbInflectedForms: InflectedForms,

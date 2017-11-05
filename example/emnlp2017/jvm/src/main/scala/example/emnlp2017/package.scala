@@ -22,13 +22,43 @@ import nlpdata.datasets.wiki1k.Wiki1kPath
 import nlpdata.datasets.wiktionary
 import nlpdata.datasets.wiktionary.Inflections
 
-import turksem.qamr.IsStopword
-
 import scala.util.Try
 import scala.util.Random
 import upickle.default._
 
 package object emnlp2017 {
+
+  // sealed trait Reinflection
+  // case object NoReinflection extends Reinflection
+  // case class VerbReinflection(form: Int) extends Reinflection
+  // case class NounReinflection(form: Int) extends Reinflection
+
+  // object Reinflection {
+
+  //   val noReinflection: Reinflection = NoReinflection
+  //   def verbReinflection(form: Int): Reinflection = VerbReinflection(form)
+  //   def nounReinflection(form: Int): Reinflection = NounReinflection(form)
+
+  //   implicit val reinflectionShow: Show[Reinflection] = Show.show { reinflection =>
+  //     reinflection match {
+  //       case NoReinflection => "_"
+  //       case VerbReinflection(form) => form match {
+  //         case 0 => s"_-vstem" // base/inf
+  //         case 1 => s"_-s(v)" // present
+  //         case 2 => s"_-ing(v)" // present participle
+  //         case 3 => s"_-ed(v)" // past
+  //         case 4 => s"_-en(v)" // past participle
+  //       }
+  //       case NounReinflection(form) => form match {
+  //         case 0 => s"_-nstem"
+  //         case 1 => s"_-s(n)"
+  //         case 2 => s"_-ing(n)"
+  //         case 3 => s"_-ed(n)"
+  //         case 4 => s"_-en(n)"
+  //       }
+  //     }
+  //   }
+  // }
 
   import java.nio.file.{Paths, Path, Files}
   private[this] val liveDataPath = Paths.get("live-data/emnlp2017")
@@ -113,58 +143,6 @@ package object emnlp2017 {
       if qTokenForm.equals(sTokenForm)
     } yield (qIndex, sIndex)
     allIndices.toSet
-  }
-
-  case class InflectedAlignment(
-    index: Int,
-    reinflectionOpt: Option[Int])
-
-  def getReinflectedQuestionSentenceAlignments(
-    sentence: Vector[String],
-    questionTokens: Vector[String])(
-    implicit inflections: Inflections,
-    isStopword: IsStopword
-  ): Map[Int, List[InflectedAlignment]] = {
-    val lowerSentence = sentence.map(_.lowerCase)
-    val lowerQuestion = questionTokens.map(_.lowerCase)
-    val allIndices = for {
-      (sToken, sIndex) <- lowerSentence.zipWithIndex
-      if !isStopword(sToken)
-      lowerSToken = Text.normalizeToken(sToken).lowerCase
-      inflectedFormsOpt = inflections.getInflectedForms(lowerSToken)
-      allForms = inflections.getAllForms(sToken)
-      (lowerQToken, qIndex) <- lowerQuestion.zipWithIndex
-      if !isStopword(lowerQToken)
-      res <- {
-        if(!allForms.contains(lowerQToken)) {
-          Nil // no alignment
-        } else inflectedFormsOpt match {
-          case None =>
-            if(lowerSToken == lowerQToken) {
-              List(qIndex -> InflectedAlignment(sIndex, None)) // no reinflection necessary
-            } else {
-              Nil
-            }
-          case Some(inflectedForms) =>
-            if(lowerQToken == inflectedForms.past && lowerQToken == inflectedForms.pastParticiple) {
-              // since these two are very often the same, we want to intelligently distinguish between them
-              val pastPartAuxes = Set("be", "am", "is", "are", "was", "were", "has", "have", "had").map(_.lowerCase)
-              if(lowerQuestion.take(qIndex).exists(pastPartAuxes.contains)) {
-                List(qIndex -> InflectedAlignment(sIndex, Some(4))) // index of past participle in allForms
-              } else {
-                List(qIndex -> InflectedAlignment(sIndex, Some(3))) // index of past in allForms
-              }
-            } else if(lowerSToken == lowerQToken) {
-              List(qIndex -> InflectedAlignment(sIndex, None)) // no reinflection necessary
-            } else {
-              List(qIndex -> InflectedAlignment(sIndex, inflectedForms.allForms.indexOpt(lowerQToken)))
-            }
-        }
-      }
-    } yield res
-    allIndices.groupBy(_._1).map {
-      case (qi, pairs) => qi -> pairs.map(_._2).toList
-    }
   }
 
   val ptbVerbPosTags = Set("VB", "VBD", "VBG", "VBN", "VBP", "VBZ")
