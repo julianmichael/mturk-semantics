@@ -58,7 +58,7 @@ class AnnotationSetup(label: String)(implicit config: TaskConfig) {
   }
   implicit val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  val templateAnalysis = new TemplateAnalysis(label, Datasets.ptbDev)
+  val templateAnalysis = new TemplateAnalysis(label, Datasets.trainDevPTB)
 
   lazy val allPrompts = allIds.map(GapfillPrompt(_))
 

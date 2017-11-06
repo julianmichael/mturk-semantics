@@ -70,8 +70,6 @@ class SciSRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   // this is the prompt shown when you preview the task at, e.g., localhost:8888?taskKey=generation
-  lazy val sampleGenPrompt = allPrompts.head
-
   // add bootstrap to the page for some nicer styling
   lazy val (taskPageHeadLinks, taskPageBodyLinks) = {
     import scalatags.Text.all._
@@ -100,7 +98,7 @@ class SciSRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   // this object holds the necessary information to start uploading tasks to Turk.
   // TaskSpecifications in an annotation run should be in 1-to-1 correspondence with HIT Type IDs.
   lazy val genTaskSpec = TaskSpecification.NoAjax[SciSRLPrompt[SID], SciSRLResponse, SciSRLApiRequest[SID], SciSRLApiResponse](
-    SciSRLSettings.generationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    SciSRLSettings.generationTaskKey, genHITType, genApiFlow, allPrompts,
     frozenHITTypeId = frozenGenerationHITTypeID,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks)
@@ -122,7 +120,7 @@ class SciSRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
             helper = genHelper,
             numAssignmentsPerPrompt = 1,
             initNumHITsToKeepActive = 3,
-            _promptSource = List(sampleGenPrompt).iterator)))
+            _promptSource = allPrompts.take(1).iterator)))
 
   // instantiating this object starts the webserver that hosts the task & previews.
   lazy val server = new Server(List(genTaskSpec))

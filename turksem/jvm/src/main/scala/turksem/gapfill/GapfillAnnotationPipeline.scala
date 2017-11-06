@@ -88,8 +88,6 @@ class GapfillAnnotationPipeline[
     }
   }
 
-  lazy val sampleGenPrompt = allPrompts.head
-
   lazy val (taskPageHeadLinks, taskPageBodyLinks) = {
     import scalatags.Text.all._
     val headLinks = List(
@@ -117,7 +115,7 @@ class GapfillAnnotationPipeline[
   // this object holds the necessary information to start uploading tasks to Turk.
   // TaskSpecifications in an annotation run should be in 1-to-1 correspondence with HIT Type IDs.
   lazy val genTaskSpec = TaskSpecification.NoWebsockets[GapfillPrompt[SID], GapfillResponse, GapfillAjaxRequest[SID, Guesser]](
-    gapfillTaskKey, genHITType, genAjaxService, sampleGenPrompt,
+    gapfillTaskKey, genHITType, genAjaxService, allPrompts,
     frozenHITTypeId = frozenGenerationHITTypeID,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks)

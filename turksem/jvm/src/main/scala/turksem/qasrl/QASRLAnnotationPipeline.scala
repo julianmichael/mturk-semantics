@@ -268,8 +268,6 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     }
   }
 
-  lazy val sampleGenPrompt = allPrompts(3)
-
   // validation task definition
 
   val valHITType = HITType(
@@ -300,13 +298,13 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   lazy val sampleValPrompt = QASRLValidationPrompt[SID](
-    sampleGenPrompt, "", "", "",
+    allPrompts.head, "", "", "",
     List(VerbQA(0, "Who did someone look at?", List(ContiguousSpan(4, 4))),
          VerbQA(1, "Who looked at someone?", List(ContiguousSpan(0, 1))),
          VerbQA(1, "How did someone look at someone?", List(ContiguousSpan(5, 5)))))
 
   lazy val valTaskSpec = TaskSpecification.NoWebsockets[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationAjaxRequest[SID]](
-    settings.validationTaskKey, valHITType, valAjaxService, sampleValPrompt,
+    settings.validationTaskKey, valHITType, valAjaxService, Vector(sampleValPrompt),
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks,
     frozenHITTypeId = frozenValidationHITTypeId)
@@ -389,7 +387,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
   lazy val valActor = actorSystem.actorOf(Props(new TaskManager(valHelper, valManager)))
 
   val genTaskSpec = TaskSpecification.NoWebsockets[QASRLGenerationPrompt[SID], List[VerbQA], QASRLGenerationAjaxRequest[SID]](
-    settings.generationTaskKey, genHITType, genAjaxService, sampleGenPrompt,
+    settings.generationTaskKey, genHITType, genAjaxService, allPrompts,
     taskPageHeadElements = taskPageHeadLinks,
     taskPageBodyElements = taskPageBodyLinks,
     frozenHITTypeId = frozenGenerationHITTypeId)

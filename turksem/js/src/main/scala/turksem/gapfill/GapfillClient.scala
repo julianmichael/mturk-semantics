@@ -195,6 +195,7 @@ class GapfillClient[
       val highlightedSpans: Map[(Int, Int), Set[Int]] = highlightingState.span
         .groupBy(t => (t._1, t._2))
         .map { case (index, tuples) => index -> tuples.map(_._3) }
+        .withDefaultValue(Set.empty[Int])
       scope.state >>= (st =>
         scope.modState(answerO(st.curFocus._1, st.curFocus._2).set(getNewAnswerSpan(sentence, highlightedSpans(st.curFocus))))
       )

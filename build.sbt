@@ -8,7 +8,8 @@ lazy val root = project.in(file("."))
              multitaskJVM, multitaskJS,
              tqaJVM, tqaJS,
              interactiveJVM, interactiveJS,
-             qposeJVM, qposeJS)
+             qposeJVM, qposeJS,
+             paposeJVM, paposeJS)
   .settings(
   publish := {},
   publishLocal := {})
@@ -207,4 +208,17 @@ lazy val qposeJVM = qpose.jvm.dependsOn(turksemJVM, emnlp2017JVM).settings(
   (resources in Compile) += (fastOptJS in (qposeJS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (qposeJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (qposeJS, Compile)).value
+)
+
+lazy val papose = crossProject.in(file("example/papose"))
+  .settings(name := "turksem-papose", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(exampleProjectJSSettings)
+
+lazy val paposeJS = papose.js.dependsOn(turksemJS, emnlp2017JS)
+lazy val paposeJVM = papose.jvm.dependsOn(turksemJVM, emnlp2017JVM).settings(
+  (resources in Compile) += (fastOptJS in (paposeJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (paposeJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (paposeJS, Compile)).value
 )

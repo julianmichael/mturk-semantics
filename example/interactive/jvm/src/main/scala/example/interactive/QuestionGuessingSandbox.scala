@@ -1,7 +1,8 @@
 package example.interactive
 
 import example.emnlp2017._
-import example.emnlp2017.analysis._
+
+import turksem.gapfill.QuestionTemplateAlignment
 
 import turksem.iqa._
 

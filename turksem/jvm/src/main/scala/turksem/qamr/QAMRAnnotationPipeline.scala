@@ -53,6 +53,12 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
     }.toSet
   }
 
+  lazy val allPrompts = allIds.flatMap { id =>
+    val tokens = id.tokens
+    val splits = tokenSplits(tokens)
+    splits.map(GenerationPrompt[SID](id, _))
+  }
+
   import config.hitDataService
 
   val approvalRateQualificationTypeID = "000000000000000000L0"
@@ -174,10 +180,8 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
       GenerationApiResponse(id.tokens)
   }
 
-  lazy val sampleGenPrompt = GenerationPrompt[SID](allIds.head, tokenSplits(allIds.head.tokens).head)
-
   lazy val genTaskSpec = TaskSpecification.NoAjax[GenerationPrompt[SID], List[WordedQAPair], GenerationApiRequest[SID], GenerationApiResponse](
-    expHGenerationTaskKey, genHITType, genApiFlow, sampleGenPrompt,
+    expHGenerationTaskKey, genHITType, genApiFlow, allPrompts,
     frozenHITTypeId = frozenGenerationHITTypeID)
 
   // validation task definition
@@ -202,23 +206,17 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   lazy val sampleValPrompt = ValidationPrompt[SID](
-    sampleGenPrompt, "", "",
+    allPrompts.head, "", "",
     List(WordedQAPair(0, "Who is awesome?", Set(1, 2, 3, 4)),
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9)),
          WordedQAPair(1, "What did Julian do?", Set(5, 6, 8, 9))))
 
   lazy val valTaskSpec = TaskSpecification.NoAjax[ValidationPrompt[SID], List[ValidationAnswer], ValidationApiRequest[SID], ValidationApiResponse](
-    expHValidationTaskKey, valHITType, valApiFlow, sampleValPrompt,
+    expHValidationTaskKey, valHITType, valApiFlow, Vector(sampleValPrompt),
     frozenHITTypeId = frozenValidationHITTypeID)
 
   // hit management --- circularly defined so they can communicate
-
-  lazy val allPrompts = allIds.flatMap { id =>
-    val tokens = id.tokens
-    val splits = tokenSplits(tokens)
-    splits.map(GenerationPrompt[SID](id, _))
-  }
 
   import config.actorSystem
 
@@ -318,7 +316,7 @@ class QAMRAnnotationPipeline[SID : Reader : Writer : HasTokens](
   }
 
   lazy val dashboardTaskSpec = TaskSpecification.NoAjax[Unit, Unit, Unit, SummaryInfo[SID]](
-    expHDashboardTaskKey, null, dashboardApiFlow, (),
+    expHDashboardTaskKey, null, dashboardApiFlow, Vector(()),
     frozenHITTypeId = null)
 
   lazy val server = new Server(List(genTaskSpec, valTaskSpec, dashboardTaskSpec))
