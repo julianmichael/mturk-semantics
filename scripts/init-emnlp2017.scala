@@ -1,5 +1,4 @@
 import example.emnlp2017._
-import example.emnlp2017.analysis._
 import turksem.qamr._
 import turksem.util._
 import turkey._

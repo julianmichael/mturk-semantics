@@ -4,6 +4,7 @@ import cats.Order
 import cats.Foldable
 import cats.Reducible
 import cats.Traverse
+import cats.data.NonEmptyList
 import cats.data.State
 import cats.implicits._
 
@@ -19,6 +20,8 @@ package object util extends PackagePlatformExtensions {
   val whWords = Set("who", "what", "when", "where", "why", "how", "which", "whose").map(_.lowerCase)
 
   def beginsWithWh(s: String): Boolean = whWords.exists(w => s.toLowerCase.startsWith(w))
+
+  def beginsWithWhSpace(s: String): Boolean = whWords.exists(w => s.lowerCase.startsWith(w + " ".lowerCase))
 
   def majorities[A](sets: Iterable[Set[A]]): Set[A] = {
     sets.flatten.toSet
@@ -122,6 +125,11 @@ package object util extends PackagePlatformExtensions {
 
   implicit class RichFoldable[F[_]: Foldable, A](val fa: F[A]) {
 
+    // def counts: Map[A, Int] =
+    //   fa.foldLeft(Map.empty[A, Int].withDefaultValue(0)) {
+    //     case (m, a) => m.updated(a, m(a) + 1)
+    //   }
+
     def getAtIndex(i: Int): Option[A] = fa.foldM[Either[A, ?], Int](i) {
       case (0, a) => Left(a)
       case (i, _) => Right(i - 1)
@@ -152,6 +160,16 @@ package object util extends PackagePlatformExtensions {
     def lastOption: Option[A] = fa.foldLeft(None: Option[A]) {
       case (None, a) => Some(a)
       case (_, a) => Some(a)
+    }
+
+    def modes: List[A] = {
+      NonEmptyList.fromList(fa.toList.groupBy(identity).toList.sortBy(-_._2.size)).map { nel =>
+        nel.filter(_._2.size == nel.head._2.size)
+      }.foldK.map(_._1)
+    }
+
+    def groupSecondByFirst[B, C](implicit ev: (A =:= (B, C))): Map[B, List[C]] = {
+      fa.toList.groupBy(_._1).map { case (k, ps) => k -> ps.map(_._2) }
     }
 
     // TODO other optional versions
@@ -208,6 +226,15 @@ package object util extends PackagePlatformExtensions {
     // TODO phase out for collect methods above
     def indicesYielding[B](f: A => Option[B]): Seq[(Int, B)] =
       as.zipWithIndex.flatMap(pair => f(pair._1).map(b => (pair._2, b)))
+
+    def collectPrefix[B](f: PartialFunction[A, B]): List[B] = {
+      as.takeWhile(f.isDefinedAt).map(f)
+    }
+
+    def uncons: Option[(A, List[A])] = as match {
+      case Nil => None
+      case x :: xs => Some(x -> xs)
+    }
   }
 
   implicit class RichValForOptions[A](val a: A) extends AnyVal {

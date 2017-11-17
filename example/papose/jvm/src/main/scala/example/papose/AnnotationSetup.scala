@@ -19,6 +19,8 @@ import turkey.tasks.TaskConfig
 
 import upickle.default._
 
+import turksem.posey._
+
 class AnnotationSetup(label: String)(implicit config: TaskConfig) {
 
   import example.emnlp2017.Datasets
@@ -75,7 +77,7 @@ class AnnotationSetup(label: String)(implicit config: TaskConfig) {
             nePairStrings.map(s =>
               s.split(" ").map(_.split("-").toList.map(_.toInt)).toList match {
                 case List(begin1, end1) :: List(begin2, end2) :: Nil =>
-                  ContiguousSpan(begin1, end1) -> ContiguousSpan(begin2, end2)
+                  ContiguousSpan(begin1, end1 - 1) -> ContiguousSpan(begin2, end2 - 1)
               }
             )
           )

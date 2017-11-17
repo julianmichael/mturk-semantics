@@ -24,6 +24,7 @@ lazy val commonSettings = Seq(
   // addCompilerPlugin("io.tryp" %% "splain" % "0.2.6"),
   resolvers += Resolver.sonatypeRepo("snapshots"),
   libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
+  libraryDependencies += "org.typelevel" %%% "cats-effect" % "0.3",
   libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.11.0",
   libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",

@@ -109,16 +109,54 @@ class DataExporter(implicit config: TaskConfig) {
     isQAGood(sid, wqa, valAnswers) && getWordsInQuestion(sid.tokens, questionTokens).size == 1
   }
 
-  // TODO write TSVs for more subsets of questions, as well as interesting templates.
-  // in particular:
-  // 2. templates for questions using only a single word from the sentence.
-  // 3. templates for such questions, split by POS of the word, and then listed for each POS grouped together.
-  // 4. the particular case of questions about nouns where the answer is also a single noun
-  def writeFilteredTSVs = {
-    // only one word:
-    // TODO how many questions fit this criterion?
-    saveOutputFile("train-1word.tsv", makeReadableTSV(trainIds, goodQAContainsOneSentenceWord))
+  // final output functions below
+
+  def makeFullTSV(ids: List[SentenceId]): String =
+    makeFinalQAPairTSV(ids, SentenceId.toString, workerAnonymizationMap, allGenInfos, allValInfos, false)
+
+  def makeFilteredTSV(ids: List[SentenceId]): String =
+    makeFinalQAPairTSV(ids, SentenceId.toString, workerAnonymizationMap, allGenInfos, allValInfos, true)
+
+  def makeReadableTSV(ids: List[SentenceId]): String =
+    makeFinalReadableQAPairTSV(ids, SentenceId.toString, workerAnonymizationMap, allGenInfos, allValInfos, true)
+
+  def writeFinalSentenceIndex = {
+    saveOutputFile("final/wiki-sentences.tsv", makeSentenceIndex(allIds, SentenceId.toString))
   }
+
+  def writeFinalFullTSVs = {
+    saveOutputFile("final/full/train.tsv", makeFullTSV(trainIds))
+    saveOutputFile("final/full/dev.tsv", makeFullTSV(devIds))
+    saveOutputFile("final/full/test.tsv", makeFullTSV(testIds))
+    saveOutputFile("final/full/ptb.tsv", makeFullTSV(allPTBIds))
+  }
+
+  def writeFinalFilteredTSVs = {
+    saveOutputFile("final/filtered/train.tsv", makeFilteredTSV(trainIds))
+    saveOutputFile("final/filtered/dev.tsv", makeFilteredTSV(devIds))
+    saveOutputFile("final/filtered/test.tsv", makeFilteredTSV(testIds))
+    saveOutputFile("final/filtered/ptb.tsv", makeFilteredTSV(allPTBIds))
+  }
+
+  def writeFinalReadableTSVs = {
+    saveOutputFile("final/readable/train.tsv", makeReadableTSV(trainIds))
+    saveOutputFile("final/readable/dev.tsv", makeReadableTSV(devIds))
+    saveOutputFile("final/readable/test.tsv", makeReadableTSV(testIds))
+  }
+
+  def writeAllTSVs = {
+    writeFinalFullTSVs
+    writeFinalFilteredTSVs
+    writeFinalReadableTSVs
+    writeFinalSentenceIndex
+  }
+
+  // lazy val train = Datasets.train
+  // lazy val dev = Datasets.dev
+  // def printExampleGraph(data: QAData, n: Int): Unit = {
+  //   val (sid, sqas) = data.sentenceToQAs.iterator.take(n + 1).last
+  //   println(Text.render(sid))
+  // }
 
   // TODO maybe move to annotation package in orig qamr project
 

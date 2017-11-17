@@ -1,8 +1,16 @@
 package example.emnlp2017
 
+import cats.Monoid
+import cats.Show
+import cats.data.State
+import cats.implicits._
+
 import nlpdata.datasets.wiktionary.Inflections
+
 import turksem.qamr._
 import turksem.util._
+
+import monocle.macros._
 
 case class QAMRNode(begin: Int, end: Int) {
   def isProperSubspanOf(other: QAMRNode): Boolean =
@@ -13,14 +21,102 @@ case class QAMRNode(begin: Int, end: Int) {
   def union(other: QAMRNode): QAMRNode =
     QAMRNode(math.min(this.begin, other.begin), math.max(this.end, other.end))
 }
-case class QAMRPAS(pred: QAMRNode, args: Map[QAMRNode, Set[String]]) {
-  def addArg(question: Option[String], answer: QAMRNode): QAMRPAS = {
-    val qs = args.get(answer).getOrElse(Set.empty[String])
-    val newQs = question.fold(qs)(qs + _)
-    QAMRPAS(pred, args.updated(answer, newQs))
+case class QAMRPAS[Label](pred: QAMRNode, args: Map[QAMRNode, Label]) {
+  def mapLabels[B](f: Label => B): QAMRPAS[B] = QAMRPAS(
+    pred, args.map { case (node, label) => node -> f(label) })
+
+  def addArg(answer: QAMRNode, arg: Label)(implicit m: Monoid[Label]): QAMRPAS[Label] = {
+    val qs = args.get(answer).getOrElse(m.empty)
+    QAMRPAS(pred, args.updated(answer, qs |+| arg))
   }
 }
-case class QAMRGraph(paStructures: Map[QAMRNode, QAMRPAS])
+case class QAMRGraph[Label](paStructures: Map[QAMRNode, QAMRPAS[Label]]) {
+  def mapLabels[B](f: Label => B): QAMRGraph[B] = QAMRGraph(
+    paStructures.map { case (node, pas) => node -> pas.mapLabels(f) }
+  )
+
+  def roots = paStructures.collect {
+    case (pred, pas) if !paStructures.exists(pair => pair._2.args.keySet.contains(pred)) => pred
+  }.toVector
+
+  private def hasCycleAux(node: QAMRNode, ancestors: Set[QAMRNode]): Boolean = {
+    ancestors.contains(node) || paStructures.get(node).nonEmptyAnd(pas =>
+      pas.args.keys.exists(hasCycleAux(_, ancestors + node))
+    )
+  }
+  def hasCycle: Boolean = roots.exists(hasCycleAux(_, Set.empty[QAMRNode]))
+
+  def stringFormAux(
+    tokens: Vector[String],
+    node: QAMRNode
+  )(implicit labelShow: Show[Label]): State[Set[QAMRNode], Vector[String]] = {
+    for {
+      coveredNodes <- State.get[Set[QAMRNode]]
+      children <- if(coveredNodes.contains(node)) {
+        State.pure[Set[QAMRNode], Vector[String]](Vector.empty)
+      } else {
+        State.modify[Set[QAMRNode]](_ + node).flatMap(_ =>
+          paStructures.get(node).fold(State.pure[Set[QAMRNode], Vector[String]](Vector.empty))(pas =>
+            pas.args.toVector.sortBy(_._1.begin).map { case (arg, label) =>
+              stringFormAux(tokens, arg).map((":" + label.show) +: _)
+            }.sequence[State[Set[QAMRNode], ?], Vector[String]].map(_.flatten)
+          )
+        )
+      }
+    } yield ("(" +: (node.begin to node.end).map(tokens)).toVector ++ children :+ ")"
+  }
+  def stringForm(
+    tokens: Vector[String]
+  )(implicit labelShow: Show[Label]): Vector[String] = {
+    roots
+      .sortBy(_.begin)
+      .map(stringFormAux(tokens, _))
+      .sequence[State[Set[QAMRNode], ?], Vector[String]].map(_.flatten)
+      .runA(Set.empty[QAMRNode]).value
+  }
+
+  @Lenses case class PrettyPrintState(
+    coveredNodes: Set[QAMRNode],
+    curIndent: Int)
+  object PrettyPrintState {
+    def init = PrettyPrintState(Set.empty, 0)
+    def addNode(n: QAMRNode) = PrettyPrintState.coveredNodes.modify(_ + n)
+    def indent = PrettyPrintState.curIndent.modify(_ + 1)
+    def unindent = PrettyPrintState.curIndent.modify(_ - 1)
+  }
+  def prettyStringAux(
+    tokens: Vector[String],
+    node: QAMRNode
+  )(implicit labelShow: Show[Label]): State[PrettyPrintState, String] = {
+    for {
+      s <- State.get[PrettyPrintState]
+      children <- if(s.coveredNodes.contains(node)) {
+        State.pure[PrettyPrintState, String]("")
+      } else {
+        State.modify[PrettyPrintState](PrettyPrintState.addNode(node) andThen PrettyPrintState.indent).flatMap(_ =>
+          paStructures.get(node).fold(State.pure[PrettyPrintState, String](""))(pas =>
+            pas.args.toVector.sortBy(_._1.begin).map { case (arg, label) =>
+              prettyStringAux(tokens, arg).flatMap(argStr =>
+                State.get[PrettyPrintState].map(s =>
+                  ("\n" + ("\t" * s.curIndent) + ":" + label.show) + " " + argStr
+                )
+              )
+            }.sequence[State[PrettyPrintState, ?], String].map(" " + _.mkString)
+          )
+        ).flatMap(x => State.modify[PrettyPrintState](PrettyPrintState.unindent).as(x))
+      }
+    } yield "(" + " " + (node.begin to node.end).map(tokens).mkString(" ") + children + " " + ")"
+  }
+  def prettyString(
+    tokens: Vector[String]
+  )(implicit labelShow: Show[Label]): String = {
+    roots
+      .sortBy(_.begin)
+      .map(prettyStringAux(tokens, _))
+      .sequence[State[PrettyPrintState, ?], String].map(_.mkString("\n"))
+      .runA(PrettyPrintState.init).value
+  }
+}
 
 object StructureInduction {
 
@@ -36,8 +132,8 @@ object StructureInduction {
 
   case class Edge(qOpt: Option[String], source: QAMRNode, target: QAMRNode)
 
-  def isNewEdgeProjective(
-    curGraph: Map[QAMRNode, QAMRPAS],
+  def isNewEdgeProjective[Label](
+    curGraph: Map[QAMRNode, QAMRPAS[Label]],
     newEdge: Edge
   ): Boolean = {
     curGraph.forall { case (pred, QAMRPAS(_, args)) =>
@@ -129,23 +225,20 @@ object StructureInduction {
       qa <- qasByPred.get(predSpan).getOrElse(Nil)
       qTokens = getWordsInQuestion(tokens, tokenize(qa.question))
       answer <- qa.answers
-      argSpan <- spansByPredicateness
+      argSpan <- spansByPredicateness.find(_.forall(answer.contains)) // only attach to most predicatey answer
       if spanPredicateness(predSpan) > spanPredicateness(argSpan)
-      argInAnswer = argSpan.forall(answer.contains)
-      if argSpan.forall(qTokens) || argInAnswer
-      qOpt = if(argInAnswer) Some(qa.question) else None
-    } yield Edge(qOpt, QAMRNode(predSpan.min, predSpan.max), QAMRNode(argSpan.min, argSpan.max))
+    } yield Edge(Some(qa.question), QAMRNode(predSpan.min, predSpan.max), QAMRNode(argSpan.min, argSpan.max))
 
     // agg edges together and ignore non-projective ones
 
-    val paStructures = edges.foldLeft(Map.empty[QAMRNode, QAMRPAS]) {
+    val paStructures = edges.foldLeft(Map.empty[QAMRNode, QAMRPAS[Set[String]]]) {
       case (acc, e @ Edge(qOpt, source, target)) =>
         if(isNewEdgeProjective(acc, e)) {
           acc.updated(
             source,
             acc.get(source) match {
               case None => QAMRPAS(source, Map(target -> qOpt.toSet))
-              case Some(pas) => pas.addArg(qOpt, target)
+              case Some(pas) => pas.addArg(target, qOpt.toSet)
             }
           )
         } else acc
@@ -224,7 +317,7 @@ object StructureInduction {
     }
   }
 
-  def renderPredIDSeq(tokens: Vector[String], graph: QAMRGraph): String = {
+  def renderPredIDSeq[Label](tokens: Vector[String], graph: QAMRGraph[Label]): String = {
     val predIndices = graph.paStructures.keys.map(_.begin).toSet
     val tags = tokens.indices.map { index =>
       if(predIndices.contains(index)) "V" else "O"
@@ -232,7 +325,7 @@ object StructureInduction {
     tokens.mkString(" ") + " ||| " + tags.mkString(" ")
   }
 
-  def renderArgTaggedSeqs(tokens: Vector[String], graph: QAMRGraph): List[String] = {
+  def renderArgTaggedSeqs[Label](tokens: Vector[String], graph: QAMRGraph[Label]): List[String] = {
     graph.paStructures.iterator.map { case (pred, QAMRPAS(_, args)) =>
       def getTag(index: Int): String =
         if(index == pred.begin) "B-V"

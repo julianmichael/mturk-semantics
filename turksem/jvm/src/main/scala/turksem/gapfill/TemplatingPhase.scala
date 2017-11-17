@@ -180,7 +180,13 @@ class TemplatingPhases[SID : HasTokens](
       if(toks.last == "?") toks
       else toks ++ List("?")
     }
-    val alignments = getReinflectedQuestionSentenceAlignments(sentenceTokens, qTokens)
+    val alignments = getReinflectedQuestionSentenceAlignments(sentenceTokens, qTokens).flatMap {
+      case (alignedQIndex, possiblyReinflectedSentenceAlignments) =>
+        val newSentenceAlignments = possiblyReinflectedSentenceAlignments.filter(inflAlignment =>
+          posTaggedSentenceTokens(inflAlignment.index).pos != "IN"
+        )
+        if(newSentenceAlignments.isEmpty) None else Some(alignedQIndex -> newSentenceAlignments)
+    }
     val alignedQIndices = alignments.keySet.size
     val posPairsAndAlignments = for {
       (alignedQIndex, possiblyReinflectedSentenceAlignments) <- alignments.toList
@@ -505,7 +511,7 @@ class TemplatingPhases[SID : HasTokens](
   def abstractVerbTemplate(template: QuestionTemplate[TriggerSlot]): Option[AbstractedVerbTemplate] = {
     for {
       TemplateString(initWh) :: initTail <- Option(template.templateTokens)
-      if template.toList.filter(ts => PosTags.verbPosTags.contains(ts.label)).size == 1 // must have exactly 1 verb (can generalize more later, maybe?)
+      // if template.toList.filter(ts => PosTags.verbPosTags.contains(ts.label)).size == 1 // must have exactly 1 verb (can generalize more later, maybe?)
       (wh, tail) = if(
         initWh == "how".lowerCase && initTail.headOption.exists(_ == TemplateString("much".lowerCase))
       ) ("how much".lowerCase, initTail.tail) else (initWh, initTail)
@@ -569,9 +575,9 @@ class TemplatingPhases[SID : HasTokens](
         case str("how") :: str("many") :: noun(n) :: _ => str("how") :: str("many") :: noun(n) :: str("?") :: Nil
         case str("how") :: str("much") :: noun(n) :: _ => str("how") :: str("much") :: noun(n) :: str("?") :: Nil
         case str("what" | "which") :: str(kind) :: str("of") :: noun(n) :: _
-            if kindClassifiers.contains(kind.lowerCase) => str("<what kind of>") :: noun(n) :: str("?") :: Nil
+            if kindClassifiers.contains(kind.lowerCase) => str("what") :: str("kind") :: str("of") :: noun(n) :: str("?") :: Nil
         case str("what" | "which") :: str(kind) :: noun(n) :: _
-            if kindClassifiers.contains(kind.lowerCase) => str("<what kind of>") :: noun(n) :: str("?") :: Nil
+            if kindClassifiers.contains(kind.lowerCase) => str("what") :: str("kind") :: str("of") :: noun(n) :: str("?") :: Nil
         case str(wh) :: noun(n) :: _ if whatWhichWhose.contains(wh) => str(wh) :: noun(n) :: str("?") :: Nil
         case _ => null
       }

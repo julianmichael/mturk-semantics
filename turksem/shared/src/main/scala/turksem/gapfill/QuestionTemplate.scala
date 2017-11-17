@@ -11,14 +11,19 @@ import nlpdata.util.Text
 import nlpdata.util.LowerCaseStrings._
 
 sealed trait TemplateToken[+Slot] {
-  def isTemplateSlot: Boolean = this match {
-    case TemplateSlot(_) => true
-    case TemplateString(_) => false
+  def getTemplateSlot: Option[TemplateSlot[Slot]] = this match {
+    case t @ TemplateSlot(_) => Some(t)
+    case _ => None
   }
-  def isTemplateString: Boolean = !isTemplateSlot
+  def isTemplateSlot: Boolean = getTemplateSlot.nonEmpty
+  def getTemplateString: Option[TemplateString] = this match {
+    case t @ TemplateString(_) => Some(t)
+    case _ => None
+  }
+  def isTemplateString: Boolean = getTemplateString.nonEmpty
 }
 case class TemplateString(value: LowerCaseString) extends TemplateToken[Nothing]
-case class TemplateSlot[+Slot](s: Slot) extends TemplateToken[Slot]
+case class TemplateSlot[+Slot](slot: Slot) extends TemplateToken[Slot]
 object TemplateToken {
   def templateString[Slot](value: LowerCaseString): TemplateToken[Slot] = TemplateString(value)
   def templateSlot[Slot](s: Slot): TemplateToken[Slot] = TemplateSlot(s)
