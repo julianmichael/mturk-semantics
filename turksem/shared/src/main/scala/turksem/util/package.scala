@@ -121,6 +121,11 @@ package object util extends PackagePlatformExtensions {
     def variance(implicit N: Numeric[A]) = a.sse / a.size
 
     def stdev(implicit N: Numeric[A]) = math.sqrt(a.variance)
+
+    // TODO more principled
+    def modesNel: NonEmptyList[A] = {
+      NonEmptyList.fromList(a.modes).get
+    }
   }
 
   implicit class RichFoldable[F[_]: Foldable, A](val fa: F[A]) {

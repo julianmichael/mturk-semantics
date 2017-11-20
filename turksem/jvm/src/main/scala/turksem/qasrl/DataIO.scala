@@ -20,7 +20,9 @@ object DataIO {
     ids: List[SID],
     writeId: SID => String, // serialize sentence ID for distribution in data file
     genInfos: List[HITInfo[QASRLGenerationPrompt[SID], List[VerbQA]]],
-    valInfos: List[HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]]
+    valInfos: List[HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]],
+    collapseQuestionLabels: Boolean = false)(
+    implicit inflections: Inflections
   ): String = {
     val genInfosBySentenceId = genInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
     val valInfosByGenAssignmentId = valInfos.groupBy(_.hit.prompt.sourceAssignmentId).withDefaultValue(Nil)
@@ -46,18 +48,26 @@ object DataIO {
             if(valAnswerSpans.size != 2) {
               System.err.println("Warning: don't have 2 validation answers for question. Actual number: " + valAnswerSpans.size)
             } else {
-              shouldIncludeSentence = true
-              sentenceSB.append("\t")
-              sentenceSB.append(wqa.verbIndex.toString + "\t")
-              sentenceSB.append(wqa.question + "\t") // question string written by worker
-              sentenceSB.append(
-                (wqa.answers :: valAnswerSpans).map { spans =>
-                  spans
-                    .map(span => s"${span.begin}-${span.end}")
-                    .mkString(";")
-                }.mkString("\t")
-              )
-              sentenceSB.append("\n")
+              val qLabelOpt = if(collapseQuestionLabels) {
+                for {
+                  inflForms <- inflections.getInflectedForms(sentenceTokens(wqa.verbIndex).lowerCase)
+                  label <- QALabelMapper.getLabelForQuestion(sentenceTokens, inflForms, wqa.question)
+                } yield label
+              } else Option(wqa.question)
+              qLabelOpt.foreach { label =>
+                shouldIncludeSentence = true
+                sentenceSB.append("\t")
+                sentenceSB.append(wqa.verbIndex.toString + "\t")
+                sentenceSB.append(label + "\t") // question string written by worker
+                sentenceSB.append(
+                  (wqa.answers :: valAnswerSpans).map { spans =>
+                    spans
+                      .map(span => s"${span.begin}-${span.end}")
+                      .mkString(";")
+                  }.mkString("\t")
+                )
+                sentenceSB.append("\n")
+              }
             }
           }
         }

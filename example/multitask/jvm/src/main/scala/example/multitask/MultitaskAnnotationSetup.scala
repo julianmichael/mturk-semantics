@@ -169,26 +169,31 @@ class MultitaskAnnotationSetup(
 
   def saveAnnotationData(
     filename: String,
-    ids: Vector[SentenceId]
+    ids: Vector[SentenceId],
+    collapseQuestionLabels: Boolean = false
   ) = {
+    if(!collapseQuestionLabels) {
+      saveOutputFile(
+        s"$filename-readable.tsv",
+        DataIO.makeReadableQAPairTSV(
+          ids.toList,
+          SentenceId.toString,
+          identity,
+          experiment.allGenInfos,
+          experiment.allValInfos,
+          (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
+      )
+    }
     saveOutputFile(
-      s"$filename-readable.tsv",
-      DataIO.makeReadableQAPairTSV(
-        ids.toList,
-        SentenceId.toString,
-        identity,
-        experiment.allGenInfos,
-        experiment.allValInfos,
-        (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
-    )
-    saveOutputFile(
-      s"$filename.tsv",
+      if(collapseQuestionLabels) s"$filename-collapsed.tsv" else s"$filename.tsv",
       DataIO.makeQAPairTSV(
         ids.toList,
         SentenceId.toString,
         experiment.allGenInfos,
-        experiment.allValInfos)
+        experiment.allValInfos,
+        collapseQuestionLabels)
     )
+    // TODO collapse labels for negative sampling
     saveOutputFile(
       s"$filename-negative.tsv",
       DataIO.makeNegExamplesTSV(
@@ -199,12 +204,12 @@ class MultitaskAnnotationSetup(
     )
   }
 
-  def writeAllTSVs = {
-    saveAnnotationData("brown-train", brownTrain)
-    saveAnnotationData("brown-dev", brownDev)
-    saveAnnotationData("brown-test", brownTest)
-    saveAnnotationData("bc-train", ontoNotesTrain)
-    saveAnnotationData("bc-dev", ontoNotesDev)
-    saveAnnotationData("bc-test", ontoNotesTest)
+  def writeAllTSVs(collapseQuestionLabels: Boolean = false) = {
+    saveAnnotationData("brown-train", brownTrain, collapseQuestionLabels)
+    saveAnnotationData("brown-dev", brownDev, collapseQuestionLabels)
+    saveAnnotationData("brown-test", brownTest, collapseQuestionLabels)
+    saveAnnotationData("bc-train", ontoNotesTrain, collapseQuestionLabels)
+    saveAnnotationData("bc-dev", ontoNotesDev, collapseQuestionLabels)
+    saveAnnotationData("bc-test", ontoNotesTest, collapseQuestionLabels)
   }
 }
