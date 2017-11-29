@@ -1,7 +1,8 @@
 package turksem.gapfill
 
 import turksem._
-import turksem.qamr._
+import qamr._
+import qamr.util.IsStopword
 import turksem.util._
 
 import cats._

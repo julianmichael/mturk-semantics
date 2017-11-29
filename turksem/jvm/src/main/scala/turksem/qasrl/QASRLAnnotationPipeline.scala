@@ -22,13 +22,14 @@ import nlpdata.util.PosTags
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.datasets.wiktionary.Inflections
 
-import turkey._
-import turkey.tasks._
+import spacro._
+import spacro.tasks._
+import spacro.util.Span
 
 import turksem._
 import turksem.util._
-import turksem.qamr._
-import turksem.HasKeyIndices.ops._
+import qamr._
+import qamr.HasKeyIndices.ops._
 
 import upickle.default._
 
@@ -299,9 +300,9 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
 
   lazy val sampleValPrompt = QASRLValidationPrompt[SID](
     allPrompts.head, "", "", "",
-    List(VerbQA(0, "Who did someone look at?", List(ContiguousSpan(4, 4))),
-         VerbQA(1, "Who looked at someone?", List(ContiguousSpan(0, 1))),
-         VerbQA(1, "How did someone look at someone?", List(ContiguousSpan(5, 5)))))
+    List(VerbQA(0, "Who did someone look at?", List(Span(4, 4))),
+         VerbQA(1, "Who looked at someone?", List(Span(0, 1))),
+         VerbQA(1, "How did someone look at someone?", List(Span(5, 5)))))
 
   lazy val valTaskSpec = TaskSpecification.NoWebsockets[QASRLValidationPrompt[SID], List[QASRLValidationAnswer], QASRLValidationAjaxRequest[SID]](
     settings.validationTaskKey, valHITType, valAjaxService, Vector(sampleValPrompt),
@@ -517,7 +518,7 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     Text.render(sentence) + "\n" +
       info.hit.prompt.qaPairs.zip(info.assignments.map(_.response).transpose).map {
         case (VerbQA(verbIndex, question, answers), validationAnswers) =>
-          val answerString = answers.map(s => Text.renderSpan(sentence, s.indices)).mkString(" / ")
+          val answerString = answers.map(s => Text.renderSpan(sentence, (s.begin to s.end).toSet)).mkString(" / ")
           val validationRenderings = validationAnswers.map(QASRLValidationAnswer.render(sentence, _, info.hit.prompt.qaPairs))
           val allValidationsString = validationRenderings.toList match {
             case Nil => ""

@@ -15,7 +15,7 @@ import java.nio.file.{Files, Paths}
 
 import scala.util.Try
 
-import turkey.tasks.TaskConfig
+import spacro.tasks.TaskConfig
 
 import upickle.default._
 
@@ -67,12 +67,12 @@ class AnnotationSetup(label: String)(implicit config: TaskConfig) {
   }
   implicit val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  def readMissingPairRecord(line: String): Option[MissingPairRecord] = {
+  def readPoseyPrompt(line: String): Option[PoseyPrompt[SentenceId]] = {
     (line.trim.split("\t").toList: @unchecked) match {
       case fileId :: sentenceNum :: pairStrings =>
         val sid = SentenceId.fromString(s"$fileId:$sentenceNum".replaceAll("/", ":").replaceAll(".txt", ""))
         NonEmptyList.fromList(pairStrings).map(nePairStrings =>
-          MissingPairRecord(
+          PoseyPrompt[SentenceId](
             sid,
             nePairStrings.map(s =>
               s.split(" ").map(_.split("-").toList.map(_.toInt)).toList match {
@@ -85,9 +85,9 @@ class AnnotationSetup(label: String)(implicit config: TaskConfig) {
     }
   }
 
-  lazy val trainMissing = loadInputFile("train-missing.tsv").get.flatMap(readMissingPairRecord).toVector
-  lazy val devMissing   = loadInputFile(  "dev-missing.tsv").get.flatMap(readMissingPairRecord).toVector
-  lazy val testMissing  = loadInputFile( "test-missing.tsv").get.flatMap(readMissingPairRecord).toVector
+  lazy val trainMissing = loadInputFile("train-missing.tsv").get.flatMap(readPoseyPrompt).toVector
+  lazy val devMissing   = loadInputFile(  "dev-missing.tsv").get.flatMap(readPoseyPrompt).toVector
+  lazy val testMissing  = loadInputFile( "test-missing.tsv").get.flatMap(readPoseyPrompt).toVector
 
   lazy val allPrompts = weightedRoundRobin(List(trainMissing, devMissing, testMissing))
 

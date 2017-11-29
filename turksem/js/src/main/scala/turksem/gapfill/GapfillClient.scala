@@ -1,6 +1,7 @@
 package turksem.gapfill
 
-import turkey.tasks._
+import spacro.tasks._
+import spacro.ui._
 
 import cats.implicits._
 import cats.Traverse

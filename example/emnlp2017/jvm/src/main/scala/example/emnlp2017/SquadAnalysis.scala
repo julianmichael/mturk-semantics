@@ -1,6 +1,7 @@
 package example.emnlp2017
 
-import turksem.qamr._
+import qamr._
+import qamr.example.AnnotationSetup
 import turksem.util._
 
 import cats._
@@ -13,7 +14,9 @@ import nlpdata.util.Text
 import argonaut._
 import Argonaut._
 
-object SquadAnalysis {
+class SquadAnalysis(
+  setup: AnnotationSetup
+) {
 
   case class Subspan(begin: Int, end: Int) {
     def getSubstring(string: String) = string.substring(begin, end)
@@ -47,7 +50,7 @@ object SquadAnalysis {
 
   // map from ID to answer string
   def readSquadPredictions(predictionsFilename: String): Map[String, String] = {
-    val jsonStr = loadInputFile(predictionsFilename).get.mkString
+    val jsonStr = setup.loadInputFile(predictionsFilename).get.mkString
     Parse.parseOption(jsonStr).get.objectOrEmpty.toMap.map {
       case (k, v) => k -> v.string.get.toString
     }
@@ -55,7 +58,7 @@ object SquadAnalysis {
 
   def readSquadData(predictionsFilename: String) = {
     val predictions = readSquadPredictions(predictionsFilename)
-    val squadJson = Parse.parseOption(loadInputFile("squad-dev-v1.1.json").get.mkString).get
+    val squadJson = Parse.parseOption(setup.loadInputFile("squad-dev-v1.1.json").get.mkString).get
     val dataArray = squadJson.field("data").get.array.get
     dataArray.iterator.flatMap { file =>
       file.field("paragraphs").get.array.get.iterator.flatMap { paragraph =>

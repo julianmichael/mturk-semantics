@@ -1,11 +1,11 @@
 // package turksem.qasrl
 
 // import turksem._
-// import turksem.qamr.SentenceStats
-// import turksem.qamr.AggregateSentenceStats
+// import qamr.SentenceStats
+// import qamr.AggregateSentenceStats
 
-// import turkey._
-// import turkey.tasks._
+// import spacro._
+// import spacro.tasks._
 
 // import nlpdata.util._
 

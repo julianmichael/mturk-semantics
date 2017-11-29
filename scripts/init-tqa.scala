@@ -1,10 +1,10 @@
 import example.tqa._
-import turksem.qamr._
+import qamr._
 import turksem.qasrl._
 import turksem.util._
-import turkey._
-import turkey.tasks._
-import turkey.util._
+import spacro._
+import spacro.tasks._
+import spacro.util._
 import akka.pattern.ask
 import scala.concurrent.duration._
 

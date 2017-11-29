@@ -1,7 +1,7 @@
 package example.ai2
 
-import turksem.qamr.QAMRSettings
-import turksem.qamr.QAMRDispatcher
+import qamr.QAMRSettings
+import qamr.QAMRDispatcher
 import turksem.util._
 
 import japgolly.scalajs.react.vdom.html_<^._

@@ -5,17 +5,32 @@ import cats.data.StateT
 import cats.data.NonEmptyList
 import cats.implicits._
 
-import turksem.qamr._
+import qamr._
+import qamr.util.IsStopword
+import qamr.example.AnnotationSetup
+import qamr.example.SentenceId
+import qamr.example.PTBSentenceId
+import qamr.analysis.Datasets
 import turksem.util._
 
-import turkey._
-import turkey.tasks._
+import spacro._
+import spacro.tasks._
 
 import nlpdata.util.Text
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.util.HasTokens.ops._
 
-class GraphExporter {
+import java.nio.file.Paths
+
+class GraphExporter(
+  setup: AnnotationSetup)(
+  implicit config: TaskConfig
+) {
+
+  import setup.SentenceIdHasTokens
+  import setup.isStopword
+
+  val datasets = new Datasets(Paths.get("lib/qamr/data"))
 
   def getQuestionLabelSimple(qs: Set[String]): String = {
     qs.toVector
@@ -29,7 +44,11 @@ class GraphExporter {
   def useWholeQuestion(qs: Set[String]): String = qs.headOption.getOrElse("unk")
 
   // just ptb all right now...
-  lazy val questionLabelMapper = new QuestionLabelMapper(Datasets.trainDevPTB)
+  lazy val questionLabelMapper = new QuestionLabelMapper(
+    setup,
+    datasets.train)
+
+  import questionLabelMapper.inflections
 
   def useNewLabels(sid: SentenceId): (Set[String] => Option[String]) = {
     val qtasWithStuff = questionLabelMapper.getLabeledQAsForId(sid)
@@ -76,9 +95,9 @@ class GraphExporter {
   def printPTBDevGraph(doc: Int, sent: Int, wholeQ: Boolean = false): Unit = {
     import nlpdata.datasets.ptb._
     val sid = PTBSentenceId(PTBSentencePath(PTBPath(f"00/WSJ_00$doc%02d.MRG"), sent))
-    val sqas = Datasets.ptbAll.sentenceToQAs(sid)
+    val sqas = datasets.ptb.sentenceToQAs(sid)
     println(Text.render(sid))
-    val inducer = new StructureInduction.GraphInducer(sid.tokens, sqas)
+    val inducer = new GraphInducer(new StructureInduction, sid.tokens, sqas)
     val graph = inducer.standardQAMRGraph
     if(wholeQ) {
       println(graph.mapLabels(useWholeQuestion).prettyString(sid.tokens))
@@ -101,7 +120,7 @@ class GraphExporter {
           g <- StateT.lift[IO, Map[String, Int], QAMRGraph[String]](
             IO {
               System.out.print(".")
-              val inducer = new StructureInduction.GraphInducer(sid.tokens, sqas)
+              val inducer = new GraphInducer(new StructureInduction, sid.tokens, sqas)
               val graph = inducer.standardQAMRGraph.mapLabels(useNewLabelsWithUnk(sid))
               sentSB.append(sid.tokens.mkString(" ") + "\n")
               graphSB.append(graph.stringForm(sid.tokens).mkString(" ") + "\n")
@@ -119,8 +138,8 @@ class GraphExporter {
       }.toList.sequence[LabelTrackingIO, Unit].as(())
       _ <- StateT.lift[IO, Map[String, Int], Unit](
         IO {
-          saveOutputFile(s"$label-sents.txt", sentSB.toString)
-          saveOutputFile(s"$label-graphs.txt", graphSB.toString)
+          setup.saveOutputFile(s"$label-sents.txt", sentSB.toString)
+          setup.saveOutputFile(s"$label-graphs.txt", graphSB.toString)
         }
       )
     } yield ()
@@ -128,10 +147,10 @@ class GraphExporter {
 
   def writeAllGraphFiles(prefix: String) = {
     val st = for {
-      _ <- writeSentenceAndGraphFiles(s"$prefix/dev", Datasets.dev)
-      _ <- writeSentenceAndGraphFiles(s"$prefix/test", Datasets.test)
-      _ <- writeSentenceAndGraphFiles(s"$prefix/ptb", Datasets.ptbAll)
-      _ <- writeSentenceAndGraphFiles(s"$prefix/train", Datasets.train)
+      _ <- writeSentenceAndGraphFiles(s"$prefix/dev", datasets.dev)
+      _ <- writeSentenceAndGraphFiles(s"$prefix/test", datasets.test)
+      _ <- writeSentenceAndGraphFiles(s"$prefix/ptb", datasets.ptb)
+      _ <- writeSentenceAndGraphFiles(s"$prefix/train", datasets.train)
       labelCounts <- StateT.get[IO, Map[String, Int]]
       _ <- StateT.lift[IO, Map[String, Int], Unit](
         IO {
@@ -172,7 +191,7 @@ class GraphExporter {
 
   // TODO use streams
   def readPrelimDependencyGraphs(inputFilepath: String): List[(SentenceId, QAMRDependencyGraph[PrelimLabel], Vector[LemmaPosWord])] = {
-    val lines = loadInputFile(inputFilepath).get
+    val lines = setup.loadInputFile(inputFilepath).get
     case class Chunking(chunks: List[NonEmptyList[String]], curChunk: List[String]) {
       def addLine(line: String) = if(line.isEmpty) finishChunk else Chunking(chunks, line :: curChunk)
       def finishChunk = NonEmptyList.fromList(curChunk).fold(this)(x => Chunking(x.reverse :: chunks, Nil))
@@ -231,7 +250,7 @@ class GraphExporter {
       outSB.append(tokenLinesStr)
       outSB.append("\n")
     }
-    saveOutputFile(outputFilepath, outSB.toString)
+    setup.saveOutputFile(outputFilepath, outSB.toString)
   }
 
   def supportCounts = {
@@ -269,36 +288,4 @@ class GraphExporter {
     writeDependencyGraphs(devGraphTriples, s"graphs/word-relabeled/dev.txt")
     writeDependencyGraphs(testGraphTriples, s"graphs/word-relabeled/test.txt")
   }
-
-  // def makeCompleteTSV(ids: List[SentenceId]): String =
-  //   makeQAPairTSV(ids, SentenceId.toString, workerAnonymizationMap, allGenInfos, allValInfos)
-
-  // def makeReadableTSV(
-  //   ids: List[SentenceId],
-  //   includeQA: (SentenceId, WordedQAPair, List[ValidationAnswer]) => Boolean = isQAGood): String =
-  //   makeReadableQAPairTSV(ids, SentenceId.toString, workerAnonymizationMap, allGenInfos, allValInfos, includeQA)
-
-  // def writeTSVs = {
-  //   saveOutputFile("sentences.tsv", makeSentenceIndex(allIds: List[SentenceId], SentenceId.toString))
-  //   saveOutputFile("train.tsv", makeCompleteTSV(trainIds))
-  //   saveOutputFile("dev.tsv", makeCompleteTSV(devIds))
-  //   saveOutputFile("test.tsv", makeCompleteTSV(testIds))
-  //   saveOutputFile("train-readable.tsv", makeReadableTSV(trainIds))
-  //   saveOutputFile("dev-readable.tsv", makeReadableTSV(devIds))
-  //   saveOutputFile("test-readable.tsv", makeReadableTSV(testIds))
-  // }
-
-  // def writePTBTSVs = {
-  //   saveOutputFile("ptb-sentences.tsv", makeSentenceIndex(allPTBIds, SentenceId.toString))
-  //   saveOutputFile("ptb-train.tsv", makeCompleteTSV(ptbTrainIds))
-  //   saveOutputFile("ptb-dev.tsv", makeCompleteTSV(ptbDevIds))
-  //   saveOutputFile("ptb-test.tsv", makeCompleteTSV(ptbTestIds))
-  //   saveOutputFile("ptb-amr.tsv", makeCompleteTSV(ptbAMRIds))
-  //   saveOutputFile("ptb-readable.tsv", makeReadableTSV(allPTBIds))
-  // }
-
-  // def goodQAContainsOneSentenceWord(sid: SentenceId, wqa: WordedQAPair, valAnswers: List[ValidationAnswer]) = {
-  //   val questionTokens = Tokenizer.tokenize(wqa.question)
-  //   isQAGood(sid, wqa, valAnswers) && getWordsInQuestion(sid.tokens, questionTokens).size == 1
-  // }
 }

@@ -7,7 +7,9 @@ import cats.implicits._
 
 import nlpdata.datasets.wiktionary.Inflections
 
-import turksem.qamr._
+import qamr._
+import qamr.util.IsStopword
+import qamr.example.SentenceId
 import turksem.util._
 
 import monocle.macros._
@@ -118,7 +120,11 @@ case class QAMRGraph[Label](paStructures: Map[QAMRNode, QAMRPAS[Label]]) {
   }
 }
 
-object StructureInduction {
+case class Edge(qOpt: Option[String], source: QAMRNode, target: QAMRNode)
+
+class StructureInduction(
+  implicit inflections: Inflections
+) {
 
   def isBetween(
     query: Int,
@@ -129,8 +135,6 @@ object StructureInduction {
       else (references._2, references._1)
     query >= lower && query <= higher
   }
-
-  case class Edge(qOpt: Option[String], source: QAMRNode, target: QAMRNode)
 
   def isNewEdgeProjective[Label](
     curGraph: Map[QAMRNode, QAMRPAS[Label]],
@@ -167,7 +171,7 @@ object StructureInduction {
     isStopword: IsStopword
   ): Set[Set[Int]] = {
     val allContiguousSpans = qas.flatMap { sqa =>
-      val qSpan = getWordsInQuestion(tokens, tokenize(sqa.question));
+      val qSpan = getWordsInQuestion(tokens, Tokenizer.tokenize(sqa.question));
       (qSpan :: sqa.answers).flatMap(breakIntoContiguous)
     }
 
@@ -177,144 +181,6 @@ object StructureInduction {
       )
     ).toSet
 
-  }
-
-  class GraphInducer(
-    tokens: Vector[String], qas: List[SourcedQA[SentenceId]])(
-    implicit inflections: Inflections,
-    isStopword: IsStopword) {
-
-    val allContiguousSpans = qas.flatMap { sqa =>
-      val qSpan = getWordsInQuestion(tokens, tokenize(sqa.question));
-      (qSpan :: sqa.answers).flatMap(breakIntoContiguous)
-    }
-
-    val minimalContiguousSpans = getMinimalContiguousSpans(tokens, qas)
-
-    val minimalSpanQuestionAppearanceCounts = Scorer[Set[Int], Int](
-      qas.flatMap { qa =>
-        val qSpan = getWordsInQuestion(tokens, tokenize(qa.question))
-        breakIntoContiguous(qSpan).filter(minimalContiguousSpans.contains)
-      }
-    )
-
-    val minimalSpanAllAppearanceCounts = Scorer[Set[Int], Int](
-      allContiguousSpans.filter(minimalContiguousSpans.contains)
-    )
-
-    def spanPredicateness(s: Set[Int]): Double =
-      minimalSpanQuestionAppearanceCounts(s).toDouble / minimalSpanAllAppearanceCounts(s)
-
-    val spansByPredicateness = {
-      val spanVec = minimalContiguousSpans.toVector
-      spanVec.zip(spanVec.map(spanPredicateness))
-        .sortBy(-_._2)
-        .map(_._1)
-    }
-
-    val qasByPred = qas.groupBy { qa =>
-      spansByPredicateness.iterator.filter {
-        span => span.forall(getWordsInQuestion(tokens, tokenize(qa.question)).contains)
-      }.nextOption
-    }.collect {
-      case (Some(pred), qas) => pred -> qas
-    }
-
-    val edges = for {
-      predSpan <- spansByPredicateness
-      qa <- qasByPred.get(predSpan).getOrElse(Nil)
-      qTokens = getWordsInQuestion(tokens, tokenize(qa.question))
-      answer <- qa.answers
-      argSpan <- spansByPredicateness.find(_.forall(answer.contains)) // only attach to most predicatey answer
-      if spanPredicateness(predSpan) > spanPredicateness(argSpan)
-    } yield Edge(Some(qa.question), QAMRNode(predSpan.min, predSpan.max), QAMRNode(argSpan.min, argSpan.max))
-
-    // agg edges together and ignore non-projective ones
-
-    val paStructures = edges.foldLeft(Map.empty[QAMRNode, QAMRPAS[Set[String]]]) {
-      case (acc, e @ Edge(qOpt, source, target)) =>
-        if(isNewEdgeProjective(acc, e)) {
-          acc.updated(
-            source,
-            acc.get(source) match {
-              case None => QAMRPAS(source, Map(target -> qOpt.toSet))
-              case Some(pas) => pas.addArg(target, qOpt.toSet)
-            }
-          )
-        } else acc
-    }
-
-    val standardQAMRGraph = QAMRGraph(paStructures)
-
-    val srlStyleQAMRGraph = {
-      val predArgStructures = for {
-        predSpan <- spansByPredicateness
-        qas <- qasByPred.get(predSpan).toList
-      } yield {
-        val predNode = QAMRNode(predSpan.min, predSpan.max)
-        val minimalArgumentSpans = getMinimalContiguousSpans(tokens, qas)
-          .filterNot(_.contains(predNode.begin)) // filter out pred span
-          .filterNot(span =>
-          minimalContiguousSpans.exists(mspan =>
-            spanPredicateness(mspan) > spanPredicateness(span) &&
-              mspan.forall(span.contains) // filter out args containing more predicatey spans
-          )
-        )
-        val edges = for {
-          qa <- qas
-          qTokens = getWordsInQuestion(tokens, tokenize(qa.question))
-          answer <- qa.answers
-          argSpan <- minimalArgumentSpans
-          argInAnswer = argSpan.forall(answer.contains)
-          if argSpan.forall(qTokens) || argInAnswer
-          qOpt = if(argInAnswer) Some(qa.question) else None
-        } yield Edge(qOpt, predNode, QAMRNode(argSpan.min, argSpan.max))
-
-        val args = edges.groupBy(_.target).map {
-          case (argNode, edges) => argNode -> edges.flatMap(_.qOpt).toSet
-        }
-        predNode -> QAMRPAS(predNode, args)
-      }
-      QAMRGraph(predArgStructures.toMap)
-    }
-
-    val answerOnlySRLStyleQAMRGraph = {
-      val predArgStructures = for {
-        predSpan <- spansByPredicateness
-        qas <- qasByPred.get(predSpan).toList
-      } yield {
-        val predNode = QAMRNode(predSpan.min, predSpan.max)
-        val maximalAnswerNodes = {
-          val answerNodes = for {
-            qa <- qas
-            answer <- qa.answers
-          } yield QAMRNode(answer.min, answer.max)
-          val nonSubstringAnswers = answerNodes
-            .filter(a => !answerNodes.exists(a.isProperSubspanOf))
-            .toSet
-          val expandedAnswerSpans = nonSubstringAnswers.iterator.map { answer =>
-            var cur = answer
-            var next = answer
-            do {
-              cur = next
-              for(a <- nonSubstringAnswers) {
-                if(next.overlapsWith(a)) next = next.union(a)
-              }
-            } while(next != cur);
-            next
-          }.toSet
-          expandedAnswerSpans
-        }
-        val args = for {
-          argSpan <- maximalAnswerNodes
-          // questions = qas.filter(_.answers.exists(a => a.min >= argSpan.begin && a.max <= argSpan.end)).map(_.question)
-          questions = List.empty[String]
-        } yield argSpan -> questions.toSet
-
-        predNode -> QAMRPAS(predNode, args.toMap)
-      }
-      QAMRGraph(predArgStructures.toMap)
-    }
   }
 
   def renderPredIDSeq[Label](tokens: Vector[String], graph: QAMRGraph[Label]): String = {
@@ -336,5 +202,146 @@ object StructureInduction {
       val tags = tokens.indices.map(getTag)
       pred.begin + "\t" + tokens.mkString(" ") + " ||| " + tags.mkString(" ")
     }.toList
+  }
+}
+
+class GraphInducer(
+  val structureInduction: StructureInduction,
+  tokens: Vector[String], qas: List[SourcedQA[SentenceId]])(
+  implicit inflections: Inflections,
+  isStopword: IsStopword) {
+
+  import structureInduction._
+
+  val allContiguousSpans = qas.flatMap { sqa =>
+    val qSpan = getWordsInQuestion(tokens, Tokenizer.tokenize(sqa.question));
+    (qSpan :: sqa.answers).flatMap(breakIntoContiguous)
+  }
+
+  val minimalContiguousSpans = getMinimalContiguousSpans(tokens, qas)
+
+  val minimalSpanQuestionAppearanceCounts = Scorer[Set[Int], Int](
+    qas.flatMap { qa =>
+      val qSpan = getWordsInQuestion(tokens, Tokenizer.tokenize(qa.question))
+      breakIntoContiguous(qSpan).filter(minimalContiguousSpans.contains)
+    }
+  )
+
+  val minimalSpanAllAppearanceCounts = Scorer[Set[Int], Int](
+    allContiguousSpans.filter(minimalContiguousSpans.contains)
+  )
+
+  def spanPredicateness(s: Set[Int]): Double =
+    minimalSpanQuestionAppearanceCounts(s).toDouble / minimalSpanAllAppearanceCounts(s)
+
+  val spansByPredicateness = {
+    val spanVec = minimalContiguousSpans.toVector
+    spanVec.zip(spanVec.map(spanPredicateness))
+      .sortBy(-_._2)
+      .map(_._1)
+  }
+
+  val qasByPred = qas.groupBy { qa =>
+    spansByPredicateness.iterator.filter {
+      span => span.forall(getWordsInQuestion(tokens, Tokenizer.tokenize(qa.question)).contains)
+    }.nextOption
+  }.collect {
+    case (Some(pred), qas) => pred -> qas
+  }
+
+  val edges = for {
+    predSpan <- spansByPredicateness
+    qa <- qasByPred.get(predSpan).getOrElse(Nil)
+    qTokens = getWordsInQuestion(tokens, Tokenizer.tokenize(qa.question))
+    answer <- qa.answers
+    argSpan <- spansByPredicateness.find(_.forall(answer.contains)) // only attach to most predicatey answer
+    if spanPredicateness(predSpan) > spanPredicateness(argSpan)
+  } yield Edge(Some(qa.question), QAMRNode(predSpan.min, predSpan.max), QAMRNode(argSpan.min, argSpan.max))
+
+  // agg edges together and ignore non-projective ones
+
+  val paStructures = edges.foldLeft(Map.empty[QAMRNode, QAMRPAS[Set[String]]]) {
+    case (acc, e @ Edge(qOpt, source, target)) =>
+      if(isNewEdgeProjective(acc, e)) {
+        acc.updated(
+          source,
+          acc.get(source) match {
+            case None => QAMRPAS(source, Map(target -> qOpt.toSet))
+            case Some(pas) => pas.addArg(target, qOpt.toSet)
+          }
+        )
+      } else acc
+  }
+
+  val standardQAMRGraph = QAMRGraph(paStructures)
+
+  val srlStyleQAMRGraph = {
+    val predArgStructures = for {
+      predSpan <- spansByPredicateness
+      qas <- qasByPred.get(predSpan).toList
+    } yield {
+      val predNode = QAMRNode(predSpan.min, predSpan.max)
+      val minimalArgumentSpans = getMinimalContiguousSpans(tokens, qas)
+        .filterNot(_.contains(predNode.begin)) // filter out pred span
+        .filterNot(span =>
+        minimalContiguousSpans.exists(mspan =>
+          spanPredicateness(mspan) > spanPredicateness(span) &&
+            mspan.forall(span.contains) // filter out args containing more predicatey spans
+        )
+      )
+      val edges = for {
+        qa <- qas
+        qTokens = getWordsInQuestion(tokens, Tokenizer.tokenize(qa.question))
+        answer <- qa.answers
+        argSpan <- minimalArgumentSpans
+        argInAnswer = argSpan.forall(answer.contains)
+        if argSpan.forall(qTokens) || argInAnswer
+        qOpt = if(argInAnswer) Some(qa.question) else None
+      } yield Edge(qOpt, predNode, QAMRNode(argSpan.min, argSpan.max))
+
+      val args = edges.groupBy(_.target).map {
+        case (argNode, edges) => argNode -> edges.flatMap(_.qOpt).toSet
+      }
+      predNode -> QAMRPAS(predNode, args)
+    }
+    QAMRGraph(predArgStructures.toMap)
+  }
+
+  val answerOnlySRLStyleQAMRGraph = {
+    val predArgStructures = for {
+      predSpan <- spansByPredicateness
+      qas <- qasByPred.get(predSpan).toList
+    } yield {
+      val predNode = QAMRNode(predSpan.min, predSpan.max)
+      val maximalAnswerNodes = {
+        val answerNodes = for {
+          qa <- qas
+          answer <- qa.answers
+        } yield QAMRNode(answer.min, answer.max)
+        val nonSubstringAnswers = answerNodes
+          .filter(a => !answerNodes.exists(a.isProperSubspanOf))
+          .toSet
+        val expandedAnswerSpans = nonSubstringAnswers.iterator.map { answer =>
+          var cur = answer
+          var next = answer
+          do {
+            cur = next
+            for(a <- nonSubstringAnswers) {
+              if(next.overlapsWith(a)) next = next.union(a)
+            }
+          } while(next != cur);
+          next
+        }.toSet
+        expandedAnswerSpans
+      }
+      val args = for {
+        argSpan <- maximalAnswerNodes
+        // questions = qas.filter(_.answers.exists(a => a.min >= argSpan.begin && a.max <= argSpan.end)).map(_.question)
+        questions = List.empty[String]
+      } yield argSpan -> questions.toSet
+
+      predNode -> QAMRPAS(predNode, args.toMap)
+    }
+    QAMRGraph(predArgStructures.toMap)
   }
 }

@@ -1,6 +1,6 @@
 package turksem.gapfill
 
-import turksem.qamr._
+import qamr._
 
 import monocle.macros.Lenses
 

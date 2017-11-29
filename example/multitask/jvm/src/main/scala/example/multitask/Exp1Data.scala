@@ -9,12 +9,12 @@
 
 // import scala.util.Try
 
-// import turksem.qamr.GenerationPrompt
+// import qamr.GenerationPrompt
 // import turksem.qasrl._
 // import turksem.util._
 
-// import turkey._
-// import turkey.tasks._
+// import spacro._
+// import spacro.tasks._
 
 // import nlpdata.util.HasTokens
 // import nlpdata.util.HasTokens.ops._

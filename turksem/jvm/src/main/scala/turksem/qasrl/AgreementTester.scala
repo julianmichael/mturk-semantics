@@ -1,6 +1,6 @@
 package turksem.qasrl
 
-import turkey.HITInfo
+import spacro.HITInfo
 
 class AgreementTester[SID](
   allValInfos: List[HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]])(

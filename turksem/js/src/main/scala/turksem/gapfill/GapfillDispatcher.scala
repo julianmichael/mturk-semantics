@@ -1,6 +1,6 @@
 package turksem.gapfill
 
-import turkey.tasks._
+import spacro.tasks._
 
 import scalajs.js
 import scalajs.js.JSApp

@@ -22,13 +22,13 @@
 // import nlpdata.util.LowerCaseStrings._
 // import nlpdata.datasets.wiktionary.Inflections
 
-// import turkey._
-// import turkey.tasks._
+// import spacro._
+// import spacro.tasks._
 
 // import turksem._
 // import turksem.util._
-// import turksem.qamr._
-// import turksem.HasKeyIndices.ops._
+// import qamr._
+// import qamr.HasKeyIndices.ops._
 
 // import upickle.default._
 

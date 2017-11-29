@@ -1,5 +1,7 @@
 package turksem.qasrl
 
+import spacro.util.Span
+
 import cats.implicits._
 
 import nlpdata.util.Text
@@ -29,7 +31,7 @@ sealed trait QASRLValidationAnswer {
   }
 }
 case object InvalidQuestion extends QASRLValidationAnswer
-@Lenses case class Answer(spans: List[ContiguousSpan]) extends QASRLValidationAnswer
+@Lenses case class Answer(spans: List[Span]) extends QASRLValidationAnswer
 
 object QASRLValidationAnswer {
   val invalidQuestion = GenPrism[QASRLValidationAnswer, InvalidQuestion.type]
@@ -44,7 +46,7 @@ object QASRLValidationAnswer {
     va: QASRLValidationAnswer
   ): String = va match {
     case InvalidQuestion => "Invalid"
-    case Answer(spans) => spans.map { case ContiguousSpan(begin, end) => s"$begin-$end" }.mkString(" / ")
+    case Answer(spans) => spans.map { case Span(begin, end) => s"$begin-$end" }.mkString(" / ")
   }
 
   // inverse of QASRLValidationAnswer.renderIndices
@@ -55,7 +57,7 @@ object QASRLValidationAnswer {
     case other => Answer(
       other.split(" / ").toList.map(is =>
         is.split("-").map(_.toInt).toList match {
-          case begin :: end :: Nil => ContiguousSpan(begin, end)
+          case begin :: end :: Nil => Span(begin, end)
           case _ => ??? // should not happen
         }
       )
@@ -69,6 +71,6 @@ object QASRLValidationAnswer {
     referenceQAs: List[VerbQA]
   ): String = va match {
     case InvalidQuestion => "<Invalid>"
-    case Answer(spans) => spans.map(span => Text.renderSpan(sentence, span.indices)).mkString(" / ")
+    case Answer(spans) => spans.map(span => Text.renderSpan(sentence, (span.begin to span.end).toSet)).mkString(" / ")
   }
 }

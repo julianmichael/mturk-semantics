@@ -8,7 +8,7 @@ import java.nio.file.{Files, Paths}
 
 import scala.util.Try
 
-import turkey.tasks.TaskConfig
+import spacro.tasks.TaskConfig
 
 import upickle.default._
 

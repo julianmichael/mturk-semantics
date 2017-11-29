@@ -9,9 +9,11 @@ import cats.data.NonEmptyList
 import cats.implicits._
 
 import turksem._
-
 import turksem.util._
-import turkey.tasks._
+
+import spacro.tasks._
+import spacro.ui._
+import spacro.util.Span
 
 import nlpdata.util.Text
 import nlpdata.util.LowerCaseStrings._
@@ -82,7 +84,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
 
   @Lenses case class QAPair(
     question: String,
-    answers: List[ContiguousSpan],
+    answers: List[Span],
     state: QAState)
   object QAPair {
     val empty = QAPair("", Nil, InProgress)
@@ -390,7 +392,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
             ^.onMouseLeave --> setBlurEnabled(true),
             {
               val answersString = (0 until answers.size).reverse
-                .map(i => Text.renderSpan(sentence, answers(i).indices))
+                .map(i => Text.renderSpan(sentence, (answers(i).begin to answers(i).end).toSet))
                 .mkString(" / ")
               if(isFocused) {
                 if(answers.isEmpty) <.span(
@@ -461,7 +463,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                       val curAnswerSpans = s.curFocus.foldMap(spans)
 
                       val inProgressAnswerOpt = SpanHighlightingStatus.highlighting.getOption(status).map {
-                        case Highlighting(_, anchor, endpoint) => ContiguousSpan(anchor, endpoint)
+                        case Highlighting(_, anchor, endpoint) => Span(anchor, endpoint)
                       }
 
                       def hoverWord(i: Int) = s.curFocus.foldMap(qaIndex => hover(qaIndex)(i))

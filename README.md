@@ -14,7 +14,7 @@ you need [Scala](http://www.scala-lang.org/) and [sbt](http://www.scala-sbt.org/
 The rest of the dependencies are managed and will be downloaded for you.
 Some of the most important components include the following:
  * [nlpdata](http://www.github.com/julianmichael/nlpdata) has data types, NLP datasets, and text rendering.
- * [turkey](http://www.github.com/julianmichael/turkey) is used to manage and run jobs on Amazon Mechanical Turk.
+ * [spacro](http://www.github.com/julianmichael/spacro) is used to manage and run jobs on Amazon Mechanical Turk.
  * [Stanford CoreNLP](http://stanfordnlp.github.io/CoreNLP/) is used for tokenization and POS-tagging.
  * [scalajs-react](https://github.com/japgolly/scalajs-react) is used for the Turk client interfaces.
 

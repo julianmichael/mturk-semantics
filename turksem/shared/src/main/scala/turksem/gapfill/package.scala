@@ -1,6 +1,6 @@
 package turksem
 
-import turkey.tasks.ResponseRW
+import spacro.tasks.ResponseRW
 
 import turksem.util._
 

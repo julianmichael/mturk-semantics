@@ -1,6 +1,6 @@
 package turksem.scisrl
 
-import turkey.tasks.TaskDispatcher
+import spacro.tasks.TaskDispatcher
 
 import upickle.default._
 

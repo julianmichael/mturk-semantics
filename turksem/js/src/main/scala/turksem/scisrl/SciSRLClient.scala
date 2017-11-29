@@ -5,9 +5,10 @@ import cats.implicits._
 import turksem._
 import turksem.util._
 
-import turkey.tasks.TaskClient
-import turkey.tasks.FieldLabels
-import turkey.tasks.Service
+import spacro.tasks.TaskClient
+import spacro.tasks.FieldLabels
+import spacro.tasks.Service
+import spacro.ui._
 
 import nlpdata.util.Text
 import nlpdata.datasets.wiktionary.InflectedForms

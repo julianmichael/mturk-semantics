@@ -16,18 +16,19 @@ lazy val root = project.in(file("."))
 
 lazy val commonSettings = Seq(
   organization := "com.github.julianmichael",
-  scalaOrganization in ThisBuild := "org.typelevel", // for fixing stupid serialization woes
+  scalaOrganization in ThisBuild := "org.typelevel",
   scalaVersion in ThisBuild := "2.11.8",
   scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds"/*, "-Ypartial-unification"*/),
   addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full),
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4"),
   // addCompilerPlugin("io.tryp" %% "splain" % "0.2.6"),
   resolvers += Resolver.sonatypeRepo("snapshots"),
+  libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
+  libraryDependencies += "com.github.julianmichael" %%% "spacro" % "0.1-SNAPSHOT",
+  libraryDependencies += "com.github.uwnlp" %%% "qamr" % "0.1-SNAPSHOT",
   libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
   libraryDependencies += "org.typelevel" %%% "cats-effect" % "0.3",
   libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.11.0",
-  libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
-  libraryDependencies += "com.github.julianmichael" %%% "turkey" % "0.1-SNAPSHOT",
   libraryDependencies += "com.lihaoyi" %%% "upickle" % "0.4.3",
   libraryDependencies += "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
   libraryDependencies += "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
@@ -42,7 +43,7 @@ lazy val commonJVMSettings = Seq(
 
 // TODO: update this to the new hotness with newer scala.js version!
 // scalaJSUseMainModuleInitializer
-// need to change this in turkey as well..
+// need to change this in spacro as well..
 
 lazy val commonJSSettings = Seq(
   relativeSourceMaps := true,
@@ -102,7 +103,10 @@ lazy val turksem = crossProject
 lazy val turksemJS = turksem.js
 lazy val turksemJVM = turksem.jvm
 
-lazy val exampleProjectSettings = commonSettings
+lazy val exampleProjectSettings = commonSettings ++ Seq(
+  libraryDependencies += "com.github.uwnlp" %%% "qamr-example" % "0.1-SNAPSHOT",
+  libraryDependencies += "com.github.uwnlp" %%% "qamr-analysis" % "0.1-SNAPSHOT"
+)
 
 lazy val exampleProjectJVMSettings = commonJVMSettings ++ Seq(
   libraryDependencies ++= Seq(

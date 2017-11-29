@@ -1,9 +1,9 @@
 package turksem.qasrl
 
-import turksem.util.ContiguousSpan
+import spacro.util.Span
 
 case class VerbQA(
   verbIndex: Int,
   question: String, // should be guaranteed to adhere to QA-SRL format
-  answers: List[ContiguousSpan] // should not overlap
+  answers: List[Span] // should not overlap
 )

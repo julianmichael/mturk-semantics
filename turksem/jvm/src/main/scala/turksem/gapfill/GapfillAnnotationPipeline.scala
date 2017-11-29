@@ -12,20 +12,22 @@ import nlpdata.util.HasTokens.ops._
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.datasets.wiktionary.Inflections
 
-import turkey.HITInfo
-import turkey.HITType
-import turkey.HIT
-import turkey.Assignment
-import turkey.tasks.TaskConfig
-import turkey.tasks.TaskSpecification
-import turkey.tasks.TaskManager
-import turkey.tasks.HITManager
-import turkey.tasks.Server
-import turkey.tasks.Service
-import turkey.tasks.SetNumHITsActive
+import spacro.HITInfo
+import spacro.HITType
+import spacro.HIT
+import spacro.Assignment
+import spacro.tasks.TaskConfig
+import spacro.tasks.TaskSpecification
+import spacro.tasks.TaskManager
+import spacro.tasks.HITManager
+import spacro.tasks.Server
+import spacro.tasks.Service
+import spacro.tasks.SetNumHITsActive
 
 import turksem._
 import turksem.util._
+
+import qamr.AnnotationDataService
 
 import upickle.default._
 

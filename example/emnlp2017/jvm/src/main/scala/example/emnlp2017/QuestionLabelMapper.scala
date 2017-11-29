@@ -3,16 +3,18 @@ package example.emnlp2017
 import cats.data.NonEmptyList
 import cats.implicits._
 
-import turksem.qamr.QAData
+import qamr.QAData
+import qamr.example.AnnotationSetup
+import qamr.example.SentenceId
 
-import turksem.util._
+import spacro.tasks.TaskConfig
 
+import nlpdata.datasets.wiktionary.WiktionaryFileSystemService
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.util.PosTags
 import nlpdata.util.HasTokens.ops._
 import nlpdata.util.Text
 
-// import turksem.gapfill.TemplateAnalysis
 import turksem.gapfill.QuestionTemplate
 import turksem.gapfill.QuestionTemplateAlignment
 import turksem.gapfill.TemplatingPhase
@@ -23,11 +25,18 @@ import turksem.gapfill.TemplateString
 import turksem.gapfill.TemplateSlot
 import turksem.gapfill.TriggerSlot
 
+import turksem.util._
+
+import java.nio.file.Paths
+
 sealed trait PrelimLabel
 case class AutoInducedLabel(value: LowerCaseString) extends PrelimLabel
 case class QuestionsLabel(qs: Set[LowerCaseString]) extends PrelimLabel
 
-class QuestionLabelMapper(data: QAData[SentenceId]) {
+class QuestionLabelMapper(
+  setup: AnnotationSetup,
+  data: QAData[SentenceId])(
+  implicit config: TaskConfig) {
 
   object Matchers {
     object t {
@@ -45,6 +54,21 @@ class QuestionLabelMapper(data: QAData[SentenceId]) {
   // detect when/where/why/how
   // detect classifier words
   // detect is/has for noun predicates
+
+  val Wiktionary = new WiktionaryFileSystemService(
+    Paths.get("resources/wiktionary")
+  )
+
+  import setup.SentenceIdHasTokens
+  import setup.isStopword
+
+  implicit val inflections = {
+    val tokens = for {
+      id <- setup.allIds.iterator
+      word <- id.tokens.iterator
+    } yield word
+    Wiktionary.getInflectionsForTokens(tokens)
+  }
 
   val phases = new TemplatingPhases[SentenceId]
   import phases._

@@ -1,7 +1,9 @@
 package example.multitask
 
+import spacro.ui._
+
 import turksem.qasrl.QASRLDispatcher
-import turksem.qamr._
+import qamr._
 import turksem.util._
 
 import japgolly.scalajs.react.vdom.html_<^._

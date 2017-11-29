@@ -4,12 +4,12 @@ import cats._
 import cats.implicits._
 
 import turksem.FileSystemAnnotationDataService
-import turksem.qamr._
+import qamr._
 import turksem.qasrl._
 import turksem.util._
 
-import turkey._
-import turkey.tasks._
+import spacro._
+import spacro.tasks._
 
 import nlpdata.structure._
 import nlpdata.datasets.conll

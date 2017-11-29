@@ -1,9 +1,9 @@
 package turksem
 
-import turkey.HIT
-import turkey.Assignment
-import turkey.HITInfo
-import turkey.HITDataService
+import spacro.HIT
+import spacro.Assignment
+import spacro.HITInfo
+import spacro.HITDataService
 
 import scala.util.Try
 

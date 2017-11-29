@@ -4,7 +4,8 @@ import cats.Foldable
 import cats.data.NonEmptyList
 import cats.implicits._
 
-import turkey.HITInfo
+import spacro.HITInfo
+import spacro.util.Span
 
 import nlpdata.datasets.wiktionary.Inflections
 import nlpdata.util.HasTokens.ops._

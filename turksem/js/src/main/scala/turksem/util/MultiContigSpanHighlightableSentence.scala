@@ -1,5 +1,7 @@
 package turksem.util
 
+import spacro.util.Span
+
 import org.scalajs.dom.html
 
 import japgolly.scalajs.react.vdom.html_<^._
@@ -22,7 +24,7 @@ object MultiContigSpanHighlightableSentenceComponent {
   case class MultiContigSpanHighlightableSentenceProps(
     sentence: Vector[String], // PTB tokens
     styleForIndex: Int => TagMod,
-    highlightedSpans: List[(ContiguousSpan, TagMod)], // in order of priority, each with own style. first determines click events
+    highlightedSpans: List[(Span, TagMod)], // in order of priority, each with own style. first determines click events
     hover: Int => Callback,
     touch: Int => Callback,
     render: List[VdomTagOf[html.Span]] => VdomElement) // word/span elements to whole thing

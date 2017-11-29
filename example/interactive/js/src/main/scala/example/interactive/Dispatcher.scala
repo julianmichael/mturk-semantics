@@ -4,7 +4,7 @@ import example.emnlp2017.SentenceId
 
 import turksem.iqa._
 
-import turkey.tasks._
+import spacro.tasks._
 
 import scalajs.js
 import scalajs.js.JSApp

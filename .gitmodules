@@ -7,3 +7,9 @@
 [submodule "resources/propbank"]
 	path = resources/propbank
 	url = https://github.com/propbank/propbank-release.git
+[submodule "lib/spacro"]
+	path = lib/spacro
+	url = git@github.com:julianmichael/spacro.git
+[submodule "lib/qamr"]
+	path = lib/qamr
+	url = https://github.com/uwnlp/qamr.git

@@ -1,6 +1,9 @@
 package turksem.iqa
 
-import turkey.tasks._
+import spacro.tasks._
+import spacro.ui._
+import spacro.util.Span
+
 import cats.implicits._
 
 import turksem._
@@ -173,8 +176,8 @@ class IQAClient[SID : Writer : Reader](
       //   state.questioning.qas.filter(isQAFinished).size >= 5
     }
 
-    def getNewAnswerSpan(sentence: Vector[InflectionalWord], spans: List[ContiguousSpan]) = {
-      val standin = spans.headOption.fold("")(span => Text.renderSpan(sentence.map(_.token), span.indices))
+    def getNewAnswerSpan(sentence: Vector[InflectionalWord], spans: List[Span]) = {
+      val standin = spans.headOption.fold("")(span => Text.renderSpan(sentence.map(_.token), (span.begin to span.end).toSet))
       Answer(spans, standin)
     }
 
@@ -185,7 +188,7 @@ class IQAClient[SID : Writer : Reader](
 
     def cycleValidityAtIndex(
       sentence: Vector[InflectionalWord],
-      highlightedSpans: Map[(Int, Int), List[ContiguousSpan]])(
+      highlightedSpans: Map[(Int, Int), List[Span]])(
       index: (Int, Int)
     ) =
       scope.modState(
@@ -198,7 +201,7 @@ class IQAClient[SID : Writer : Reader](
 
     def toggleNoAnswerAtIndex(
       sentence: Vector[InflectionalWord],
-      highlightedSpans: Map[(Int, Int), List[ContiguousSpan]])(
+      highlightedSpans: Map[(Int, Int), List[Span]])(
       index: (Int, Int)) =
       scope.modState(
         judgmentL(index._1, index._2).modify {
@@ -209,7 +212,7 @@ class IQAClient[SID : Writer : Reader](
 
     def toggleBadQuestionAtIndex(
       sentence: Vector[InflectionalWord],
-      highlightedSpans: Map[(Int, Int), List[ContiguousSpan]])(
+      highlightedSpans: Map[(Int, Int), List[Span]])(
       index: (Int, Int)) =
       scope.modState(
         judgmentL(index._1, index._2).modify {
@@ -220,7 +223,7 @@ class IQAClient[SID : Writer : Reader](
 
     def handleKey(
       sentence: Vector[InflectionalWord],
-      highlightedAnswers: Map[(Int, Int), List[ContiguousSpan]])(
+      highlightedAnswers: Map[(Int, Int), List[Span]])(
       e: ReactKeyboardEvent): Callback = {
       // def nextQuestion = scope.modState(s =>
       //   State.curFocus.modify(i => (i + 1) % s.questioning.qas.size)(s)
@@ -241,7 +244,7 @@ class IQAClient[SID : Writer : Reader](
       } >> e.preventDefaultCB
     }
 
-    def qaField(s: State, sentence: Vector[InflectionalWord], highlightedAnswers: Map[(Int, Int), List[ContiguousSpan]])(index: (Int, Int)) = {
+    def qaField(s: State, sentence: Vector[InflectionalWord], highlightedAnswers: Map[(Int, Int), List[Span]])(index: (Int, Int)) = {
       <.div()
       val isFocused = s.curFocus == index
       val judgment = judgmentL(index._1, index._2).get(s)
@@ -336,7 +339,7 @@ class IQAClient[SID : Writer : Reader](
                         case SentenceWord(i) => i
                       }.toSet
                       val inProgressAnswerOpt = SpanHighlightingStatus.highlighting.getOption(status).map {
-                        case Highlighting(_, anchor, endpoint) => ContiguousSpan(anchor, endpoint)
+                        case Highlighting(_, anchor, endpoint) => Span(anchor, endpoint)
                       }
                       val curAnswerSpans = curAnswerSpansO.getOption(state).getOrElse(Nil)
                       val touchWord = touch(state.curFocus)

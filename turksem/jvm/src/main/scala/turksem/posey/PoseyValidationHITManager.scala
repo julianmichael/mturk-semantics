@@ -2,12 +2,12 @@
 
 // import turksem._
 // import turksem.util._
-// import turksem.qamr.Pring
-// import turksem.qamr.SaveData
+// import qamr.Pring
+// import qamr.SaveData
 
-// import turkey._
-// import turkey.tasks._
-// import turkey.util._
+// import spacro._
+// import spacro.tasks._
+// import spacro.util._
 
 // import scala.collection.mutable
 // import scala.util.{Try, Success, Failure}

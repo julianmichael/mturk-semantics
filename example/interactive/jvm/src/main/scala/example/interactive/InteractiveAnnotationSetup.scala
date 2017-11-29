@@ -4,8 +4,8 @@ import turksem.FileSystemAnnotationDataService
 import turksem.util._
 import turksem.iqa._
 
-import turkey._
-import turkey.tasks._
+import spacro._
+import spacro.tasks._
 
 import nlpdata.structure._
 import nlpdata.datasets.ptb._
@@ -82,7 +82,8 @@ class InteractiveAnnotationSetup(label: String)(implicit config: TaskConfig) {
   lazy val experiment = new IQAAnnotationPipeline(
     allPrompts,
     CountBasedQuestionGuesser(
-      QuestionGuessingSandbox.templatePseudoCounts
+      Map.empty[Template, Double]
+      // QuestionGuessingSandbox.templatePseudoCounts
       // QuestionGuessingSandbox.templateCorrespondencePseudoCounts
     ))
 }

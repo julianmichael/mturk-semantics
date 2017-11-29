@@ -17,7 +17,7 @@ case class QASRLValidationResponseComparison(
     case (Answer(spans1), Answer(spans2)) =>
       spans1.exists(span1 =>
         spans2.exists(span2 =>
-          span1.indices.intersect(span2.indices).nonEmpty
+          (span1.begin to span1.end).toSet.intersect((span2.begin to span2.end).toSet).nonEmpty
         )
       )
     case _ => false
@@ -44,7 +44,7 @@ case class QASRLValidationWorkerInfo(
       a2 <- cmp.thatResponse.getAnswer
     } yield a1.spans.exists(span1 =>
       a2.spans.exists(span2 =>
-        span1.indices.intersect(span2.indices).nonEmpty
+        (span1.begin to span1.end).toSet.intersect((span2.begin to span2.end).toSet).nonEmpty
       )
     )
     (List.fill(numBonusAgreements)(true) ++ spanAgreements).proportion(identity)

@@ -8,9 +8,9 @@ import cats.Show
 import cats.Order
 import cats.implicits._
 
-import turksem.qamr.QAData
-import turksem.qamr.SourcedQA
-import turksem.qamr.QAPairId
+import qamr.QAData
+import qamr.SourcedQA
+import qamr.QAPairId
 
 import turksem.gapfill._
 import turksem.util._

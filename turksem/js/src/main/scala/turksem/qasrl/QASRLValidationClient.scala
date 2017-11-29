@@ -1,6 +1,9 @@
 package turksem.qasrl
 
-import turkey.tasks._
+import spacro.tasks._
+import spacro.ui._
+import spacro.util.Span
+
 import cats.implicits._
 
 import turksem._
@@ -56,7 +59,7 @@ class QASRLValidationClient[SID : Writer : Reader](
     isInterfaceFocused: Boolean,
     answers: List[QASRLValidationAnswer])
   object State {
-    def initial = State(0, false, questions.map(_ => Answer(List.empty[ContiguousSpan])))
+    def initial = State(0, false, questions.map(_ => Answer(List.empty[Span])))
   }
 
   def answerSpanOptics(questionIndex: Int) =
@@ -154,11 +157,11 @@ class QASRLValidationClient[SID : Writer : Reader](
             case Answer(spans) if isFocused => // spans nonempty
               (spans.flatMap { span =>
                  List(
-                   <.span(Text.renderSpan(sentence, span.indices)),
+                   <.span(Text.renderSpan(sentence, (span.begin to span.end).toSet)),
                    <.span(" / ")
                  )
                } ++ List(<.span(^.color := "#CCCCCC", "Highlight to add an answer"))).toVdomArray
-            case Answer(spans) => spans.map(s => Text.renderSpan(sentence, s.indices)).mkString(" / ")
+            case Answer(spans) => spans.map(s => Text.renderSpan(sentence, (s.begin to s.end).toSet)).mkString(" / ")
           }
         )
       )
@@ -184,7 +187,7 @@ class QASRLValidationClient[SID : Writer : Reader](
                     case (hs @ SpanHighlightingState(spans, status), SpanHighlightingContext(_, hover, touch, cancelHighlight)) =>
                       val curVerbIndex = prompt.qaPairs(curQuestion).verbIndex
                       val inProgressAnswerOpt = SpanHighlightingStatus.highlighting.getOption(status).map {
-                        case Highlighting(_, anchor, endpoint) => ContiguousSpan(anchor, endpoint)
+                        case Highlighting(_, anchor, endpoint) => Span(anchor, endpoint)
                       }
                       val curAnswers = spans(curQuestion)
                       val otherAnswers = (spans - curQuestion).values.flatten

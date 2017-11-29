@@ -1,6 +1,6 @@
 package turksem.qasrl
 
-import turkey.tasks._
+import spacro.tasks._
 
 import scalajs.js
 import scalajs.js.JSApp
@@ -19,8 +19,8 @@ abstract class QASRLDispatcher[SID : Reader : Writer](implicit settings: QASRLSe
 
   lazy val valClient = new QASRLValidationClient[SID](validationInstructions)
 
-  // val dashClient: turksem.qamr.DashboardClient[SID] =
-  //   new turksem.qamr.DashboardClient[SID](QASRLSettings)
+  // val dashClient: qamr.DashboardClient[SID] =
+  //   new qamr.DashboardClient[SID](QASRLSettings)
 
   final override lazy val taskMapping = Map[String, () => Unit](
     settings.generationTaskKey -> genClient.main,

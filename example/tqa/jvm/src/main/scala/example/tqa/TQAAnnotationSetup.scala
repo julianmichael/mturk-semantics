@@ -7,8 +7,8 @@ import turksem.FileSystemAnnotationDataService
 import turksem.qasrl._
 import turksem.util._
 
-import turkey._
-import turkey.tasks._
+import spacro._
+import spacro.tasks._
 
 import nlpdata.structure.AlignedToken
 

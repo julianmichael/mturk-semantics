@@ -1,7 +1,7 @@
 package turksem.gapfill
 
 import turksem.util.ContiguousSpan
-import turksem.qamr._
+import qamr._
 
 import cats._
 import cats.data._

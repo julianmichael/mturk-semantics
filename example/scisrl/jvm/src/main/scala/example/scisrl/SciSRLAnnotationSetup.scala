@@ -7,8 +7,8 @@ import turksem._
 import turksem.scisrl._
 import turksem.util._
 
-import turkey._
-import turkey.tasks._
+import spacro._
+import spacro.tasks._
 
 import nlpdata.datasets.wiktionary.Inflections
 import nlpdata.datasets.wiktionary.WiktionaryFileSystemService

@@ -1,6 +1,7 @@
 package turksem.iqa
 
-import turksem.util.ContiguousSpan
+import spacro.util.Span
+
 import turksem.util.InflectionalWord
 
 import cats.implicits._
@@ -87,7 +88,7 @@ object QuestionJudgment {
 }
 
 @Lenses case class Answer(
-  spans: List[ContiguousSpan],
+  spans: List[Span],
   standin: String
 ) extends QuestionJudgment
 case object NoAnswer extends QuestionJudgment

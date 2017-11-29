@@ -1,7 +1,7 @@
 import example.scisrl
 import turksem.util._
-import turkey._
-import turkey.tasks._
+import spacro._
+import spacro.tasks._
 import akka.pattern.ask
 import scala.concurrent.duration._
 
