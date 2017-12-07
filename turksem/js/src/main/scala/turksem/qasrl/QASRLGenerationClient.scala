@@ -8,12 +8,18 @@ import cats.Applicative
 import cats.data.NonEmptyList
 import cats.implicits._
 
-import turksem._
+// import turksem._
 import turksem.util._
 
 import spacro.tasks._
 import spacro.ui._
 import spacro.util.Span
+
+import qasrl.Autocomplete
+import qasrl.ArgumentSlot
+import qasrl.Frame
+import qasrl.QuestionProcessor
+import qasrl.TemplateStateMachine
 
 import nlpdata.util.Text
 import nlpdata.util.LowerCaseStrings._
@@ -77,7 +83,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
       case _ => false
     }
   }
-  case class Complete(frames: Set[(Frame, ArgumentSlot)]) extends QAState
+  case class Complete(frames: Set[QuestionProcessor.CompleteState]) extends QAState
   case object InProgress extends QAState
   case object Invalid extends QAState
   case object Redundant extends QAState
@@ -91,7 +97,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
   }
 
   @Lenses case class State(
-    template: QASRLStatefulTemplate,
+    template: QuestionProcessor,
     qas: List[QAPair],
     curFocus: Option[Int])
   object State {
@@ -99,7 +105,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
     def initFromResponse(response: QASRLGenerationAjaxResponse): State = response match {
       case QASRLGenerationAjaxResponse(_, sentence, forms) =>
         val slots = new TemplateStateMachine(sentence, forms)
-        val template = new QASRLStatefulTemplate(slots)
+        val template = new QuestionProcessor(slots)
         State(template, List(QAPair.empty), None)
     }
   }
@@ -142,21 +148,17 @@ class QASRLGenerationClient[SID : Reader : Writer](
       val question = s.qas(qaIndex).question
 
       template.processStringFully(question) match {
-        case Left(QASRLStatefulTemplate.AggregatedInvalidState(_, _)) =>
+        case Left(QuestionProcessor.AggregatedInvalidState(_, _)) =>
           qaStateLens(qaIndex).set(Invalid)(s)
         case Right(goodStates) =>
           if(goodStates.exists(_.isComplete)) {
             if(s.qas.map(_.question).indexOf(question) < qaIndex) {
               qaStateLens(qaIndex).set(Redundant)(s)
             } else {
-              val frames = goodStates.toList.collect {
-                case QASRLStatefulTemplate.Complete(
-                  _, TemplateStateMachine.FrameState(Some(whWord), prepOpt, answerSlotOpt, frame)
-                ) if (prepOpt.nonEmpty == frame.args.get(Obj2).nonEmptyAnd(_.isPrep)) &&
-                    (!Set("who", "what").map(_.lowerCase).contains(whWord) || answerSlotOpt.nonEmpty) =>
-                  (frame, answerSlotOpt.getOrElse(Adv(whWord)))
+              val completeStates = goodStates.toList.collect {
+                case cs: QuestionProcessor.CompleteState => cs
               }.toSet
-              qaStateLens(qaIndex).set(Complete(frames))(s)
+              qaStateLens(qaIndex).set(Complete(completeStates))(s)
             }
           }
           else qaStateLens(qaIndex).set(InProgress)(s)
@@ -198,64 +200,58 @@ class QASRLGenerationClient[SID : Reader : Writer](
         val numQAs = qas.size
         val QAPair(question, answers, qaState) = qas(qaIndex)
 
-        case class Suggestion(fullText: String, isComplete: Boolean)
-        object Suggestion {
-          implicit val suggestionOrder: Order[Suggestion] = new Order[Suggestion] {
-            override def compare(x: Suggestion, y: Suggestion) =
-              if(x.isComplete == y.isComplete) {
-                x.fullText.compare(y.fullText)
-              } else if(x.isComplete) -1 else 1
-          }
-        }
-
-        case class AutocompleteState(suggestions: NonEmptyList[Suggestion], badStartIndexOpt: Option[Int])
-
         // NOTE this is empty iff question is complete/valid
-        val autocompleteStateOpt = if(!isFocused) None else {
-          import turksem.qasrl.{QASRLStatefulTemplate => Template}
-          def createSuggestion(ips: Template.InProgressState): Suggestion =
-            Suggestion(ips.fullText, template.isAlmostComplete(ips))
+        val autocompleteResultOpt = if(!isFocused) None else Some {
 
-          // technically maybe should collapse together by full text in case there are two (one complete, one not)
-          // but that should never happen anyway
-          def makeList(goodStates: NonEmptyList[Template.ValidState]) = NonEmptyList.fromList(
-            goodStates.toList.collect { case ips @ Template.InProgressState(_, _, _, _) => createSuggestion(ips) }
-              .toSet.toList
-              .sortBy((vs: Suggestion) => vs.fullText)
-          )
+          val autocomplete = new Autocomplete(template)
+          autocomplete(
+            question.lowerCase, qas.map(_.state).collect {
+              case Complete(completeStates) => completeStates
+            }.flatten.toSet)
 
-          val allLowercaseQuestionStrings = qas.map(_.question.lowerCase).toSet
+          // def createSuggestion(ips: QuestionProcessor.InProgressState): Suggestion =
+          //   Suggestion(ips.fullText, template.isAlmostComplete(ips))
 
-          template.processStringFully(question) match {
-            case Left(Template.AggregatedInvalidState(lastGoodStates, badStartIndex)) =>
-              makeList(lastGoodStates).map(options => AutocompleteState(options, Some(badStartIndex)))
-            case Right(goodStates) =>
-              val framesWithAnswerSlots = qas.map(_.state).collect {
-                case Complete(framesWithSlots) => framesWithSlots
-              }.flatten
-              val frameCounts = counts(framesWithAnswerSlots.map(_._1))
-              val frameToFilledAnswerSlots = framesWithAnswerSlots.foldLeft(Map.empty[Frame, Set[ArgumentSlot]].withDefaultValue(Set.empty[ArgumentSlot])) {
-                case (acc, (frame, slot)) => acc.updated(frame, acc(frame) + slot)
-              }
-              val framesByCountDecreasing = frameCounts.keys.toList.sortBy(f => -10 * frameCounts(f) + math.abs(f.args.size - 2))
-              val allQuestions = framesByCountDecreasing.flatMap { frame =>
-                val unAnsweredSlots = frame.args.keys.toSet -- frameToFilledAnswerSlots(frame)
-                val coreArgQuestions = unAnsweredSlots.toList.flatMap(frame.questionsForSlot)
-                val advQuestions = ArgumentSlot.allAdvSlots
-                  .filterNot(frameToFilledAnswerSlots(frame).contains)
-                  .flatMap(frame.questionsForSlot)
-                coreArgQuestions ++ advQuestions
-              }.filter(_.toLowerCase.startsWith(question.toLowerCase)).filterNot(q => allLowercaseQuestionStrings.contains(q.lowerCase)).distinct
-              val questionSuggestions = allQuestions.flatMap(q =>
-                template.processStringFully(q) match {
-                  case Right(goodStates) if goodStates.exists(_.isComplete) => Some(Suggestion(q, true))
-                  case _ => None
-                }
-              ).take(4) // number of suggested questions capped at 4 to filter out crowd of bad ones
-              makeList(goodStates).map { options =>
-                AutocompleteState(NonEmptyList.fromList(questionSuggestions).fold(options)(sugg => (sugg ++ options.toList).distinct), None)
-              }
-          }
+          // // technically maybe should collapse together by full text in case there are two (one complete, one not)
+          // // but that should never happen anyway
+          // def makeList(goodStates: NonEmptyList[QuestionProcessor.ValidState]) = NonEmptyList.fromList(
+          //   goodStates.toList.collect { case ips @ QuestionProcessor.InProgressState(_, _, _, _) => createSuggestion(ips) }
+          //     .toSet.toList
+          //     .sortBy((vs: Suggestion) => vs.fullText)
+          // )
+
+          // val allLowercaseQuestionStrings = qas.map(_.question.lowerCase).toSet
+
+          // template.processStringFully(question) match {
+          //   case Left(QuestionProcessor.AggregatedInvalidState(lastGoodStates, badStartIndex)) =>
+          //     makeList(lastGoodStates).map(options => AutocompleteState(options, Some(badStartIndex)))
+          //   case Right(goodStates) =>
+          //     val framesWithAnswerSlots = qas.map(_.state).collect {
+          //       case Complete(framesWithSlots) => framesWithSlots
+          //     }.flatten
+          //     val frameCounts = counts(framesWithAnswerSlots.map(_._1))
+          //     val frameToFilledAnswerSlots = framesWithAnswerSlots.foldLeft(Map.empty[Frame, Set[ArgumentSlot]].withDefaultValue(Set.empty[ArgumentSlot])) {
+          //       case (acc, (frame, slot)) => acc.updated(frame, acc(frame) + slot)
+          //     }
+          //     val framesByCountDecreasing = frameCounts.keys.toList.sortBy(f => -10 * frameCounts(f) + math.abs(f.args.size - 2))
+          //     val allQuestions = framesByCountDecreasing.flatMap { frame =>
+          //       val unAnsweredSlots = frame.args.keys.toSet -- frameToFilledAnswerSlots(frame)
+          //       val coreArgQuestions = unAnsweredSlots.toList.flatMap(frame.questionsForSlot)
+          //       val advQuestions = ArgumentSlot.allAdvSlots
+          //         .filterNot(frameToFilledAnswerSlots(frame).contains)
+          //         .flatMap(frame.questionsForSlot)
+          //       coreArgQuestions ++ advQuestions
+          //     }.filter(_.toLowerCase.startsWith(question.toLowerCase)).filterNot(q => allLowercaseQuestionStrings.contains(q.lowerCase)).distinct
+          //     val questionSuggestions = allQuestions.flatMap(q =>
+          //       template.processStringFully(q) match {
+          //         case Right(goodStates) if goodStates.exists(_.isComplete) => Some(Suggestion(q, true))
+          //         case _ => None
+          //       }
+          //     ).take(4) // number of suggested questions capped at 4 to filter out crowd of bad ones
+          //     makeList(goodStates).map { options =>
+          //       AutocompleteState(NonEmptyList.fromList(questionSuggestions).fold(options)(sugg => (sugg ++ options.toList).distinct), None)
+          //     }
+          // }
         }
 
         def handleQuestionChange(newQuestion: String) = {
@@ -269,7 +265,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
               initialValue = 0,
               render = (highlightedIndex: Int, setHighlightedIndex: Int => Callback) => {
 
-                def selectItem(suggestion: Suggestion): Callback = handleQuestionChange(suggestion.fullText)
+                def selectItem(suggestion: Autocomplete.Suggestion): Callback = handleQuestionChange(suggestion.fullText)
 
                 def handleKey(e: ReactKeyboardEvent): Callback = {
                   val genHandlers = CallbackOption.keyCodeSwitch(e) {
@@ -284,18 +280,19 @@ class QASRLGenerationClient[SID : Reader : Writer](
                         case KeyCode.Enter => setBlurEnabled(true) >> moveToNextQuestion >> e.preventDefaultCB
                       }
                     } else {
-                      autocompleteStateOpt.foldMap { acs =>
-                        val menuItems = acs.suggestions
-                        def next = setHighlightedIndex((highlightedIndex + 1) % menuItems.size.toInt)
-                        def prev = setHighlightedIndex((highlightedIndex - 1 + menuItems.size.toInt) % menuItems.size.toInt)
-                        CallbackOption.keyCodeSwitch(e) {
-                          case KeyCode.Down => next >> e.preventDefaultCB
-                          case KeyCode.Up => prev >> e.preventDefaultCB
-                          case KeyCode.Enter => selectItem(menuItems.toList(highlightedIndex)) >> e.preventDefaultCB
-                        }
+                      autocompleteResultOpt.foldMap {
+                        case Autocomplete.Complete(_) => CallbackOption.pass
+                        case Autocomplete.Incomplete(suggestions, badStartIndexOpt) =>
+                          val menuItems = suggestions
+                          def next = setHighlightedIndex((highlightedIndex + 1) % menuItems.size.toInt)
+                          def prev = setHighlightedIndex((highlightedIndex - 1 + menuItems.size.toInt) % menuItems.size.toInt)
+                          CallbackOption.keyCodeSwitch(e) {
+                            case KeyCode.Down => next >> e.preventDefaultCB
+                            case KeyCode.Up => prev >> e.preventDefaultCB
+                            case KeyCode.Enter => selectItem(menuItems.toList(highlightedIndex)) >> e.preventDefaultCB
+                          }
                       }
                     }
-
                   genHandlers orElse menuHandlers
                 }
 
@@ -328,7 +325,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                     ^.value := question
                   ).ref(setInputRef(qaIndex)),
                   (for {
-                     AutocompleteState(suggestions, badStartIndexOpt) <- autocompleteStateOpt
+                     Autocomplete.Incomplete(suggestions, badStartIndexOpt) <- autocompleteResultOpt
                      ref <- allInputRefs.get(qaIndex)
                    } yield {
                      val rect = ref.getBoundingClientRect
@@ -359,7 +356,7 @@ class QASRLGenerationClient[SID : Reader : Writer](
                        ^.onMouseMove --> setBlurEnabled(false),
                        ^.onMouseLeave --> setBlurEnabled(true),
                        suggestions.zipWithIndex.toList.toVdomArray {
-                         case (ts @ Suggestion(text, isCompletion), tokenIndex) =>
+                         case (ts @ Autocomplete.Suggestion(text, isCompletion), tokenIndex) =>
                            <.div(
                              itemBgStyle(tokenIndex, isCompletion).whenDefined,
                              ^.padding := "2px 6px",

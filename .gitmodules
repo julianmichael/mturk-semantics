@@ -13,3 +13,6 @@
 [submodule "lib/qamr"]
 	path = lib/qamr
 	url = https://github.com/uwnlp/qamr.git
+[submodule "lib/qasrl-crowdsourcing"]
+	path = lib/qasrl-crowdsourcing
+	url = git@github.com:julianmichael/qasrl-crowdsourcing.git

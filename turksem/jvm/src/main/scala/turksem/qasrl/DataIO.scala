@@ -1,5 +1,9 @@
 package turksem.qasrl
 
+import qasrl.Frame
+import qasrl.QuestionProcessor
+import qasrl.TemplateStateMachine
+
 import cats.Foldable
 import cats.data.NonEmptyList
 import cats.implicits._
@@ -52,7 +56,7 @@ object DataIO {
               val qLabelOpt = if(collapseQuestionLabels) {
                 for {
                   inflForms <- inflections.getInflectedForms(sentenceTokens(wqa.verbIndex).lowerCase)
-                  label <- QALabelMapper.getLabelForQuestion(sentenceTokens, inflForms, wqa.question)
+                  label = QALabelMapper.getAllLabelsForQuestion(sentenceTokens, inflForms, wqa.question).mkString(";")
                 } yield label
               } else Option(wqa.question)
               qLabelOpt.foreach { label =>
@@ -117,10 +121,10 @@ object DataIO {
         sentenceTokens = genHIT.prompt.id.tokens
         verbInflectedForms <- inflections.getInflectedForms(sentenceTokens(genHIT.prompt.verbIndex).lowerCase)
         wh <- whPhrases.find(s => wqa.question.lowerCase.startsWith(s))
-        template = new QASRLStatefulTemplate(new TemplateStateMachine(sentenceTokens, verbInflectedForms))
+        template = new QuestionProcessor(new TemplateStateMachine(sentenceTokens, verbInflectedForms))
         goodStates <- template.processStringFully(wqa.question).toOption
         frames = goodStates.toList.collect {
-          case QASRLStatefulTemplate.Complete(_, TemplateStateMachine.FrameState(_, _, _, frame)) => frame
+          case QuestionProcessor.CompleteState(_, frame, _) => frame
         }
       } yield (wqa.question, wh, verbInflectedForms.stem, frames)
       def makeDist[F[_]: Foldable](tuples: F[(String, LowerCaseString, LowerCaseString, List[Frame])]) =
@@ -170,7 +174,7 @@ object DataIO {
           val verbToken = sentenceTokens(genHIT.prompt.verbIndex)
           val verbInflectedFormsOpt = inflections.getInflectedForms(verbToken.lowerCase)
           for(verbInflectedForms <- verbInflectedFormsOpt) {
-            val template = new QASRLStatefulTemplate(new TemplateStateMachine(sentenceTokens, verbInflectedForms))
+            val template = new QuestionProcessor(new TemplateStateMachine(sentenceTokens, verbInflectedForms))
             val whDist = {
               localWhDists.get(verbInflectedForms.stem).fold(globalWhDist)(localDist =>
                 localDist.interpolate(globalWhDist, 0.5)

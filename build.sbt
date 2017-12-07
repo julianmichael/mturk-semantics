@@ -26,6 +26,7 @@ lazy val commonSettings = Seq(
   libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.julianmichael" %%% "spacro" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.uwnlp" %%% "qamr" % "0.1-SNAPSHOT",
+  libraryDependencies += "com.github.julianmichael" %%% "qasrl" % "0.1-SNAPSHOT",
   libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
   libraryDependencies += "org.typelevel" %%% "cats-effect" % "0.3",
   libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.11.0",
@@ -104,8 +105,6 @@ lazy val turksemJS = turksem.js
 lazy val turksemJVM = turksem.jvm
 
 lazy val exampleProjectSettings = commonSettings ++ Seq(
-  libraryDependencies += "com.github.uwnlp" %%% "qamr-example" % "0.1-SNAPSHOT",
-  libraryDependencies += "com.github.uwnlp" %%% "qamr-analysis" % "0.1-SNAPSHOT"
 )
 
 lazy val exampleProjectJVMSettings = commonJVMSettings ++ Seq(
@@ -123,12 +122,21 @@ lazy val exampleProjectJVMSettings = commonJVMSettings ++ Seq(
 
 lazy val exampleProjectJSSettings = commonJSSettings
 
-lazy val emnlp2017 = crossProject.in(file("example/emnlp2017"))
-  .settings(name := "turksem-emnlp2017", version := "0.1-SNAPSHOT")
-  .settings(exampleProjectSettings)
-  .jvmSettings(exampleProjectJVMSettings)
-  .jvmSettings(libraryDependencies += "io.argonaut" %% "argonaut" % "6.1")
-  .jsSettings(exampleProjectJSSettings)
+lazy val emnlp2017 = crossProject.in(file("example/emnlp2017")).settings(
+  name := "turksem-emnlp2017",
+  version := "0.1-SNAPSHOT"
+).settings(
+  exampleProjectSettings
+).settings(
+  libraryDependencies += "com.github.uwnlp" %%% "qamr-example" % "0.1-SNAPSHOT",
+  libraryDependencies += "com.github.uwnlp" %%% "qamr-analysis" % "0.1-SNAPSHOT"
+).jvmSettings(
+  exampleProjectJVMSettings
+).jvmSettings(
+  libraryDependencies += "io.argonaut" %% "argonaut" % "6.1"
+).jsSettings(
+  exampleProjectJSSettings
+)
 
 lazy val emnlp2017JS = emnlp2017.js.dependsOn(turksemJS)
 lazy val emnlp2017JVM = emnlp2017.jvm.dependsOn(turksemJVM).settings(

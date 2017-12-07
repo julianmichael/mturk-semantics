@@ -3,7 +3,6 @@ package example.multitask
 import cats._
 import cats.implicits._
 
-import turksem.FileSystemAnnotationDataService
 import qamr._
 import turksem.qasrl._
 import turksem.util._

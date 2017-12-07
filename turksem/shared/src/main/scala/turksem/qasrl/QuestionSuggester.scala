@@ -1,5 +1,8 @@
 package turksem.qasrl
 
+import qasrl._
+import qasrl.util.DependentMap
+
 import cats.Id
 import cats.data.NonEmptyList
 import cats.implicits._
@@ -10,7 +13,7 @@ import nlpdata.util.LowerCaseStrings._
 
 object QuestionSuggester {
   def getSuggestionsForNegativeSampling(
-    template: QASRLStatefulTemplate,
+    template: QuestionProcessor,
     questions: List[String],
     rand: scala.util.Random,
     whDist: CategoricalDistribution[LowerCaseString],
@@ -22,13 +25,9 @@ object QuestionSuggester {
     val initFramesWithAnswerSlots: List[(Frame, ArgumentSlot)] =
       questions.flatMap(question =>
         template.processStringFully(question) match {
-          case Left(QASRLStatefulTemplate.AggregatedInvalidState(_, _)) => Nil
+          case Left(QuestionProcessor.AggregatedInvalidState(_, _)) => Nil
           case Right(goodStates) => goodStates.toList.collect {
-            case QASRLStatefulTemplate.Complete(
-              _, TemplateStateMachine.FrameState(Some(whWord), prepOpt, answerSlotOpt, frame)
-            ) if (prepOpt.nonEmpty == frame.args.get(Obj2).nonEmptyAnd(_.isPrep)) &&
-                (!Set("who", "what").map(_.lowerCase).contains(whWord) || answerSlotOpt.nonEmpty) =>
-              (frame, answerSlotOpt.getOrElse(Adv(whWord)))
+            case QuestionProcessor.CompleteState(_, frame, answerSlot) => (frame, answerSlot)
           }
         }
       )
