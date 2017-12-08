@@ -161,7 +161,9 @@ class QASRLGenerationClient[SID : Reader : Writer](
               qaStateLens(qaIndex).set(Complete(completeStates))(s)
             }
           }
-          else qaStateLens(qaIndex).set(InProgress)(s)
+          else {
+            qaStateLens(qaIndex).set(InProgress)(s)
+          }
       }
     }
 
@@ -209,49 +211,6 @@ class QASRLGenerationClient[SID : Reader : Writer](
               case Complete(completeStates) => completeStates
             }.flatten.toSet)
 
-          // def createSuggestion(ips: QuestionProcessor.InProgressState): Suggestion =
-          //   Suggestion(ips.fullText, template.isAlmostComplete(ips))
-
-          // // technically maybe should collapse together by full text in case there are two (one complete, one not)
-          // // but that should never happen anyway
-          // def makeList(goodStates: NonEmptyList[QuestionProcessor.ValidState]) = NonEmptyList.fromList(
-          //   goodStates.toList.collect { case ips @ QuestionProcessor.InProgressState(_, _, _, _) => createSuggestion(ips) }
-          //     .toSet.toList
-          //     .sortBy((vs: Suggestion) => vs.fullText)
-          // )
-
-          // val allLowercaseQuestionStrings = qas.map(_.question.lowerCase).toSet
-
-          // template.processStringFully(question) match {
-          //   case Left(QuestionProcessor.AggregatedInvalidState(lastGoodStates, badStartIndex)) =>
-          //     makeList(lastGoodStates).map(options => AutocompleteState(options, Some(badStartIndex)))
-          //   case Right(goodStates) =>
-          //     val framesWithAnswerSlots = qas.map(_.state).collect {
-          //       case Complete(framesWithSlots) => framesWithSlots
-          //     }.flatten
-          //     val frameCounts = counts(framesWithAnswerSlots.map(_._1))
-          //     val frameToFilledAnswerSlots = framesWithAnswerSlots.foldLeft(Map.empty[Frame, Set[ArgumentSlot]].withDefaultValue(Set.empty[ArgumentSlot])) {
-          //       case (acc, (frame, slot)) => acc.updated(frame, acc(frame) + slot)
-          //     }
-          //     val framesByCountDecreasing = frameCounts.keys.toList.sortBy(f => -10 * frameCounts(f) + math.abs(f.args.size - 2))
-          //     val allQuestions = framesByCountDecreasing.flatMap { frame =>
-          //       val unAnsweredSlots = frame.args.keys.toSet -- frameToFilledAnswerSlots(frame)
-          //       val coreArgQuestions = unAnsweredSlots.toList.flatMap(frame.questionsForSlot)
-          //       val advQuestions = ArgumentSlot.allAdvSlots
-          //         .filterNot(frameToFilledAnswerSlots(frame).contains)
-          //         .flatMap(frame.questionsForSlot)
-          //       coreArgQuestions ++ advQuestions
-          //     }.filter(_.toLowerCase.startsWith(question.toLowerCase)).filterNot(q => allLowercaseQuestionStrings.contains(q.lowerCase)).distinct
-          //     val questionSuggestions = allQuestions.flatMap(q =>
-          //       template.processStringFully(q) match {
-          //         case Right(goodStates) if goodStates.exists(_.isComplete) => Some(Suggestion(q, true))
-          //         case _ => None
-          //       }
-          //     ).take(4) // number of suggested questions capped at 4 to filter out crowd of bad ones
-          //     makeList(goodStates).map { options =>
-          //       AutocompleteState(NonEmptyList.fromList(questionSuggestions).fold(options)(sugg => (sugg ++ options.toList).distinct), None)
-          //     }
-          // }
         }
 
         def handleQuestionChange(newQuestion: String) = {

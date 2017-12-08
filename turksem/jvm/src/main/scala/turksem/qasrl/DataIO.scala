@@ -12,6 +12,7 @@ import spacro.HITInfo
 import spacro.util.Span
 
 import nlpdata.datasets.wiktionary.Inflections
+import nlpdata.datasets.wiktionary.InflectedForms
 import nlpdata.util.HasTokens.ops._
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.util.HasTokens
@@ -19,14 +20,18 @@ import nlpdata.util.Text
 
 import turksem.util._
 
-object DataIO {
+import com.typesafe.scalalogging.LazyLogging
+
+object DataIO extends LazyLogging {
+
+  type QuestionLabelGetter = (Vector[String], InflectedForms, List[String]) => List[Option[LowerCaseString]]
 
   def makeQAPairTSV[SID : HasTokens](
     ids: List[SID],
     writeId: SID => String, // serialize sentence ID for distribution in data file
     genInfos: List[HITInfo[QASRLGenerationPrompt[SID], List[VerbQA]]],
     valInfos: List[HITInfo[QASRLValidationPrompt[SID], List[QASRLValidationAnswer]]],
-    collapseQuestionLabels: Boolean = false)(
+    getQuestionLabels: QuestionLabelGetter = QALabelMapper.useQuestionString)(
     implicit inflections: Inflections
   ): String = {
     val genInfosBySentenceId = genInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
@@ -38,43 +43,40 @@ object DataIO {
       val sentenceSB = new StringBuilder
       var shouldIncludeSentence = false // for now, print everything
       sentenceSB.append(s"${idString}\t${sentenceTokens.mkString(" ")}\n")
-      // sort by keyword group first...
-      for(HITInfo(genHIT, genAssignments) <- genInfosBySentenceId(id).sortBy(_.hit.prompt.verbIndex)) {
+      for {
+        // sort by keyword group first...
+        HITInfo(genHIT, genAssignments) <- genInfosBySentenceId(id).sortBy(_.hit.prompt.verbIndex)
         // then worker ID second, so the data will be chunked correctly according to HIT;
-        for(genAssignment <- genAssignments.sortBy(_.workerId)) {
-          // and these should already be ordered in terms of the target word used for a QA pair.
-          for((wqa, qaIndex) <- genAssignment.response.zipWithIndex) {
-            // pairs of (validation worker ID, validation answer)
-            val valAnswerSpans = for {
-              info <- valInfosByGenAssignmentId.get(genAssignment.assignmentId).getOrElse(Nil)
-              assignment <- info.assignments
-              answer <- assignment.response(qaIndex).getAnswer
-            } yield answer.spans
-            if(valAnswerSpans.size != 2) {
-              System.err.println("Warning: don't have 2 validation answers for question. Actual number: " + valAnswerSpans.size)
-            } else {
-              val qLabelOpt = if(collapseQuestionLabels) {
-                for {
-                  inflForms <- inflections.getInflectedForms(sentenceTokens(wqa.verbIndex).lowerCase)
-                  label = QALabelMapper.getAllLabelsForQuestion(sentenceTokens, inflForms, wqa.question).mkString(";")
-                } yield label
-              } else Option(wqa.question)
-              qLabelOpt.foreach { label =>
-                shouldIncludeSentence = true
-                sentenceSB.append("\t")
-                sentenceSB.append(wqa.verbIndex.toString + "\t")
-                sentenceSB.append(label + "\t") // question string written by worker
-                sentenceSB.append(
-                  (wqa.answers :: valAnswerSpans).map { spans =>
-                    spans
-                      .map(span => s"${span.begin}-${span.end}")
-                      .mkString(";")
-                  }.mkString("\t")
-                )
-                sentenceSB.append("\n")
-              }
-            }
-          }
+        genAssignment <- genAssignments.sortBy(_.workerId)
+        // process in order of verb
+        verbIndex <- genAssignment.response.map(_.verbIndex).toSet.toList.sorted
+        // only use verbs where we have inflected forms (should always be the case though)
+        inflForms <- inflections.getInflectedForms(sentenceTokens(verbIndex).lowerCase).toList
+        verbQAsIndexed = genAssignment.response.zipWithIndex.filter(_._1.verbIndex == verbIndex)
+        labels = getQuestionLabels(sentenceTokens, inflForms, verbQAsIndexed.map(_._1.question))
+        ((wqa, qaIndex), Some(qLabel)) <- verbQAsIndexed.zip(labels)
+      } yield {
+        // pairs of (validation worker ID, validation answer)
+        val valAnswerSpans = for {
+          info <- valInfosByGenAssignmentId.get(genAssignment.assignmentId).getOrElse(Nil)
+          assignment <- info.assignments
+          answer <- assignment.response(qaIndex).getAnswer
+        } yield answer.spans
+        if(valAnswerSpans.size != 2) {
+          logger.warn("Warning: don't have 2 validation answers for question. Actual number: " + valAnswerSpans.size)
+        } else {
+          shouldIncludeSentence = true
+          sentenceSB.append("\t")
+          sentenceSB.append(wqa.verbIndex.toString + "\t")
+          sentenceSB.append(qLabel.toString + "\t") // question string written by worker
+          sentenceSB.append(
+            (wqa.answers :: valAnswerSpans).map { spans =>
+              spans
+                .map(span => s"${span.begin}-${span.end}")
+                .mkString(";")
+            }.mkString("\t")
+          )
+          sentenceSB.append("\n")
         }
       }
       if(shouldIncludeSentence) {
@@ -231,7 +233,7 @@ object DataIO {
             val valResponses = valInfosByGenAssignmentId.get(genAssignment.assignmentId).getOrElse(Nil)
               .flatMap(_.assignments.map(a => (a.workerId, a.response(qaIndex))))
             if(valResponses.size != 2) {
-              System.err.println("Warning: don't have 2 validation answers for question. Actual number: " + valResponses.size)
+              logger.warn("Warning: don't have 2 validation answers for question. Actual number: " + valResponses.size)
             }
             val valAnswers = valResponses.map(_._2)
 

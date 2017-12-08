@@ -166,32 +166,26 @@ class MultitaskAnnotationSetup(
     generationCoverageDisqualTypeLabel = Some("v3-templates"),
     validationAgreementDisqualTypeLabel = Some("v3-templates"))
 
-  def saveAnnotationData(
+  def saveReadableAnnotationData(
     filename: String,
-    ids: Vector[SentenceId],
-    collapseQuestionLabels: Boolean = false
-  ) = {
-    if(!collapseQuestionLabels) {
-      saveOutputFile(
-        s"$filename-readable.tsv",
-        DataIO.makeReadableQAPairTSV(
-          ids.toList,
-          SentenceId.toString,
-          identity,
-          experiment.allGenInfos,
-          experiment.allValInfos,
-          (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
-      )
-    }
+    ids: Vector[SentenceId]
+    ) = {
     saveOutputFile(
-      if(collapseQuestionLabels) s"$filename-collapsed.tsv" else s"$filename.tsv",
-      DataIO.makeQAPairTSV(
+      s"$filename-readable.tsv",
+      DataIO.makeReadableQAPairTSV(
         ids.toList,
         SentenceId.toString,
+        identity,
         experiment.allGenInfos,
         experiment.allValInfos,
-        collapseQuestionLabels)
+        (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
     )
+  }
+
+  def saveNegativeSampledAnnotationData(
+    filename: String,
+    ids: Vector[SentenceId]
+  ) = {
     // TODO collapse labels for negative sampling
     saveOutputFile(
       s"$filename-negative.tsv",
@@ -203,12 +197,32 @@ class MultitaskAnnotationSetup(
     )
   }
 
-  def writeAllTSVs(collapseQuestionLabels: Boolean = false) = {
-    saveAnnotationData("brown-train", brownTrain, collapseQuestionLabels)
-    saveAnnotationData("brown-dev", brownDev, collapseQuestionLabels)
-    saveAnnotationData("brown-test", brownTest, collapseQuestionLabels)
-    saveAnnotationData("bc-train", ontoNotesTrain, collapseQuestionLabels)
-    saveAnnotationData("bc-dev", ontoNotesDev, collapseQuestionLabels)
-    saveAnnotationData("bc-test", ontoNotesTest, collapseQuestionLabels)
+  def saveAnnotationData(
+    filename: String,
+    ids: Vector[SentenceId],
+    fileLabelOpt: Option[String] = None,
+    getQuestionLabel: DataIO.QuestionLabelGetter = QALabelMapper.useQuestionString
+  ) = {
+    saveOutputFile(
+      fileLabelOpt.fold(s"$filename.tsv")(label => s"$filename-$label.tsv"),
+      DataIO.makeQAPairTSV(
+        ids.toList,
+        SentenceId.toString,
+        experiment.allGenInfos,
+        experiment.allValInfos,
+        getQuestionLabel)
+    )
+  }
+
+  def writeAllTSVs(
+    fileLabelOpt: Option[String] = None,
+    getQuestionLabel: DataIO.QuestionLabelGetter = QALabelMapper.useQuestionString
+  ) = {
+    saveAnnotationData("brown-train", brownTrain, fileLabelOpt, getQuestionLabel)
+    saveAnnotationData("brown-dev", brownDev, fileLabelOpt, getQuestionLabel)
+    saveAnnotationData("brown-test", brownTest, fileLabelOpt, getQuestionLabel)
+    saveAnnotationData("bc-train", ontoNotesTrain, fileLabelOpt, getQuestionLabel)
+    saveAnnotationData("bc-dev", ontoNotesDev, fileLabelOpt, getQuestionLabel)
+    saveAnnotationData("bc-test", ontoNotesTest, fileLabelOpt, getQuestionLabel)
   }
 }

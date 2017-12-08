@@ -1,7 +1,7 @@
 package turksem.qasrl
 
-import turksem.util._
 import cats.implicits._
+import turksem.util._
 
 case class AccuracyJudgment(
   validatorId: String,

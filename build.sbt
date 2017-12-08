@@ -235,3 +235,28 @@ lazy val paposeJVM = papose.jvm.dependsOn(turksemJVM, emnlp2017JVM).settings(
   (resources in Compile) += (packageScalaJSLauncher in (paposeJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (paposeJS, Compile)).value
 )
+
+import sbtassembly.AssemblyPlugin.defaultShellScript
+
+// TODO the resulting jar doesn't work because of the hacky workaround between LB and TL scala
+lazy val qtrans = project.in(file("example/qtrans"))
+  .dependsOn(turksemJVM)
+  .settings(
+  organization := "com.github.julianmichael",
+  name := "turksem-qtrans",
+  version := "0.1-SNAPSHOT",
+  scalaVersion in ThisBuild := "2.11.8",
+  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds"),
+  resolvers += Resolver.sonatypeRepo("snapshots"),
+  libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
+  libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
+  libraryDependencies += "com.monovore" %% "decline" % "0.3.0"
+).settings(
+  // assemblyOption in assembly := (assemblyOption in assembly).value.copy(prependShellScript = Some(defaultShellScript)),
+  assemblyJarName in assembly := "qtrans.jar",
+  test in assembly := {}, // not like I have tests anyway, ha!
+  assemblyMergeStrategy in assembly := { // TODO this is a hack basically to get TL and LB scala to play nice
+    case PathList("META-INF", "MANIFEST.MF") => MergeStrategy.discard
+    case x => MergeStrategy.last
+  }
+)
