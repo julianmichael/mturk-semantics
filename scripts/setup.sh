@@ -19,8 +19,16 @@ echo "Publishing nlpdata locally..."
 pushd lib/nlpdata
 sbt publishLocal
 popd
-echo "Publishing turkey locally..."
-pushd lib/turkey
+echo "Publishing spacro locally..."
+pushd lib/spacro
+sbt publishLocal
+popd
+echo "Publishing qamr locally..."
+pushd lib/qamr/code
+sbt publishLocal
+popd
+echo "Publishing qasrl-crowdsourcing locally..."
+pushd lib/qasrl-crowdsourcing
 sbt publishLocal
 popd
 
