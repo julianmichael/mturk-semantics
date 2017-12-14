@@ -19,7 +19,7 @@ import nlpdata.util.HasAlignedTokens.ops._
 val label = "trial"
 
 val isProduction = false // sandbox. change to true for production
-val domain = "nlp.cs.washington.edu" // change to your domain, or keep localhost for testing
+val domain = "localhost" // change to your domain, or keep localhost for testing
 val projectName = "turksem-tqa" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
 
@@ -45,7 +45,7 @@ def exit = {
   System.out.println("Terminated actor system and logging. Type :q to end.")
 }
 
-val setup = new TQAAnnotationSetup(isGold = false, label)
+val setup = new TQAAnnotationSetup(label)
 import setup.SentenceIdHasAlignedTokens
 
 val exp = setup.experiment

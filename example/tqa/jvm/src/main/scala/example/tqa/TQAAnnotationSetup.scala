@@ -3,7 +3,8 @@ package example.tqa
 import cats._
 import cats.implicits._
 
-import turksem.FileSystemAnnotationDataService
+import qamr.FileSystemAnnotationDataService
+
 import turksem.qasrl._
 import turksem.util._
 
@@ -12,14 +13,16 @@ import spacro.tasks._
 
 import nlpdata.structure.AlignedToken
 
+import nlpdata.datasets.wiki1k.Wiki1kFileSystemService
+import nlpdata.datasets.wiki1k.Wiki1kPath
 import nlpdata.datasets.wiktionary
 import nlpdata.datasets.wiktionary.Inflections
 import nlpdata.datasets.tqa.TQAFileSystemService
 
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.util.Text
-import nlpdata.util.HasAlignedTokens
-import nlpdata.util.HasAlignedTokens.ops._
+import nlpdata.util.HasTokens
+import nlpdata.util.HasTokens.ops._
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
@@ -41,7 +44,6 @@ import scala.util.Random
 import upickle.default._
 
 class TQAAnnotationSetup(
-  val isGold: Boolean,
   val label: String,
   frozenGenerationHITTypeId: Option[String] = None,
   frozenValidationHITTypeId: Option[String] = None)(
@@ -106,14 +108,74 @@ class TQAAnnotationSetup(
     resourcePath.resolve("wiktionary")
   )
 
-  lazy val tusharSentences = loadInputFile("qasrl_sentences_only.csv").get.toVector.map(AligningTokenizer.tokenize)
+  val Wiki1k = new Wiki1kFileSystemService(
+    resourcePath.resolve("wiki1k")
+  )
 
-  lazy val tusharIds = tusharSentences.indices.map(TusharSentenceId(_)).toVector
+  def getWikiSentences(rand: Random, filePaths: Vector[Wiki1kPath], numSentences: Int) = {
+    rand.shuffle(
+      filePaths.flatMap(p => Wiki1k.getFile(p).get.paragraphs)
+    ).filter(p =>
+      !p.exists(sentence =>
+        sentence.tokens.exists(t =>
+          Text.normalizeToken(t) == "\\"))
+    ).flatten.map(s => WikiSentenceId(s.path)).take(numSentences)
+  }
 
-  implicit object SentenceIdHasAlignedTokens extends HasAlignedTokens[SentenceId] {
-    def getAlignedTokens(id: SentenceId): Vector[AlignedToken] = id match {
-      case TQASentenceId(globalId, sentenceIndex) => tqaTexts(globalId).sentences(sentenceIndex)
-      case TusharSentenceId(index) => tusharSentences(index)
+  val numWikipedia = 15000
+
+  lazy val (wikipediaTrainIds, wikipediaDevIds, wikipediaTestIds) = {
+    // reproduce train/dev/test split from QAMR
+    val shuffleRand = new Random(1230976L)
+    val (trainFiles, devTestRestFiles) = shuffleRand.shuffle(
+      Wiki1k.wiki1kPathsForDomain("wikipedia")
+    ).splitAt(640)
+    val (devFiles, testRestFiles) = devTestRestFiles.splitAt(80)
+    val testFiles = testRestFiles.take(80)
+
+    // use a different random seed so we get different sentences than QAMR
+    val sentenceShuffleRand = new Random(89561915L)
+    val train = getWikiSentences(sentenceShuffleRand, trainFiles, numWikipedia * 4 / 5)
+    val dev = getWikiSentences(sentenceShuffleRand, devFiles, numWikipedia / 10)
+    val test = getWikiSentences(sentenceShuffleRand, testFiles, numWikipedia / 10)
+    (train, dev, test)
+  }
+
+  val numWikinews = 15000
+
+  lazy val (wikinewsTrainIds, wikinewsDevIds, wikinewsTestIds) = {
+    // reproduce train/dev/test split from QAMR
+    val shuffleRand = new Random(1246902L)
+    val (trainFiles, devFiles, testFiles) = {
+      val (trainz, devTestRestFiles) = shuffleRand.shuffle(
+        Wiki1k.wiki1kPathsForDomain("wikinews")
+          .sortBy(-_.suffix.toInt) // relies on wikinews IDs being ints... true as of now
+          .take(1000) // remove 1k most recent b/c not as well audited / lower quality
+      ).splitAt(800)
+      val (devz, testRestFiles) = devTestRestFiles.splitAt(80)
+      val testz = testRestFiles.take(80)
+      // filtering that we know to do before sentence selection.
+      // so as not to throw off sentence selection,
+      // any subsequent filtering (ie discovered during annotation) should be done later.
+      def filterFiles(paths: Vector[Wiki1kPath]) =
+        paths.filterNot(path =>
+          path.suffix.contains("785582") || // this is apparently a French interview
+            path.suffix.contains("648587")) // this is apparently a Spanish article
+      (filterFiles(trainz), filterFiles(devz), filterFiles(testz))
+    }
+
+    // use a different random seed so we get different sentences than QAMR
+    val sentenceShuffleRand = new Random(32186519L)
+    val train = getWikiSentences(sentenceShuffleRand, trainFiles, numWikinews * 4 / 5)
+    val dev = getWikiSentences(sentenceShuffleRand, devFiles, numWikinews / 10)
+    val test = getWikiSentences(sentenceShuffleRand, testFiles, numWikinews / 10)
+    (train, dev, test)
+  }
+
+  implicit object SentenceIdHasAlignedTokens extends HasTokens[SentenceId] {
+    override def getTokens(id: SentenceId): Vector[String] = id match {
+      case TQASentenceId(topicId, sentenceIndex) => tqaTexts(topicId).sentences(sentenceIndex).map(_.token)
+      case WikiSentenceId(path) => Wiki1k.getSentence(path).get.tokens
     }
   }
 
@@ -158,11 +220,11 @@ class TQAAnnotationSetup(
     (train, dev, test)
   }
 
-  lazy val allIds = weightedRoundRobin(List(tqaTrainIds, tqaDevIds, tqaTestIds, tusharIds))
-
-  lazy val goldIds = evenDistribution(tqaDevIds)
-
-  lazy val expIds = if(isGold) goldIds else allIds
+  lazy val allIds = weightedRoundRobin(
+    List(
+      tqaTrainIds, tqaDevIds, tqaTestIds,
+      wikipediaTrainIds, wikipediaDevIds, wikipediaTestIds,
+      wikinewsTrainIds, wikinewsDevIds, wikinewsTestIds))
 
   implicit lazy val inflections = {
     val tokens = for {
@@ -175,7 +237,7 @@ class TQAAnnotationSetup(
   def numGenerationAssignmentsForPrompt(p: QASRLGenerationPrompt[SentenceId]) = 1
 
   lazy val experiment = new QASRLAnnotationPipeline(
-    expIds, numGenerationAssignmentsForPrompt,
+    allIds, numGenerationAssignmentsForPrompt,
     liveAnnotationDataService,
     frozenGenerationHITTypeId = frozenGenerationHITTypeId,
     frozenValidationHITTypeId = frozenValidationHITTypeId,
