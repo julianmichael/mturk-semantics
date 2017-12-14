@@ -180,18 +180,38 @@ class TQAAnnotationSetup(
   }
 
   import scala.annotation.tailrec
-  @tailrec private def weightedRoundRobinAux[A](soFar: Vector[A], vectors: List[Vector[A]]): Vector[A] = {
+  // @tailrec private def weightedRoundRobinAux[A](soFar: Vector[A], vectors: List[Vector[A]]): Vector[A] = {
+  //     if(vectors.isEmpty) soFar else { // hit base case because filter out empties
+  //       val smallestSize = vectors.map(_.size).min // works bc nonempty
+  //       val (processedRemains, newSoFar) = vectors.foldLeft((List.empty[Vector[A]], soFar)) {
+  //         case ((remains, fullSoFar), vector) =>
+  //           val sizeMultiplier = vector.size / smallestSize
+  //           (vector.drop(sizeMultiplier) :: remains, fullSoFar ++ vector.take(sizeMultiplier))
+  //       }
+  //       weightedRoundRobinAux(newSoFar, processedRemains.reverse.filter(_.nonEmpty))
+  //     }
+  //   }
+  // def weightedRoundRobin[A](vectors: List[Vector[A]]) = weightedRoundRobinAux(Vector.empty[A], vectors)
+
+  @tailrec private def weightedRoundRobinRandomizedAux[A](
+    soFar: Vector[A],
+    vectors: List[Vector[A]],
+    rand: Random
+  ): Vector[A] = {
       if(vectors.isEmpty) soFar else { // hit base case because filter out empties
         val smallestSize = vectors.map(_.size).min // works bc nonempty
-        val (processedRemains, newSoFar) = vectors.foldLeft((List.empty[Vector[A]], soFar)) {
-          case ((remains, fullSoFar), vector) =>
+        val (processedRemains, newSoFar) = vectors.foldLeft((List.empty[Vector[A]], Vector.empty[A])) {
+          case ((remains, soFarAcc), vector) =>
             val sizeMultiplier = vector.size / smallestSize
-            (vector.drop(sizeMultiplier) :: remains, fullSoFar ++ vector.take(sizeMultiplier))
+            (vector.drop(sizeMultiplier) :: remains, soFarAcc ++ vector.take(sizeMultiplier))
         }
-        weightedRoundRobinAux(newSoFar, processedRemains.reverse.filter(_.nonEmpty))
+        weightedRoundRobinRandomizedAux(soFar ++ rand.shuffle(newSoFar), processedRemains.reverse.filter(_.nonEmpty), rand)
       }
     }
-  def weightedRoundRobin[A](vectors: List[Vector[A]]) = weightedRoundRobinAux(Vector.empty[A], vectors)
+  def weightedRoundRobinRandomized[A](
+    vectors: List[Vector[A]],
+    rand: Random
+  ) = weightedRoundRobinRandomizedAux(Vector.empty[A], vectors, rand)
 
   // reorders a vector into a result s.t. prefixes of the result are
   // (roughly) maximally evenly distributed over the original vector
@@ -220,11 +240,12 @@ class TQAAnnotationSetup(
     (train, dev, test)
   }
 
-  lazy val allIds = weightedRoundRobin(
+  lazy val allIds = weightedRoundRobinRandomized(
     List(
       tqaTrainIds, tqaDevIds, tqaTestIds,
       wikipediaTrainIds, wikipediaDevIds, wikipediaTestIds,
-      wikinewsTrainIds, wikinewsDevIds, wikinewsTestIds))
+      wikinewsTrainIds, wikinewsDevIds, wikinewsTestIds),
+    new Random(5614129L))
 
   implicit lazy val inflections = {
     val tokens = for {
