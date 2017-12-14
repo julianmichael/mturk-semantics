@@ -9,10 +9,10 @@
 	url = https://github.com/propbank/propbank-release.git
 [submodule "lib/spacro"]
 	path = lib/spacro
-	url = git@github.com:julianmichael/spacro.git
+	url = https://github.com/julianmichael/spacro.git
 [submodule "lib/qamr"]
 	path = lib/qamr
 	url = https://github.com/uwnlp/qamr.git
 [submodule "lib/qasrl-crowdsourcing"]
 	path = lib/qasrl-crowdsourcing
-	url = git@github.com:julianmichael/qasrl-crowdsourcing.git
+	url = https://github.com/julianmichael/qasrl-crowdsourcing.git
