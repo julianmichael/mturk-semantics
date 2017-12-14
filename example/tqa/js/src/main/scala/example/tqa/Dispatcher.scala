@@ -190,11 +190,13 @@ object Dispatcher extends QASRLDispatcher[TQASentenceId] with JSApp {
   import InstructionsComponent._
 
   val generationOverview = <.div(
+    <.p(Styles.badRed, """Read through all of the instructions and make sure you understand the interface controls before beginning. A full understanding of the requirements will help make sure validators approve your work and you can retain your qualification."""),
     <.p("""This task is for an academic research project by the natural language processing group at the University of Washington.
         We wish to deconstruct the meanings of verbs in English sentences into lists of questions and answers.
         You will be presented with a selection of English text with a verb written in bold."""),
-    <.p("""You will write questions about the verb and highlight their answers in the original sentence.
-        Questions are required to follow a strict format, which is enforced by autocomplete functionality in the interface. """,
+    <.p("""You will write questions about the verb and highlight their answers in the original sentence. """,
+        <.b(""" Note: it takes exactly 2 clicks to highlight each answer; see the Interface & Controls tab for details. """),
+    """ Questions are required to follow a strict format, which is enforced by autocomplete functionality in the interface. """,
         """ For example, the prompt below should elicit the following questions and answers: """),
     <.blockquote(
       ^.classSet1("blockquote"),
@@ -345,11 +347,14 @@ object Dispatcher extends QASRLDispatcher[TQASentenceId] with JSApp {
   )
 
   val validationOverview = <.div(
+    <.p(Styles.badRed, """Read through all of the instructions and make sure you understand the interface controls before beginning. A full understanding of the requirements will help maximize your agreement with other workers so you can retain your qualification."""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.
            You will be presented with a selection of English text and a list of questions prepared by other annotators."""),
     <.p("""You will highlight the words in the sentence that correctly answer each question,
-           as well as mark whether questions are invalid. For example, consider the following sentence:"""),
+           as well as mark whether questions are invalid.""",
+      <.b(""" Note: it takes exactly 2 clicks to highlight each answer; see the Controls tab for details. """),
+        """For example, consider the following sentence:"""),
     <.blockquote(
       ^.classSet1("blockquote"),
       "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today ",
