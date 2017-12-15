@@ -314,7 +314,7 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
           ${dollarsToCents(generationReward)}c for the second question, ${dollarsToCents(generationReward) + 1}c for the third
           then ${dollarsToCents(generationReward) + 2}c, etc.
           While at least one is required to submit the HIT,
-          you will need to write more than two questions on average in order to stay qualified.
+          you will need to write more than ${generationCoverageQuestionsPerVerbThreshold} questions on average in order to stay qualified.
           On average, it should take less than 30 seconds per question-answer pair, and be much quicker with practice.
           """),
     <.p("""Your questions will be evaluated by other annotators, and """,
