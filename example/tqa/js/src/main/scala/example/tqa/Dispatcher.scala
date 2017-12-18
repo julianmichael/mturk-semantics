@@ -23,8 +23,14 @@ object Dispatcher extends QASRLDispatcher[SentenceId] with JSApp {
 
   val TooltipsComponent = ScalaComponent.builder[VdomTag]("Tooltips")
     .render(_.props)
-    .componentDidMount(_ => Callback(scala.scalajs.js.Dynamic.global.$("[data-toggle=\"tooltip\"]").tooltip()))
-    .build
+    .componentDidMount(_ =>
+    Callback {
+      scala.util.Try {
+        scala.scalajs.js.Dynamic.global.$("[data-toggle=\"tooltip\"]").tooltip()
+      }
+      ()
+    }
+  ).build
 
   import settings._
 

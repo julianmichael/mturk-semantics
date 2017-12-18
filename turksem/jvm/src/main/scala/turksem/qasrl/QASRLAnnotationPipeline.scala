@@ -615,10 +615,11 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
     )
   }
 
-  def printStats[B : Ordering](sortFn: StatSummary => B) = {
-    val summaries = allStatSummaries.sortBy(sortFn)
+  def printStatsHeading =
     println(f"${"Worker ID"}%14s  ${"Verbs"}%5s  ${"Qs"}%5s  ${"Acc"}%4s  ${"As"}%5s  ${"%Bad"}%5s  ${"Agr"}%4s  $$")
-    summaries.foreach { case StatSummary(wid, numVerbsOpt, numQsOpt, accOpt, numAsOpt, numInvalidsOpt, pctBadOpt, agrOpt, earnings)=>
+
+  def printSingleStatSummary(ss: StatSummary): Unit = ss match {
+    case StatSummary(wid, numVerbsOpt, numQsOpt, accOpt, numAsOpt, numInvalidsOpt, pctBadOpt, agrOpt, earnings)=>
       val numVerbs = numVerbsOpt.getOrElse("")
       val numQs = numQsOpt.getOrElse("")
       val acc = accOpt.foldMap(pct => f"$pct%.2f")
@@ -626,7 +627,21 @@ class QASRLAnnotationPipeline[SID : Reader : Writer : HasTokens](
       val pctBad = pctBadOpt.foldMap(pct => f"$pct%4.2f")
       val agr = agrOpt.foldMap(pct => f"$pct%.2f")
       println(f"$wid%14s  $numVerbs%5s  $numQs%5s  $acc%4s  $numAs%5s  $pctBad%5s  $agr%4s  $earnings%.2f")
-    }
+  }
+
+  def statsForWorker(workerId: String): Option[StatSummary] = allStatSummaries.find(_.workerId == workerId)
+
+  def printStatsForWorker(workerId: String) = statsForWorker(workerId) match {
+    case None => println("No stats for worker.")
+    case Some(ss) =>
+      printStatsHeading
+      printSingleStatSummary(ss)
+  }
+
+  def printStats[B : Ordering](sortFn: StatSummary => B) = {
+    val summaries = allStatSummaries.sortBy(sortFn)
+    printStatsHeading
+    summaries.foreach(printSingleStatSummary)
   }
 
   def printQStats = printStats(-_.numQs.getOrElse(0))

@@ -51,6 +51,7 @@ class QASRLGenerationAccuracyManager[SID : Reader : Writer](
     allWorkerStats = allWorkerStats.get(workerId).fold(allWorkerStats) { stats =>
       allWorkerStats.updated(workerId, stats.addBonusValids(numAgreementsToAdd))
     }
+    assessQualification(workerId)
   }
 
   private[this] def save = {
