@@ -58,30 +58,22 @@ class TQAAnnotationSetup(
   val staticDataPath = Paths.get(s"data/tqa/$label/static")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
-    val directory = staticDataPath.resolve("out")
+    val path = staticDataPath.resolve("out").resolve(name)
+    val directory = path.getParent
     if(!Files.exists(directory)) {
       Files.createDirectories(directory)
     }
-    val path = directory.resolve(name)
     Files.write(path, contents.getBytes())
   }
 
   def loadOutputFile(name: String): Try[List[String]] = Try {
-    val directory = staticDataPath.resolve("out")
-    if(!Files.exists(directory)) {
-      Files.createDirectories(directory)
-    }
-    val path = directory.resolve(name)
+    val path = staticDataPath.resolve("out").resolve(name)
     import scala.collection.JavaConverters._
     Files.lines(path).iterator.asScala.toList
   }
 
   def loadInputFile(name: String): Try[List[String]] = Try {
-    val directory = staticDataPath.resolve("in")
-    if(!Files.exists(directory)) {
-      Files.createDirectories(directory)
-    }
-    val path = directory.resolve(name)
+    val path = staticDataPath.resolve("in").resolve(name)
     import scala.collection.JavaConverters._
     Files.lines(path).iterator.asScala.toList
   }
@@ -268,7 +260,9 @@ class TQAAnnotationSetup(
 
   def saveAnnotationData(
     filename: String,
-    ids: Vector[SentenceId]
+    ids: Vector[SentenceId],
+    genInfos: List[HITInfo[QASRLGenerationPrompt[SentenceId], List[VerbQA]]],
+    valInfos: List[HITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]]]
   ) = {
     saveOutputFile(
       s"$filename-readable.tsv",
@@ -276,8 +270,8 @@ class TQAAnnotationSetup(
         ids.toList,
         SentenceId.toString,
         identity,
-        experiment.allGenInfos,
-        experiment.allValInfos,
+        genInfos,
+        valInfos,
         (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
     )
     saveOutputFile(
@@ -285,12 +279,25 @@ class TQAAnnotationSetup(
       DataIO.makeQAPairTSV(
         ids.toList,
         SentenceId.toString,
-        experiment.allGenInfos,
-        experiment.allValInfos)
+        genInfos,
+        valInfos)
     )
   }
 
   def writeAllTSVs = {
-    () // TODO
+    val genInfos = experiment.allGenInfos
+    val valInfos = experiment.allValInfos
+    // train
+    saveAnnotationData(s"$label/train/tqa", tqaTrainIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/train/wikipedia", wikipediaTrainIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/train/wikinews", wikinewsTrainIds, genInfos, valInfos)
+    // dev
+    saveAnnotationData(s"$label/dev/tqa", tqaDevIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/dev/wikipedia", wikipediaDevIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/dev/wikinews", wikinewsDevIds, genInfos, valInfos)
+    // test
+    saveAnnotationData(s"$label/test/tqa", tqaTestIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/test/wikipedia", wikipediaTestIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/test/wikinews", wikinewsTestIds, genInfos, valInfos)
   }
 }

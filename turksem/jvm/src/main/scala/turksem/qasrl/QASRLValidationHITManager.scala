@@ -57,6 +57,7 @@ class QASRLValidationHITManager[SID : Reader : Writer](
     if(prompt.qaPairs.nonEmpty) {
       super.addPrompt(prompt)
       allPrompts = prompt :: allPrompts
+      refreshHITs
     } else {
       logger.warn(s"Validation prompt contains response with no QA pairs: $prompt")
     }
