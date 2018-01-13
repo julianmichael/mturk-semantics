@@ -1,5 +1,7 @@
 package turksem.iqa
 
+import qasrl.crowd.util.MultiContigSpanHighlightableSentenceComponent
+
 import spacro.tasks._
 import spacro.ui._
 import spacro.util.Span

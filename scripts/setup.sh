@@ -39,21 +39,12 @@ popd
 #   echo "mts/jvm/src/main/resources"
 # fi
 
-if [ ! -e "mturk.properties" ]
-then
-    echo "Missing file: mturk.properties"
-    echo "Please add a file named mturk.properties, consisting of two lines, of the form"
-    echo "access_key=XXXXXXXXXXXXXXXXXXXX"
-    echo "secret_key=YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY"
-    echo "where the keys are obtained from your AWS account."
-fi
-
-if [ ! -e "resources/ptb/" ]
-then
-    echo "-WARNING- Please download the Penn Treebank and place it at resources/ptb in order to run experiments related to the Penn Treebank data (including those with PropBank and NomBank). Relevant projects: emnlp2017"
-    echo "It requires an LDC license. Webpage: https://catalog.ldc.upenn.edu/ldc99t42"
-    # TODO did I use the PTB 3?
-fi
+# if [ ! -e "resources/ptb/" ]
+# then
+#     echo "-WARNING- Please download the Penn Treebank and place it at resources/ptb in order to run experiments related to the Penn Treebank data (including those with PropBank and NomBank). Relevant projects: emnlp2017"
+#     echo "It requires an LDC license. Webpage: https://catalog.ldc.upenn.edu/ldc99t42"
+#     # TODO did I use the PTB 3?
+# fi
 
 if [ ! -e "resources/nombank.1.0/" ]
 then

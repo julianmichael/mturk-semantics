@@ -3,9 +3,8 @@ package example.tqa
 import cats._
 import cats.implicits._
 
-import qamr.FileSystemAnnotationDataService
-
-import turksem.qasrl._
+import qasrl.crowd._
+import turksem.qasrl.QALabelMapper
 import turksem.util._
 
 import spacro._
@@ -262,10 +261,28 @@ class TQAAnnotationSetup(
     filename: String,
     ids: Vector[SentenceId],
     genInfos: List[HITInfo[QASRLGenerationPrompt[SentenceId], List[VerbQA]]],
+    valInfos: List[HITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]]],
+    questionLabelGetter: DataIO.QuestionLabelGetter = QALabelMapper.useQuestionString
+  ) = {
+    saveOutputFile(
+      s"$filename.tsv",
+      DataIO.makeQAPairTSV(
+        ids.toList,
+        SentenceId.toString,
+        genInfos,
+        valInfos,
+        questionLabelGetter)
+    )
+  }
+
+  def saveAnnotationDataReadable(
+    filename: String,
+    ids: Vector[SentenceId],
+    genInfos: List[HITInfo[QASRLGenerationPrompt[SentenceId], List[VerbQA]]],
     valInfos: List[HITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]]]
   ) = {
     saveOutputFile(
-      s"$filename-readable.tsv",
+      s"$filename.tsv",
       DataIO.makeReadableQAPairTSV(
         ids.toList,
         SentenceId.toString,
@@ -274,30 +291,49 @@ class TQAAnnotationSetup(
         valInfos,
         (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
     )
-    saveOutputFile(
-      s"$filename.tsv",
-      DataIO.makeQAPairTSV(
-        ids.toList,
-        SentenceId.toString,
-        genInfos,
-        valInfos)
-    )
   }
 
-  def writeAllTSVs = {
-    val genInfos = experiment.allGenInfos
-    val valInfos = experiment.allValInfos
+  lazy val genInfos = experiment.allGenInfos
+  lazy val valInfos = experiment.allValInfos
+
+  // mainly just for reference, or if you need to re-produce all versions of the dataset
+  def writeAllTSVCombinations = {
+    writeAllTSVs("string", QALabelMapper.useQuestionString)
+    writeAllTSVs("collapsed", QALabelMapper.getCollapsedLabels)
+    writeAllTSVs("slots", QALabelMapper.getExplicitTemplateLabelsForQuestion)
+    writeReadableTSVs
+  }
+
+  def writeAllTSVs(
+    labelType: String,
+    questionLabelGetter: DataIO.QuestionLabelGetter
+  ) = {
     // train
-    saveAnnotationData(s"$label/train/tqa", tqaTrainIds, genInfos, valInfos)
-    saveAnnotationData(s"$label/train/wikipedia", wikipediaTrainIds, genInfos, valInfos)
-    saveAnnotationData(s"$label/train/wikinews", wikinewsTrainIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/$labelType/train/tqa", tqaTrainIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/train/wikipedia", wikipediaTrainIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/train/wikinews", wikinewsTrainIds, genInfos, valInfos, questionLabelGetter)
     // dev
-    saveAnnotationData(s"$label/dev/tqa", tqaDevIds, genInfos, valInfos)
-    saveAnnotationData(s"$label/dev/wikipedia", wikipediaDevIds, genInfos, valInfos)
-    saveAnnotationData(s"$label/dev/wikinews", wikinewsDevIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/$labelType/dev/tqa", tqaDevIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/dev/wikipedia", wikipediaDevIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/dev/wikinews", wikinewsDevIds, genInfos, valInfos, questionLabelGetter)
     // test
-    saveAnnotationData(s"$label/test/tqa", tqaTestIds, genInfos, valInfos)
-    saveAnnotationData(s"$label/test/wikipedia", wikipediaTestIds, genInfos, valInfos)
-    saveAnnotationData(s"$label/test/wikinews", wikinewsTestIds, genInfos, valInfos)
+    saveAnnotationData(s"$label/$labelType/test/tqa", tqaTestIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/test/wikipedia", wikipediaTestIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/test/wikinews", wikinewsTestIds, genInfos, valInfos, questionLabelGetter)
+  }
+
+  def writeReadableTSVs = {
+    // train
+    saveAnnotationDataReadable(s"$label/readable/train/tqa", tqaTrainIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/train/wikipedia", wikipediaTrainIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/train/wikinews", wikinewsTrainIds, genInfos, valInfos)
+    // dev
+    saveAnnotationDataReadable(s"$label/readable/dev/tqa", tqaDevIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/dev/wikipedia", wikipediaDevIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/dev/wikinews", wikinewsDevIds, genInfos, valInfos)
+    // test
+    saveAnnotationDataReadable(s"$label/readable/test/tqa", tqaTestIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/test/wikipedia", wikipediaTestIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/test/wikinews", wikinewsTestIds, genInfos, valInfos)
   }
 }

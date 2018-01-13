@@ -1,6 +1,6 @@
 package example
 
-import turksem.qasrl.QASRLSettings
+import qasrl.crowd.QASRLSettings
 
 package object tqa {
   implicit val settings = new QASRLSettings {

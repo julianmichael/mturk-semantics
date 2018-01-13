@@ -27,6 +27,7 @@ lazy val commonSettings = Seq(
   libraryDependencies += "com.github.julianmichael" %%% "spacro" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.uwnlp" %%% "qamr" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.julianmichael" %%% "qasrl" % "0.1-SNAPSHOT",
+  libraryDependencies += "com.github.julianmichael" %%% "qasrl-crowd" % "0.1-SNAPSHOT",
   libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
   libraryDependencies += "org.typelevel" %%% "cats-effect" % "0.3",
   libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.11.0",

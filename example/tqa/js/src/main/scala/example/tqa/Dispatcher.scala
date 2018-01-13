@@ -2,8 +2,7 @@ package example.tqa
 
 import spacro.ui._
 
-import turksem.qasrl.QASRLDispatcher
-import qamr._
+import qasrl.crowd.QASRLDispatcher
 import turksem.util._
 
 import japgolly.scalajs.react.vdom.html_<^._

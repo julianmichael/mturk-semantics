@@ -1,6 +1,7 @@
 package turksem.qasrl
 
 import qasrl._
+import qasrl.crowd._
 import qasrl.util.DependentMap
 
 import cats.Id
