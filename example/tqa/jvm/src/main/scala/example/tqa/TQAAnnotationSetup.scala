@@ -16,6 +16,7 @@ import nlpdata.datasets.wiki1k.Wiki1kFileSystemService
 import nlpdata.datasets.wiki1k.Wiki1kPath
 import nlpdata.datasets.wiktionary
 import nlpdata.datasets.wiktionary.Inflections
+import nlpdata.datasets.wiktionary.VerbForm
 import nlpdata.datasets.tqa.TQAFileSystemService
 
 import nlpdata.util.LowerCaseStrings._
@@ -257,12 +258,16 @@ class TQAAnnotationSetup(
     generationCoverageDisqualTypeLabel = None,
     validationAgreementDisqualTypeLabel = None)
 
-  def saveAnnotationData(
+  import qasrl.labeling._
+
+  def saveAnnotationData[A](
     filename: String,
     ids: Vector[SentenceId],
     genInfos: List[HITInfo[QASRLGenerationPrompt[SentenceId], List[VerbQA]]],
     valInfos: List[HITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]]],
-    questionLabelGetter: DataIO.QuestionLabelGetter = QALabelMapper.useQuestionString
+    anonymizeWorker: String => String,
+    labelMapper: QuestionLabelMapper[String, A],
+    labelRenderer: A => String
   ) = {
     saveOutputFile(
       s"$filename.tsv",
@@ -271,7 +276,9 @@ class TQAAnnotationSetup(
         SentenceId.toString,
         genInfos,
         valInfos,
-        questionLabelGetter)
+        // anonymizeWorker, // TODO not outputting worker ID in dataset right now
+        labelMapper,
+        labelRenderer)
     )
   }
 
@@ -279,14 +286,15 @@ class TQAAnnotationSetup(
     filename: String,
     ids: Vector[SentenceId],
     genInfos: List[HITInfo[QASRLGenerationPrompt[SentenceId], List[VerbQA]]],
-    valInfos: List[HITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]]]
+    valInfos: List[HITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]]],
+    anonymizeWorker: String => String
   ) = {
     saveOutputFile(
       s"$filename.tsv",
       DataIO.makeReadableQAPairTSV(
         ids.toList,
         SentenceId.toString,
-        identity,
+        anonymizeWorker,
         genInfos,
         valInfos,
         (id: SentenceId, qa: VerbQA, responses: List[QASRLValidationAnswer]) => responses.forall(_.isAnswer))
@@ -295,45 +303,110 @@ class TQAAnnotationSetup(
 
   lazy val genInfos = experiment.allGenInfos
   lazy val valInfos = experiment.allValInfos
+  lazy val workerAnonymizationMap: Map[String, String] = {
+    val allGenWorkerIdsIter = for {
+      HITInfo(_, assignments) <- genInfos.iterator
+      a <- assignments
+    } yield a.workerId
+
+    val allValWorkerIdsIter = for {
+      HITInfo(_, assignments) <- valInfos.iterator
+      a <- assignments
+    } yield a.workerId
+
+    val allWorkerIds = (allGenWorkerIdsIter ++ allValWorkerIdsIter).toSet
+
+    val rand = new scala.util.Random(1543754734L)
+    val randomOrderedWorkerIds = rand.shuffle(allWorkerIds.toVector)
+    randomOrderedWorkerIds.zipWithIndex.map {
+      case (workerId, index) => workerId -> index.toString
+    }.toMap
+  }
+
+  def dataLabelIterator = for {
+    hi <- genInfos.iterator
+    verb <- hi.hit.prompt.id.tokens.lift(hi.hit.prompt.verbIndex).iterator
+    verbInflectedForms <- inflections.getInflectedForms(verb.lowerCase).iterator
+    a <- hi.assignments
+  } yield (hi.hit.prompt.id.tokens, verbInflectedForms, a.response.map(_.question))
+
+  // is good
+  def checkDiscreteLabelingCompleteness = {
+    dataLabelIterator.foreach { case (tokens, inflForms, questions) =>
+      val simpleDiscrete = DiscreteLabel.getDiscreteLabels(tokens, inflForms, questions)
+      (questions, simpleDiscrete).zipped.foreach { case (question, labelOpt) =>
+        if(labelOpt.isEmpty) {
+          System.err.println("Discrete label missing!")
+          System.err.println(s"Question:  $question")
+          System.err.println
+        }
+      }
+    }
+  }
+
+  // is good
+  def checkVerbTenseAbstraction = {
+    dataLabelIterator.foreach { case (tokens, inflForms, questions) =>
+      val origSlots = SlotBasedLabel.getSlotsForQuestion(tokens, inflForms, questions)
+      val abstractedSlots = SlotBasedLabel.getVerbTenseAbstractedSlotsForQuestion(tokens, inflForms, questions)
+      (questions, origSlots, abstractedSlots).zipped.foreach { case (question, orig, abst) =>
+        val sameIfPresent = for {
+          origVerb <- orig.map(_.verb)
+          reifiedVerb <- abst.map(x => inflForms(x.verb))
+        } yield reifiedVerb == origVerb
+        if(!sameIfPresent.exists(identity)) {
+          System.err.println("Difference between prev and cur tense when re-reified!")
+          System.err.println(s"Question:  $question")
+          System.err.println(s"Orig:      ${orig.foldMap(_.verb.toString)}")
+          System.err.println(s"Reified:   ${abst.foldMap(x => inflForms(x.verb).toString)}")
+          System.err.println
+        }
+      }
+    }
+  }
 
   // mainly just for reference, or if you need to re-produce all versions of the dataset
   def writeAllTSVCombinations = {
-    writeAllTSVs("string", QALabelMapper.useQuestionString)
-    writeAllTSVs("collapsed", QALabelMapper.getCollapsedLabels)
-    writeAllTSVs("slots", QALabelMapper.getExplicitTemplateLabelsForQuestion)
+    writeAllTSVs[LowerCaseString]("string", QuestionLabelMapper.mapToLowerCase, _.toString)
+    writeAllTSVs[DiscreteLabel]("discrete", DiscreteLabel.getDiscreteLabels, _.render)
+    writeAllTSVs[SlotBasedLabel[LowerCaseString]](
+      "slots", SlotBasedLabel.getSlotsForQuestion, _.renderWithSeparator(identity, ","))
+    writeAllTSVs[SlotBasedLabel[VerbForm]](
+      "slots-tense", SlotBasedLabel.getVerbTenseAbstractedSlotsForQuestion, _.renderWithSeparator(_.toString.lowerCase, ","))
     writeReadableTSVs
   }
 
-  def writeAllTSVs(
+  def writeAllTSVs[Label](
     labelType: String,
-    questionLabelGetter: DataIO.QuestionLabelGetter
+    labelMapper: QuestionLabelMapper[String, Label],
+    labelRenderer: Label => String
   ) = {
     // train
-    saveAnnotationData(s"$label/$labelType/train/tqa", tqaTrainIds, genInfos, valInfos, questionLabelGetter)
-    saveAnnotationData(s"$label/$labelType/train/wikipedia", wikipediaTrainIds, genInfos, valInfos, questionLabelGetter)
-    saveAnnotationData(s"$label/$labelType/train/wikinews", wikinewsTrainIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/train/tqa", tqaTrainIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
+    saveAnnotationData(s"$label/$labelType/train/wikipedia", wikipediaTrainIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
+    saveAnnotationData(s"$label/$labelType/train/wikinews", wikinewsTrainIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
     // dev
-    saveAnnotationData(s"$label/$labelType/dev/tqa", tqaDevIds, genInfos, valInfos, questionLabelGetter)
-    saveAnnotationData(s"$label/$labelType/dev/wikipedia", wikipediaDevIds, genInfos, valInfos, questionLabelGetter)
-    saveAnnotationData(s"$label/$labelType/dev/wikinews", wikinewsDevIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/dev/tqa", tqaDevIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
+    saveAnnotationData(s"$label/$labelType/dev/wikipedia", wikipediaDevIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
+    saveAnnotationData(s"$label/$labelType/dev/wikinews", wikinewsDevIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
     // test
-    saveAnnotationData(s"$label/$labelType/test/tqa", tqaTestIds, genInfos, valInfos, questionLabelGetter)
-    saveAnnotationData(s"$label/$labelType/test/wikipedia", wikipediaTestIds, genInfos, valInfos, questionLabelGetter)
-    saveAnnotationData(s"$label/$labelType/test/wikinews", wikinewsTestIds, genInfos, valInfos, questionLabelGetter)
+    saveAnnotationData(s"$label/$labelType/test/tqa", tqaTestIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
+    saveAnnotationData(s"$label/$labelType/test/wikipedia", wikipediaTestIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
+    saveAnnotationData(s"$label/$labelType/test/wikinews", wikinewsTestIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
   }
 
   def writeReadableTSVs = {
     // train
-    saveAnnotationDataReadable(s"$label/readable/train/tqa", tqaTrainIds, genInfos, valInfos)
-    saveAnnotationDataReadable(s"$label/readable/train/wikipedia", wikipediaTrainIds, genInfos, valInfos)
-    saveAnnotationDataReadable(s"$label/readable/train/wikinews", wikinewsTrainIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/train/tqa", tqaTrainIds, genInfos, valInfos, workerAnonymizationMap)
+    saveAnnotationDataReadable(s"$label/readable/train/wikipedia", wikipediaTrainIds, genInfos, valInfos, workerAnonymizationMap)
+    saveAnnotationDataReadable(s"$label/readable/train/wikinews", wikinewsTrainIds, genInfos, valInfos, workerAnonymizationMap)
     // dev
-    saveAnnotationDataReadable(s"$label/readable/dev/tqa", tqaDevIds, genInfos, valInfos)
-    saveAnnotationDataReadable(s"$label/readable/dev/wikipedia", wikipediaDevIds, genInfos, valInfos)
-    saveAnnotationDataReadable(s"$label/readable/dev/wikinews", wikinewsDevIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/dev/tqa", tqaDevIds, genInfos, valInfos, workerAnonymizationMap)
+    saveAnnotationDataReadable(s"$label/readable/dev/wikipedia", wikipediaDevIds, genInfos, valInfos, workerAnonymizationMap)
+    saveAnnotationDataReadable(s"$label/readable/dev/wikinews", wikinewsDevIds, genInfos, valInfos, workerAnonymizationMap)
     // test
-    saveAnnotationDataReadable(s"$label/readable/test/tqa", tqaTestIds, genInfos, valInfos)
-    saveAnnotationDataReadable(s"$label/readable/test/wikipedia", wikipediaTestIds, genInfos, valInfos)
-    saveAnnotationDataReadable(s"$label/readable/test/wikinews", wikinewsTestIds, genInfos, valInfos)
+    saveAnnotationDataReadable(s"$label/readable/test/tqa", tqaTestIds, genInfos, valInfos, workerAnonymizationMap)
+    saveAnnotationDataReadable(s"$label/readable/test/wikipedia", wikipediaTestIds, genInfos, valInfos, workerAnonymizationMap)
+    saveAnnotationDataReadable(s"$label/readable/test/wikinews", wikinewsTestIds, genInfos, valInfos, workerAnonymizationMap)
   }
 }
