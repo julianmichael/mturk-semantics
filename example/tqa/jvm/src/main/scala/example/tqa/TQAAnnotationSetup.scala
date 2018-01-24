@@ -172,18 +172,6 @@ class TQAAnnotationSetup(
   }
 
   import scala.annotation.tailrec
-  // @tailrec private def weightedRoundRobinAux[A](soFar: Vector[A], vectors: List[Vector[A]]): Vector[A] = {
-  //     if(vectors.isEmpty) soFar else { // hit base case because filter out empties
-  //       val smallestSize = vectors.map(_.size).min // works bc nonempty
-  //       val (processedRemains, newSoFar) = vectors.foldLeft((List.empty[Vector[A]], soFar)) {
-  //         case ((remains, fullSoFar), vector) =>
-  //           val sizeMultiplier = vector.size / smallestSize
-  //           (vector.drop(sizeMultiplier) :: remains, fullSoFar ++ vector.take(sizeMultiplier))
-  //       }
-  //       weightedRoundRobinAux(newSoFar, processedRemains.reverse.filter(_.nonEmpty))
-  //     }
-  //   }
-  // def weightedRoundRobin[A](vectors: List[Vector[A]]) = weightedRoundRobinAux(Vector.empty[A], vectors)
 
   @tailrec private def weightedRoundRobinRandomizedAux[A](
     soFar: Vector[A],

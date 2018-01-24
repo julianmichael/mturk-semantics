@@ -1,9 +1,9 @@
 package qtrans
 
-// TODO port code to JS...or something...so can run standalone.
-// would require porting the WiktionaryFileSystemService to JS too..
+import qasrl.labeling.DiscreteLabel
+import qasrl.labeling.SlotBasedLabel
 
-import turksem.qasrl.QALabelMapper
+// import turksem.qasrl.QALabelMapper
 
 import cats.implicits._
 
@@ -34,23 +34,32 @@ object Main extends CommandApp(
       while(scanner.hasNextLine) {
         val line = scanner.nextLine
         val lineArr = line.split("###").toList
+        def getField = lineArr.lift
         val resEith = for {
-          sentenceTokens <- lineArr.lift(0).toRight(
-            s"Input line must begin with the sentence tokens followed by ###. Found: $line"
+          sentenceTokens <- getField(0).toRight(
+            s"Input line must begin with the sentence tokens followed by ###. Line: $line"
           ).map(_.split(" ").toVector)
-          verbStr <- lineArr.lift(1).toRight(
-            s"Second entry of input line after ### must be the verb. Found: $line"
+          verbStr <- getField(1).toRight(
+            s"Second entry of input line after ### must be the verb. Line: $line"
           )
           verbInflectedForms <- inflections.getInflectedForms(verbStr.lowerCase).toRight(
             s"Could not get inflections for verb $verbStr."
           )
+          argLabelString <- getField(2).toRight(
+            s"Third entry of input line must be the semicolon-separated list of arg labels. Line: $line"
+          )
+          discreteArgLabels <- argLabelString.split(";").toList.map(
+            s => DiscreteLabel.fromRenderedString(s.lowerCase): Either[String, DiscreteLabel]
+          ).sequence[Either[String, ?], DiscreteLabel].swap.map(_ + s" - Line: $line").swap
         } yield {
-          val collapsedArgLabels = lineArr.lift(2).getOrElse("").split(";").toList.map(_.lowerCase)
-          val questions = QALabelMapper.getQuestionsForCollapsedLabels(verbInflectedForms, collapsedArgLabels)
+          // TODO reimplement for new discrete labels
+          val questions: List[String] = ???
+          //DiscreteLabel.getQuestionsForDiscreteLabels(sentenceTokens, verbInflectedForms, discreteArgLabels)
+          //.map(_.getOrElse("N/A"))
           if(useSlots) {
             questions.zip(
-              QALabelMapper.getVerbAbstractedSlotLabel(
-                sentenceTokens, verbInflectedForms, questions.map(_.toString)
+              SlotBasedLabel.getVerbTenseAbstractedSlotsForQuestion(
+                sentenceTokens, verbInflectedForms, questions
               )
             ).map {
               case (q, None) =>
@@ -60,7 +69,7 @@ object Main extends CommandApp(
                 slots.toString
             }
           } else {
-            questions.map(_.toString)
+            questions
           }
         }
         resEith match {

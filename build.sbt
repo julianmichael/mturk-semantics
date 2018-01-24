@@ -239,7 +239,6 @@ lazy val paposeJVM = papose.jvm.dependsOn(turksemJVM, emnlp2017JVM).settings(
 
 import sbtassembly.AssemblyPlugin.defaultShellScript
 
-// TODO the resulting jar doesn't work because of the hacky workaround between LB and TL scala
 lazy val qtrans = project.in(file("example/qtrans"))
   .dependsOn(turksemJVM)
   .settings(
@@ -249,6 +248,7 @@ lazy val qtrans = project.in(file("example/qtrans"))
   scalaVersion in ThisBuild := "2.11.8",
   scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds"),
   resolvers += Resolver.sonatypeRepo("snapshots"),
+  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4"),
   libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
   libraryDependencies += "org.typelevel" %% "cats" % "0.9.0",
   libraryDependencies += "com.monovore" %% "decline" % "0.3.0"
