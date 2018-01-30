@@ -7,9 +7,7 @@ lazy val root = project.in(file("."))
              ai2JVM, ai2JS,
              multitaskJVM, multitaskJS,
              tqaJVM, tqaJS,
-             interactiveJVM, interactiveJS,
-             qposeJVM, qposeJS,
-             paposeJVM, paposeJS)
+             interactiveJVM, interactiveJS)
   .settings(
   publish := {},
   publishLocal := {})
