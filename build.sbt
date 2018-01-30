@@ -172,19 +172,6 @@ lazy val multitaskJVM = multitask.jvm.dependsOn(turksemJVM).settings(
   (resources in Compile) += (packageJSDependencies in (multitaskJS, Compile)).value
 )
 
-lazy val scisrl = crossProject.in(file("example/scisrl"))
-  .settings(name := "turksem-scisrl", version := "0.1-SNAPSHOT")
-  .settings(exampleProjectSettings)
-  .jvmSettings(exampleProjectJVMSettings)
-  .jsSettings(exampleProjectJSSettings)
-
-lazy val scisrlJS = scisrl.js.dependsOn(turksemJS)
-lazy val scisrlJVM = scisrl.jvm.dependsOn(turksemJVM).settings(
-  (resources in Compile) += (fastOptJS in (scisrlJS, Compile)).value.data,
-  (resources in Compile) += (packageScalaJSLauncher in (scisrlJS, Compile)).value.data,
-  (resources in Compile) += (packageJSDependencies in (scisrlJS, Compile)).value
-)
-
 lazy val tqa = crossProject.in(file("example/tqa"))
   .settings(name := "turksem-tqa", version := "0.1-SNAPSHOT")
   .settings(exampleProjectSettings)
