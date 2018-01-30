@@ -198,32 +198,6 @@ lazy val interactiveJVM = interactive.jvm.dependsOn(turksemJVM, emnlp2017JVM).se
   (resources in Compile) += (packageJSDependencies in (interactiveJS, Compile)).value
 )
 
-lazy val qpose = crossProject.in(file("example/qpose"))
-  .settings(name := "turksem-qpose", version := "0.1-SNAPSHOT")
-  .settings(exampleProjectSettings)
-  .jvmSettings(exampleProjectJVMSettings)
-  .jsSettings(exampleProjectJSSettings)
-
-lazy val qposeJS = qpose.js.dependsOn(turksemJS, emnlp2017JS)
-lazy val qposeJVM = qpose.jvm.dependsOn(turksemJVM, emnlp2017JVM).settings(
-  (resources in Compile) += (fastOptJS in (qposeJS, Compile)).value.data,
-  (resources in Compile) += (packageScalaJSLauncher in (qposeJS, Compile)).value.data,
-  (resources in Compile) += (packageJSDependencies in (qposeJS, Compile)).value
-)
-
-lazy val papose = crossProject.in(file("example/papose"))
-  .settings(name := "turksem-papose", version := "0.1-SNAPSHOT")
-  .settings(exampleProjectSettings)
-  .jvmSettings(exampleProjectJVMSettings)
-  .jsSettings(exampleProjectJSSettings)
-
-lazy val paposeJS = papose.js.dependsOn(turksemJS, emnlp2017JS)
-lazy val paposeJVM = papose.jvm.dependsOn(turksemJVM, emnlp2017JVM).settings(
-  (resources in Compile) += (fastOptJS in (paposeJS, Compile)).value.data,
-  (resources in Compile) += (packageScalaJSLauncher in (paposeJS, Compile)).value.data,
-  (resources in Compile) += (packageJSDependencies in (paposeJS, Compile)).value
-)
-
 import sbtassembly.AssemblyPlugin.defaultShellScript
 
 lazy val qtrans = project.in(file("example/qtrans"))
