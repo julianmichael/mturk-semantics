@@ -70,7 +70,9 @@ class IQAAnnotationPipeline[SID : Reader : Writer : HasTokens](
     """.trim.replace("\\s+", " "),
     reward = 0.05,
     keywords = "language,english,question answering",
-    qualRequirements = Array.empty[QualificationRequirement])
+    qualRequirements = Array.empty[QualificationRequirement],
+    autoApprovalDelay = 2592000L, // 30 days
+    assignmentDuration = 600L)
 
   lazy val genAjaxService = new Service[IQAAjaxRequest[SID]] {
     override def processRequest(request: IQAAjaxRequest[SID]) = request match {
