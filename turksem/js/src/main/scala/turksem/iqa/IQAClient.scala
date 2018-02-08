@@ -9,7 +9,6 @@ import spacro.util.Span
 import cats.implicits._
 
 import turksem._
-import turksem.qasrl._
 import turksem.iqa._
 import turksem.iqa.AdaptiveQuestionGuesser.ops._
 import turksem.util._

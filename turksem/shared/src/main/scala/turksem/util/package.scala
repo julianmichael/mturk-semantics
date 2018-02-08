@@ -10,6 +10,7 @@ import cats.implicits._
 
 import nlpdata.util.LowerCaseStrings._
 import scala.util.{Try, Success, Failure}
+import scala.util.Random
 
 import scala.language.implicitConversions
 
@@ -73,7 +74,8 @@ package object util extends PackagePlatformExtensions {
   }
 
   import scala.annotation.tailrec
-    @tailrec private def weightedRoundRobinAux[A](soFar: Vector[A], vectors: List[Vector[A]]): Vector[A] = {
+
+  @tailrec private def weightedRoundRobinAux[A](soFar: Vector[A], vectors: List[Vector[A]]): Vector[A] = {
       if(vectors.isEmpty) soFar else { // hit base case because filter out empties
         val smallestSize = vectors.map(_.size).min // works bc nonempty
         val (processedRemains, newSoFar) = vectors.foldLeft((List.empty[Vector[A]], soFar)) {
@@ -85,6 +87,41 @@ package object util extends PackagePlatformExtensions {
       }
     }
   def weightedRoundRobin[A](vectors: List[Vector[A]]) = weightedRoundRobinAux(Vector.empty[A], vectors)
+
+  @tailrec private def weightedRoundRobinRandomizedAux[A](
+    soFar: Vector[A],
+    vectors: List[Vector[A]],
+    rand: Random
+  ): Vector[A] = {
+    if(vectors.isEmpty) soFar else { // hit base case because filter out empties
+      val smallestSize = vectors.map(_.size).min // works bc nonempty
+      val (processedRemains, newSoFar) = vectors.foldLeft((List.empty[Vector[A]], Vector.empty[A])) {
+        case ((remains, soFarAcc), vector) =>
+          val sizeMultiplier = vector.size / smallestSize
+          (vector.drop(sizeMultiplier) :: remains, soFarAcc ++ vector.take(sizeMultiplier))
+      }
+      weightedRoundRobinRandomizedAux(soFar ++ rand.shuffle(newSoFar), processedRemains.reverse.filter(_.nonEmpty), rand)
+    }
+  }
+  def weightedRoundRobinRandomized[A](
+    vectors: List[Vector[A]],
+    rand: Random
+  ) = weightedRoundRobinRandomizedAux(Vector.empty[A], vectors, rand)
+
+  // reorders a vector into a result s.t. prefixes of the result are
+  // (roughly) maximally evenly distributed over the original vector
+  private def evenDistributionAux[A](vector: Vector[A]): Iterator[A] = {
+    if(vector.size <= 3) {
+      vector.iterator
+    } else {
+      val (firstHalf, secondHalf) = vector.splitAt(vector.size / 2)
+      evenDistributionAux(firstHalf).zip(evenDistributionAux(secondHalf)).flatMap {
+        case (x, y) => x :: y :: Nil
+      }
+    }
+  }
+  def evenDistribution[A](vector: Vector[A]) = evenDistributionAux(vector).toVector
+
 
   implicit class RichBoolean(val b: Boolean) extends AnyVal {
     def option[A](a: A) = if(b) Some(a) else None

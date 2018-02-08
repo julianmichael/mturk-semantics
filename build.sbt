@@ -7,7 +7,9 @@ lazy val root = project.in(file("."))
              ai2JVM, ai2JS,
              multitaskJVM, multitaskJS,
              tqaJVM, tqaJS,
-             interactiveJVM, interactiveJS)
+             tqaevalJVM, tqaevalJS,
+             interactiveJVM, interactiveJS,
+             framerJVM, framerJS)
   .settings(
   publish := {},
   publishLocal := {})
@@ -17,9 +19,9 @@ lazy val commonSettings = Seq(
   scalaOrganization in ThisBuild := "org.typelevel",
   scalaVersion in ThisBuild := "2.11.8",
   scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds"/*, "-Ypartial-unification"*/),
+  // addCompilerPlugin("io.tryp" %% "splain" % "0.2.7"), // TODO wait until this gets fixed
   addCompilerPlugin("org.scalamacros" %% "paradise" % "2.1.0" cross CrossVersion.full),
   addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4"),
-  // addCompilerPlugin("io.tryp" %% "splain" % "0.2.6"),
   resolvers += Resolver.sonatypeRepo("snapshots"),
   libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
   libraryDependencies += "com.github.julianmichael" %%% "spacro" % "0.1-SNAPSHOT",
@@ -31,7 +33,8 @@ lazy val commonSettings = Seq(
   libraryDependencies += "com.github.mpilquist" %% "simulacrum" % "0.11.0",
   libraryDependencies += "com.lihaoyi" %%% "upickle" % "0.4.3",
   libraryDependencies += "com.github.julien-truffaut" %%% "monocle-core"  % monocleVersion,
-  libraryDependencies += "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion
+  libraryDependencies += "com.github.julien-truffaut" %%% "monocle-macro" % monocleVersion,
+  libraryDependencies += "com.softwaremill.macmemo" %% "macros" % "0.4-SNAPSHOT"
 )
 
 lazy val commonJVMSettings = Seq(
@@ -183,6 +186,19 @@ lazy val tqaJVM = tqa.jvm.dependsOn(turksemJVM).settings(
   (resources in Compile) += (packageJSDependencies in (tqaJS, Compile)).value
 )
 
+lazy val tqaeval = crossProject.in(file("example/tqaeval"))
+  .settings(name := "turksem-tqaeval", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(exampleProjectJSSettings)
+
+lazy val tqaevalJS  = tqaeval.js.dependsOn(turksemJS)
+lazy val tqaevalJVM = tqaeval.jvm.dependsOn(turksemJVM).settings(
+  (resources in Compile) += (fastOptJS in (tqaevalJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (tqaevalJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (tqaevalJS, Compile)).value
+)
+
 lazy val interactive = crossProject.in(file("example/interactive"))
   .settings(name := "turksem-interactive", version := "0.1-SNAPSHOT")
   .settings(exampleProjectSettings)
@@ -194,6 +210,19 @@ lazy val interactiveJVM = interactive.jvm.dependsOn(turksemJVM, emnlp2017JVM).se
   (resources in Compile) += (fastOptJS in (interactiveJS, Compile)).value.data,
   (resources in Compile) += (packageScalaJSLauncher in (interactiveJS, Compile)).value.data,
   (resources in Compile) += (packageJSDependencies in (interactiveJS, Compile)).value
+)
+
+lazy val framer = crossProject.in(file("example/framer"))
+  .settings(name := "turksem-framer", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(exampleProjectJSSettings)
+
+lazy val framerJS = framer.js.dependsOn(turksemJS)
+lazy val framerJVM = framer.jvm.dependsOn(turksemJVM).settings(
+  (resources in Compile) += (fastOptJS in (framerJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (framerJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (framerJS, Compile)).value
 )
 
 import sbtassembly.AssemblyPlugin.defaultShellScript

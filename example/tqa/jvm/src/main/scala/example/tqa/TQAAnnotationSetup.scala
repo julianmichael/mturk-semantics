@@ -51,7 +51,6 @@ class TQAAnnotationSetup(
 
   val resourcePath = java.nio.file.Paths.get("resources")
 
-  import java.nio.file.{Paths, Path, Files}
   private[this] val liveDataPath = Paths.get(s"data/tqa/$label/live")
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
