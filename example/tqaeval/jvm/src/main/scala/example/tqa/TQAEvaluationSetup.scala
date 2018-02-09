@@ -43,8 +43,14 @@ import scala.util.Random
 
 import upickle.default._
 
+case class EvaluationInput(
+  filename: String,
+  sourceId: String
+)
+
 class TQAEvaluationSetup(
   val label: String,
+  inputs: List[EvaluationInput],
   frozenEvaluationHITTypeId: Option[String] = None)(
   implicit config: TaskConfig) {
 
@@ -155,19 +161,17 @@ class TQAEvaluationSetup(
     }
   }
 
-  lazy val trainPrompts = readPromptsFromFile("test_expansion_validations.tsv", "heldout_test_0")
-  lazy val trainPromptSet = trainPrompts.toSet
-  lazy val devPrompts = readPromptsFromFile("test_dev_validations.tsv", "dev_test_0")
-  lazy val devPromptSet = devPrompts.toSet
-  lazy val allPrompts: Vector[QASRLEvaluationPrompt[SentenceId]] = weightedRoundRobinRandomized(
-    List(trainPrompts, devPrompts),
-    new Random(158631795L)
-  )
+  lazy val rand =  new Random(136242624L)
+  lazy val promptVecs = inputs.map { case EvaluationInput(filename, sourceId) =>
+    rand.shuffle(readPromptsFromFile(filename, sourceId))
+  }
+  lazy val promptSets = promptVecs.map(_.toSet)
+  lazy val allPrompts = weightedRoundRobinRandomized(promptVecs, rand).take(1000)
 
   lazy val experiment = new QASRLEvaluationPipeline(
     allPrompts,
     frozenEvaluationHITTypeId = frozenEvaluationHITTypeId,
-    validationAgreementDisqualTypeLabel = Some("eval-r1"))
+    validationAgreementDisqualTypeLabel = Some("eval-test"))
 
   // import qasrl.labeling._
 
@@ -212,7 +216,7 @@ class TQAEvaluationSetup(
   //   )
   // }
 
-  // lazy val infos = experiment.allInfos
+  lazy val infos = experiment.allInfos
   // TODO reuse anonymizations from first round? maybe? eh
   // lazy val workerAnonymizationMap: Map[String, String] = {
 

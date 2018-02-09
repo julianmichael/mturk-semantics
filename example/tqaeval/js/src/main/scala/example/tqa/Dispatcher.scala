@@ -33,161 +33,108 @@ object Dispatcher extends QASRLEvaluationDispatcher[SentenceId] with JSApp {
 
   import settings._
 
-  def example(question: String, answer: String, isGood: Boolean, tooltip: String = "") =
+  def example(question: String, answerOpt: Option[String], tooltip: String = "") =
     <.li(
       <.span(
-        if(isGood) Styles.goodGreen else Styles.badRed,
+        if(answerOpt.nonEmpty) Styles.goodGreen else Styles.badRed,
         TagMod(
           Styles.underlined,
           dataToggle := "tooltip",
           dataPlacement := "top",
           ^.title := tooltip).when(tooltip.nonEmpty),
         <.span(question),
-        <.span(" --> "),
-        <.span(answer)
+        answerOpt.map(answer =>
+          <.span(s" --> $answer")
+        ).whenDefined
       )
     )
 
   private[this] val examples = <.div(
     TooltipsComponent(
       <.div(
-        <.p(Styles.bolded," This section is exactly the same between the question writing and question answering tasks. "),
-        <.p(" Below, for each verb, we list a complete set of good questions (green) and some bad ones (red). ",
+        <.p(" Below, for each verb, we list example good questions (green) and bad ones (red). ",
             " Hover the mouse over the underlined examples for an explanation. "),
         <.blockquote(
           ^.classSet1("blockquote"),
-          "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today refused to promise that they would resume the investigation before year's end. "),
+          "Most geologists become specialists in one area."),
         <.ul(
           example(
-            "Who blamed someone?",
-            "Protesters",
-            true),
+            "What does someone become?",
+            Some("specialists in one area")
+          ),
           example(
-            "Who did someone blame something on?",
-            "local officials",
-            true),
-          example(
-            "What did someone blame someone for?",
-            "the corruption scandal",
-            true,
-            """ "What did someone blame on someone?" would also have been okay. """),
+            "Where does someone become something?",
+            None,
+            """ Violates verb-relevance: "in one area" describes the specialization, not where they become specialists. """
+          )
+        ),
+        <.blockquote(
+          ^.classSet1("blockquote"),
+          "Protesters blamed the corruption scandal on local officials."),
+        <.ul(
           example(
             "Who blamed?",
-            "Protesters",
-            false,
-            """ This question is invalid by the litmus test, because the sentence "Protesters blamed." is ungrammatical. """)
+            None,
+            """ Fails the litmus test: the sentence "Protesters blamed." is ungrammatical. """)
         ),
 
         <.blockquote(
           ^.classSet1("blockquote"),
-          "Protesters blamed the corruption scandal on local officials, who today ", <.span(Styles.bolded, " refused "), " to promise that they would resume the investigation before year's end. "),
+          "The officials refused to promise that they would investigate."),
         <.ul(
           example(
             "Who refused to do something?",
-            "local officials / they",
-            true,
-            """When answering, list all of the phrases in the sentence that refer to the correct answer, including pronouns like "they"."""),
+            Some("The officials / they"),
+            """ List all correct answers, including pronouns like "they". """),
           example(
             "What did someone refuse to do?",
-            "promise that they would resume the investigation before year's end",
-            true),
-          example(
-            "What did someone refuse to do?",
-            "promise that they would resume the investigation",
-            false,
-            """The answer is not specific enough: it should include "before year's end" because that was part of what they were refusing to promise."""),
-          example(
-            "What did someone refuse to do?",
-            "resume the investigation before year's end",
-            false,
-            """This answer is also bad: you should instead choose the more literal answer above."""),
-          example(
-            "When did someone refuse to do something?",
-            "today",
-            true),
-          example(
-            "Who didn't refuse to do something?",
-            "Protesters",
-            false,
-            """The sentence does not say anything about protesters refusing or not refusing, so this question is invalid.""")
-        ),
-
-        <.blockquote(
-          ^.classSet1("blockquote"),
-          "Protesters blamed the corruption scandal on local officials, who today refused to ", <.span(Styles.bolded, " promise "), " that they would resume the investigation before year's end. "),
-        <.ul(
+            Some("promise that they would investigate"),
+            """ Make sure to include "promise" since it's the literal answer. """),
           example(
             "Who didn't promise something?",
-            "local officials / they",
-            true,
-            "Negated questions work when the sentence is indicating that the event or state expressed by the verb did not happen."),
+            Some("The officials / they")),
           example(
-            "What didn't someone promise?",
-            "that they would resume the investigation before year's end",
-            true),
+            "Who promised something?",
+            None,
+            """They refused to promise, which means they didn't promise, so this question isn't answerable."""),
           example(
-            "When didn't someone promise to do something?",
-            "before year's end",
-            false,
-            """ This question is bad because "before year's end" refers to the timeframe of resuming the investigation, not the timeframe of the promise being made.
-            All such questions must pertain to the time/place of the chosen verb. """)
+            "Who might investigate?",
+            Some("The officials / they"),
+            """Words like "might" or "would" work where the event isn't explicitly happening or not.""")
         ),
 
         <.blockquote(
           ^.classSet1("blockquote"),
-          "Protesters blamed the corruption scandal on local officials, who today refused to promise that they would ", <.span(Styles.bolded, " resume "), " the investigation before year's end. "),
+          "Allen arranged for Joan to lead the charge."),
         <.ul(
           example(
-            "Who might resume something?",
-            "local officials / they",
-            true,
-            """Words like "might" or "would" are appropriate when the sentence doesn't clearly indicate whether something actually happened."""),
+            "Who did someone arrange for?",
+            None),
           example(
-            "What might someone resume?",
-            "the investigation",
-            true),
+            "What did someone arrange for?",
+            Some("Joan to lead the charge")),
           example(
-            "When might someone resume something?",
-            "before year's end",
-            true)
+            "What did someone arrange for someone to do?",
+            Some("lead the charge"))
         ),
 
         <.blockquote(
           ^.classSet1("blockquote"),
-          <.span(Styles.bolded, " Let"), "'s go up to the counter and ask."),
+          "Their device was intended to be a game-changer."),
         <.ul(
           example(
-            "Who should someone let do something?",
-            "'s",
-            true,
-            """Here, you should read 's as the word it stands for: "us".
-            So by substituting back into the question, we get "someone should let us do something",
-            which is what someone is suggesting when they say "Let's go". """),
+            "Who intended something?",
+            None),
           example(
-            "What should someone let someone do?",
-            "go up to the counter and ask",
-            true,
-            """It would also be acceptable to mark "go up to the counter" and "ask" as two different answers. """),
+            "What was intended?",
+            None),
           example(
-            "Where should someone let someone do something?",
-            "the counter",
-            false,
-            """Questions should only concern the targeted verb: "letting" is not happening at the counter.""")
-        ),
-
-        <.blockquote(
-          ^.classSet1("blockquote"),
-          "Let's ", <.span(Styles.bolded, " go "), " up to the counter and ask."),
-        <.ul(
+            "What was intended to do something?",
+            Some("Their device")),
           example(
-            "Who should go somewhere?",
-            "'s",
-            true),
-          example(
-            "Where should someone go?",
-            "up to the counter",
-            true,
-            """Since both "up" and "to the counter" describe where they will go, they should both be included in the answer to a "where" question. """))
+            "What was something intended to do?",
+            Some("be a game-changer"))
+        )
       )
     )
   )
@@ -199,21 +146,20 @@ object Dispatcher extends QASRLEvaluationDispatcher[SentenceId] with JSApp {
     <.p(Styles.badRed, """Read through all of the instructions and make sure you understand the interface controls before beginning. A full understanding of the requirements will help maximize your agreement with other workers so you can retain your qualification."""),
     <.p(s"""This task is for an academic research project by the natural language processing group at the University of Washington.
            We wish to deconstruct the meanings of English sentences into lists of questions and answers.
-           You will be presented with a selection of English text and a list of questions prepared by other annotators."""),
+           You will be presented with a selection of English text and a list of questions (usually just one) generated by our system."""),
     <.p("""You will highlight the words in the sentence that correctly answer each question,
            as well as mark whether questions are invalid.""",
       <.b(""" Note: it takes exactly 2 clicks to highlight each answer; see the Controls tab for details. """),
         """For example, consider the following sentence:"""),
     <.blockquote(
       ^.classSet1("blockquote"),
-      "Protesters ", <.span(Styles.bolded, " blamed "), " the corruption scandal on local officials, who today ",
-      " refused to promise that they would resume the investigation before year's end. "),
+      "Protesters blamed the corruption scandal on local officials."),
     <.p("""You should choose all of the following answers:"""),
     <.ul(
       <.li("Who blamed someone? --> ", <.span(Styles.goodGreen, " Protesters ")),
       <.li("Who did someone blame something on? --> ", <.span(Styles.goodGreen, " local officials / they")),
       <.li("What did someone blame on someone? --> ", <.span(Styles.goodGreen, " the corruption scandal"))),
-    <.p(s"""You will be paid a ${dollarsToCents(validationBonusPerQuestion)}c bonus per question after the first $validationBonusThreshold questions if there are more than $validationBonusThreshold."""),
+    <.p(s"""You will be paid a ${dollarsToCents(validationBonusPerQuestion)}c bonus per question after the first question if there is more than one."""),
     <.h2("""Guidelines"""),
     <.ol(
       <.li(
@@ -247,9 +193,7 @@ object Dispatcher extends QASRLEvaluationDispatcher[SentenceId] with JSApp {
         s"""You must provide every possible answer to each question.
            When highlighting answers, please only include the necessary words to provide a complete, grammatical answer,
            but if all else is equal, prefer to use longer answers.
-           Also please include pronouns in the sentence that refer an answer you've already given.
-           However, note that none of the answers to your questions may overlap.
-           If the only possible answers to a question were already used for previous questions, please mark it invalid."""
+           Also please include pronouns in the sentence that refer an answer you've already given."""
       )
     ),
     <.p(" All ungrammatical questions should be counted invalid. However, ",
@@ -272,11 +216,9 @@ object Dispatcher extends QASRLEvaluationDispatcher[SentenceId] with JSApp {
         <.span(^.backgroundColor := "#FF8000", "orange"),
         ". Then click on the last word in the answer (which may be the same word) and the whole phrase will turn ",
         <.span(^.backgroundColor := "#FFFF00", "yellow"),
-        ". (You may also click them in the opposite order.) You can highlight multiple answers to the same question in this way. ",
-        " To delete an answer, click on a word in that answer while it is highlighted yellow. ",
-        """ None of your answers may overlap with each other; answers to questions other than the currently selected one
-        will be highlighted in """,
-        <.span(^.backgroundColor := "#DDDDDD", "grey"), "."))
+        ". You can highlight multiple answers to the same question in this way. ",
+        " To delete an answer, click on a word in that answer while it is highlighted yellow. ")
+    )
   )
 
   val validationConditions = <.div(
@@ -284,8 +226,8 @@ object Dispatcher extends QASRLEvaluationDispatcher[SentenceId] with JSApp {
         for every question beyond $validationBonusThreshold, which will be paid when the assignment is approved.
         Your judgments will be cross-checked with other workers,
         and your agreement rate will be shown to you in the interface.
-        If this number drops below ${(100 * validationAgreementBlockingThreshold).toInt}
-        you will no longer qualify for the task.
+        You must agree with the majority of 3 workers ${(100 * validationAgreementBlockingThreshold).toInt}
+        of the time, or you will no longer qualify for the task.
         (Note that other validators will sometimes make mistakes,
         so there is an element of randomness to it: don't read too deeply into small changes in your agreement rate.)
         Your work will be approved and the bonus will be paid within an hour.""")

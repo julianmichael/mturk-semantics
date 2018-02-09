@@ -1,12 +1,12 @@
-package turksem.iqa
+// package turksem.iqa
 
-import turksem.util.ContiguousSpan
+// import turksem.util.ContiguousSpan
 
-import nlpdata.util.LowerCaseStrings._
+// import nlpdata.util.LowerCaseStrings._
 
-import cats.implicits._
+// import cats.implicits._
 
-import monocle.macros.{Lenses, GenPrism}
+// import monocle.macros.{Lenses, GenPrism}
 
 // trait QuestionGuesser {
 //   def guesses(state: QuestioningState): List[TemplatedQuestion]
