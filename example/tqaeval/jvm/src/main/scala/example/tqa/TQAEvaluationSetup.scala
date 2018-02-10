@@ -51,7 +51,8 @@ case class EvaluationInput(
 class TQAEvaluationSetup(
   val label: String,
   inputs: List[EvaluationInput],
-  frozenEvaluationHITTypeId: Option[String] = None)(
+  frozenEvaluationHITTypeId: Option[String] = None,
+  validationAgreementDisqualTypeLabel: Option[String])(
   implicit config: TaskConfig) {
 
   val resourcePath = java.nio.file.Paths.get("resources")
@@ -103,13 +104,11 @@ class TQAEvaluationSetup(
   }
 
   def allTokensIter = {
-    val trainTokensIter = loadInputFile("test_expansion_validations.tsv").get.iterator
-      .filter(l => !l.startsWith("\t"))
-      .flatMap(_.split("\t").last.split(" ").iterator)
-    val devTokensIter = loadInputFile("test_dev_validations.tsv").get.iterator
-      .filter(l => !l.startsWith("\t"))
-      .flatMap(_.split("\t").last.split(" ").iterator)
-    trainTokensIter ++ devTokensIter
+    inputs.iterator.flatMap { case EvaluationInput(filename, _) =>
+      loadInputFile(filename).get.iterator
+        .filter(l => !l.startsWith("\t"))
+        .flatMap(_.split("\t").last.split(" ").iterator)
+    }
   }
 
   implicit lazy val inflections = Wiktionary.getInflectionsForTokens(allTokensIter)
@@ -166,12 +165,12 @@ class TQAEvaluationSetup(
     rand.shuffle(readPromptsFromFile(filename, sourceId))
   }
   lazy val promptSets = promptVecs.map(_.toSet)
-  lazy val allPrompts = weightedRoundRobinRandomized(promptVecs, rand).take(1000)
+  lazy val allPrompts = weightedRoundRobinRandomized(promptVecs, rand)
 
   lazy val experiment = new QASRLEvaluationPipeline(
     allPrompts,
     frozenEvaluationHITTypeId = frozenEvaluationHITTypeId,
-    validationAgreementDisqualTypeLabel = Some("eval-test"))
+    validationAgreementDisqualTypeLabel = validationAgreementDisqualTypeLabel)
 
   // import qasrl.labeling._
 

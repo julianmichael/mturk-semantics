@@ -13,7 +13,7 @@ import com.amazonaws.services.mturk.model._
 import nlpdata.util.Text
 import nlpdata.util.HasAlignedTokens.ops._
 
-val label = "trial"
+val label = "expand1"
 
 val isProduction = false // sandbox. change to true for production
 val domain = "localhost" // change to your domain, or keep localhost for testing
@@ -45,10 +45,14 @@ def exit = {
 val setup = new TQAEvaluationSetup(
   label,
   List(
-    EvaluationInput("test_expansion_validations.tsv", "heldout_test_0"),
-    EvaluationInput("test_dev_validations.tsv", "dev_test_0")
+    EvaluationInput("base/filtered/base_model_predictions.dev.filtered.tsv", "base"),
+    EvaluationInput("base/filtered/base_model_predictions.fold0.filtered.tsv", "base-fold0"),
+    EvaluationInput("base/filtered/base_model_predictions.fold1.filtered.tsv", "base-fold1"),
+    EvaluationInput("base/filtered/base_model_predictions.fold2.filtered.tsv", "base-fold2"),
+    EvaluationInput("base/filtered/base_model_predictions.fold3.filtered.tsv", "base-fold3"),
+    EvaluationInput("base/filtered/base_model_predictions.fold4.filtered.tsv", "base-fold4")
   ),
-  validationAgreementDisqualTypeLabel = Some("eval-test")
+  validationAgreementDisqualTypeLabel = Some("eval")
 )
 
 import setup.SentenceIdHasAlignedTokens
