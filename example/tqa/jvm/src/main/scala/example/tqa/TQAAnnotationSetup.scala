@@ -4,7 +4,6 @@ import cats._
 import cats.implicits._
 
 import qasrl.crowd._
-import turksem.qasrl.QALabelMapper
 import turksem.util._
 
 import spacro._
@@ -308,6 +307,38 @@ class TQAAnnotationSetup(
     randomOrderedWorkerIds.zipWithIndex.map {
       case (workerId, index) => workerId -> index.toString
     }.toMap
+  }
+
+  lazy val dataset = experiment.dataset(SentenceId.toString(_))
+
+  lazy val trainIds = (tqaTrainIds ++ wikipediaTrainIds ++ wikinewsTrainIds).toSet
+  lazy val devIds = (tqaDevIds ++ wikipediaDevIds ++ wikinewsDevIds).toSet
+  lazy val testIds = (tqaTestIds ++ wikipediaTestIds ++ wikinewsTestIds).toSet
+
+  lazy val trainIdStringsSet = trainIds.map(SentenceId.toString)
+  lazy val devIdStringsSet = devIds.map(SentenceId.toString)
+  lazy val testIdStringsSet = testIds.map(SentenceId.toString)
+
+  lazy val trainDataset = dataset.filterSentenceIds(trainIdStringsSet)
+  lazy val devDataset = dataset.filterSentenceIds(devIdStringsSet)
+  lazy val testDataset = dataset.filterSentenceIds(testIdStringsSet)
+
+  def writeDatasets = {
+    import io.circe.Printer
+    import io.circe.syntax._
+    import QASRLDataset.JsonCodecs._
+    saveOutputFile(
+      s"train/$label.json",
+      Printer.noSpaces.pretty(trainDataset.asJson)
+    )
+    saveOutputFile(
+      s"dev/$label.json",
+      Printer.noSpaces.pretty(devDataset.asJson)
+    )
+    saveOutputFile(
+      s"test/$label.json",
+      Printer.noSpaces.pretty(testDataset.asJson)
+    )
   }
 
   def dataLabelIterator = for {

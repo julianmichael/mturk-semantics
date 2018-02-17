@@ -1,6 +1,6 @@
 package example
 
-import turksem.qasrl.QASRLSettings
+import qasrl.crowd.QASRLSettings
 
 package object multitask {
   implicit val settings: QASRLSettings = QASRLSettings.default

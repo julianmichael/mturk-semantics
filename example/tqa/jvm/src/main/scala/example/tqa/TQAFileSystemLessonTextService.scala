@@ -6,7 +6,6 @@ import nlpdata.structure.AlignedToken
 import nlpdata.util.LowerCaseStrings._
 import nlpdata.util.Text
 
-import turksem.util.AligningTokenizer
 import turksem.util._
 
 import java.nio.file.Path
@@ -17,7 +16,7 @@ class TQAFileSystemTopicTextService(location: Path) {
     import Argonaut._
 
     val sentencesTrimmedJsonArray = Parse.parse(
-      io.Source.fromFile(location.toString).mkString
+      scala.io.Source.fromFile(location.toString).mkString
     ).right.get.array.get
 
     case class Sentence(
@@ -44,7 +43,7 @@ class TQAFileSystemTopicTextService(location: Path) {
             println(s"missing sentence-index pair: sentence ${sentence.index} at index $index")
         }.toList
         val sortedSentenceTokens = sortedSentences.map { sentence =>
-          val tokens = AligningTokenizer.tokenize(sentence.text)
+          val tokens = Tokenizer.tokenizeAligned(sentence.text)
           val roundTrip = Text.renderAligned(tokens)
           val firstBadIndex = roundTrip.zip(sentence.text).toList.findIndex {
             case (x, y) => x != y

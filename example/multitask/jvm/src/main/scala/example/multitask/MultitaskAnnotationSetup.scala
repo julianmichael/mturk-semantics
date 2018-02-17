@@ -3,8 +3,8 @@ package example.multitask
 import cats._
 import cats.implicits._
 
-import qamr._
-import turksem.qasrl._
+// import qamr._
+import qasrl.crowd._
 import turksem.util._
 
 import spacro._
@@ -18,9 +18,7 @@ import nlpdata.util.Text
 import nlpdata.util.HasTokens
 import nlpdata.util.HasTokens.ops._
 import nlpdata.datasets.ptb3._
-import nlpdata.datasets.qasrl
-import nlpdata.datasets.wiktionary
-import nlpdata.datasets.wiktionary.Inflections
+import nlpdata.datasets.wiktionary._
 
 import akka.actor._
 import akka.stream.scaladsl.Flow
@@ -60,7 +58,7 @@ class MultitaskAnnotationSetup(
     )
   }
 
-  lazy val Wiktionary = new wiktionary.WiktionaryFileSystemService(
+  lazy val Wiktionary = new WiktionaryFileSystemService(
     resourcePath.resolve("wiktionary")
   )
 
@@ -86,11 +84,11 @@ class MultitaskAnnotationSetup(
   val staticDataPath = Paths.get(s"static-data/multitask/$label")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
-    val directory = staticDataPath.resolve("out")
+    val path = staticDataPath.resolve("out").resolve(name)
+    val directory = path.getParent
     if(!Files.exists(directory)) {
       Files.createDirectories(directory)
     }
-    val path = directory.resolve(name)
     Files.write(path, contents.getBytes())
   }
 
@@ -166,6 +164,34 @@ class MultitaskAnnotationSetup(
     generationCoverageDisqualTypeLabel = Some("v3-templates"),
     validationAgreementDisqualTypeLabel = Some("v3-templates"))
 
+  lazy val dataset = experiment.dataset(SentenceId.toString)
+
+  def isTrain(sid: SentenceId) = ontoNotesTrain.contains(sid) || brownTrain.contains(sid)
+  def isDev(sid: SentenceId) = ontoNotesDev.contains(sid) || brownDev.contains(sid)
+  def isTest(sid: SentenceId) = ontoNotesTest.contains(sid) || brownTest.contains(sid)
+
+  lazy val trainDataset = dataset.filterSentenceIds(s => isTrain(SentenceId.fromString(s)))
+  lazy val devDataset = dataset.filterSentenceIds(s => isDev(SentenceId.fromString(s)))
+  lazy val testDataset = dataset.filterSentenceIds(s => isTest(SentenceId.fromString(s)))
+
+  def writeDatasets = {
+    import io.circe.Printer
+    import io.circe.syntax._
+    import QASRLDataset.JsonCodecs._
+    saveOutputFile(
+      s"train/$label.json",
+      Printer.noSpaces.pretty(trainDataset.asJson)
+    )
+    saveOutputFile(
+      s"dev/$label.json",
+      Printer.noSpaces.pretty(devDataset.asJson)
+    )
+    saveOutputFile(
+      s"test/$label.json",
+      Printer.noSpaces.pretty(testDataset.asJson)
+    )
+  }
+
   def saveReadableAnnotationData(
     filename: String,
     ids: Vector[SentenceId]
@@ -182,47 +208,69 @@ class MultitaskAnnotationSetup(
     )
   }
 
-  def saveNegativeSampledAnnotationData(
-    filename: String,
-    ids: Vector[SentenceId]
-  ) = {
-    // TODO collapse labels for negative sampling
-    saveOutputFile(
-      s"$filename-negative.tsv",
-      DataIO.makeNegExamplesTSV(
-        ids.toList,
-        SentenceId.toString,
-        experiment.allGenInfos,
-        experiment.allValInfos)
-    )
-  }
+  // def saveNegativeSampledAnnotationData(
+  //   filename: String,
+  //   ids: Vector[SentenceId]
+  // ) = {
+  //   // TODO collapse labels for negative sampling
+  //   saveOutputFile(
+  //     s"$filename-negative.tsv",
+  //     DataIO.makeNegExamplesTSV(
+  //       ids.toList,
+  //       SentenceId.toString,
+  //       experiment.allGenInfos,
+  //       experiment.allValInfos)
+  //   )
+  // }
 
-  def saveAnnotationData(
+  import qasrl.labeling._
+
+  def saveAnnotationData[QuestionLabel](
+    fileLabel: String,
     filename: String,
     ids: Vector[SentenceId],
-    fileLabelOpt: Option[String] = None,
-    getQuestionLabel: DataIO.QuestionLabelGetter = QALabelMapper.useQuestionString
+    genInfos: List[HITInfo[QASRLGenerationPrompt[SentenceId], List[VerbQA]]],
+    valInfos: List[HITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]]],
+    mapLabels: QuestionLabelMapper[String, QuestionLabel],
+    renderLabel: QuestionLabel => String
   ) = {
     saveOutputFile(
-      fileLabelOpt.fold(s"$filename.tsv")(label => s"$filename-$label.tsv"),
+      s"$fileLabel/$filename.tsv",
       DataIO.makeQAPairTSV(
         ids.toList,
         SentenceId.toString,
-        experiment.allGenInfos,
-        experiment.allValInfos,
-        getQuestionLabel)
+        genInfos,
+        valInfos,
+        mapLabels,
+        renderLabel)
     )
   }
 
-  def writeAllTSVs(
-    fileLabelOpt: Option[String] = None,
-    getQuestionLabel: DataIO.QuestionLabelGetter = QALabelMapper.useQuestionString
+  lazy val genInfos = experiment.allGenInfos
+  lazy val valInfos = experiment.allValInfos
+
+  def writeAllTSVs[Label](
+    fileLabel: String,
+    mapLabels: QuestionLabelMapper[String, Label],
+    renderLabel: Label => String
   ) = {
-    saveAnnotationData("brown-train", brownTrain, fileLabelOpt, getQuestionLabel)
-    saveAnnotationData("brown-dev", brownDev, fileLabelOpt, getQuestionLabel)
-    saveAnnotationData("brown-test", brownTest, fileLabelOpt, getQuestionLabel)
-    saveAnnotationData("bc-train", ontoNotesTrain, fileLabelOpt, getQuestionLabel)
-    saveAnnotationData("bc-dev", ontoNotesDev, fileLabelOpt, getQuestionLabel)
-    saveAnnotationData("bc-test", ontoNotesTest, fileLabelOpt, getQuestionLabel)
+    saveAnnotationData(fileLabel, "brown-train", brownTrain, genInfos, valInfos, mapLabels, renderLabel)
+    saveAnnotationData(fileLabel, "brown-dev", brownDev, genInfos, valInfos, mapLabels, renderLabel)
+    saveAnnotationData(fileLabel, "brown-test", brownTest, genInfos, valInfos, mapLabels, renderLabel)
+    saveAnnotationData(fileLabel, "bc-train", ontoNotesTrain, genInfos, valInfos, mapLabels, renderLabel)
+    saveAnnotationData(fileLabel, "bc-dev", ontoNotesDev, genInfos, valInfos, mapLabels, renderLabel)
+    saveAnnotationData(fileLabel, "bc-test", ontoNotesTest, genInfos, valInfos, mapLabels, renderLabel)
   }
+
+  def writeStringTSVs = writeAllTSVs(
+    fileLabel = "string",
+    mapLabels = cats.arrow.Arrow[QuestionLabelMapper].id[String],
+    renderLabel = identity[String]
+  )
+
+  def writeSlotTSVs = writeAllTSVs(
+    fileLabel = "slots-tense",
+    mapLabels = SlotBasedLabel.getVerbTenseAbstractedSlotsForQuestion,
+    renderLabel = (slots: SlotBasedLabel[VerbForm]) => slots.renderWithSeparator(_.toString.lowerCase, ",")
+  )
 }

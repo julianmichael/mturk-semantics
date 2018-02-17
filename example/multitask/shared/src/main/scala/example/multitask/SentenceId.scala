@@ -40,12 +40,12 @@ object SentenceId {
     case PTBSentenceId(PTB3SentencePath(WSJPath(section, number), sentenceNum)) =>
       f"WSJ:$section%02d$number%02d:$sentenceNum%d"
     case PTBSentenceId(PTB3SentencePath(BrownPath(domain, number), sentenceNum)) =>
-      f"BROWN:$domain%s$number%02d:$sentenceNum%d"
+      f"Brown:$domain%s$number%02d:$sentenceNum%d"
     case CoNLLSentenceId(path) => s"CoNLL:${path.filePath.suffix}:${path.sentenceNum}"
   }
 
-  private[this] val WSJMatch = "WSJ:([0-9]+){2}([0-9]+){2}:([0-9]+)".r
-  private[this] val BrownMatch = "Brown:([^:]{2})[0-9]{2}:([0-9]+)".r
+  private[this] val WSJMatch = "WSJ:([0-9]{2})([0-9]{2}):([0-9]+)".r
+  private[this] val BrownMatch = "Brown:([^:]{2})([0-9]{2}):([0-9]+)".r
   private[this] val CoNLLMatch = "CoNLL:([^:]+):([0-9]+)".r
   private[this] object int {
     def unapply(s: String): Option[Int] = scala.util.Try(s.toInt).toOption

@@ -1,5 +1,6 @@
 import example.tqa._
-import qamr._
+import qasrl.crowd._
+import qasrl.labeling._
 import turksem.util._
 import spacro._
 import spacro.tasks._
@@ -10,25 +11,31 @@ import scala.concurrent.duration._
 import com.amazonaws.services.mturk._
 import com.amazonaws.services.mturk.model._
 
+import nlpdata.datasets.wiktionary._
 import nlpdata.util.Text
 import nlpdata.util.HasAlignedTokens.ops._
+import nlpdata.util.LowerCaseStrings._
 
 val label = "expand1"
 
-val isProduction = false // sandbox. change to true for production
+val isProduction = true // sandbox. change to true for production
 val domain = "localhost" // change to your domain, or keep localhost for testing
 val projectName = "turksem-tqaeval" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
+
+val interface = "0.0.0.0"
+val httpPort = 8888
+val httpsPort = 8080
 
 val annotationPath = java.nio.file.Paths.get(s"data/tqaeval/$label/annotations")
 implicit val timeout = akka.util.Timeout(5.seconds)
 implicit val config: TaskConfig = {
   if(isProduction) {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("production"))
-    ProductionTaskConfig(projectName, domain, hitDataService)
+    ProductionTaskConfig(projectName, domain, interface, httpPort, httpsPort, hitDataService)
   } else {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("sandbox"))
-    SandboxTaskConfig(projectName, domain, hitDataService)
+    SandboxTaskConfig(projectName, domain, interface, httpPort, httpsPort, hitDataService)
   }
 }
 
@@ -45,7 +52,9 @@ def exit = {
 val setup = new TQAEvaluationSetup(
   label,
   List(
-    EvaluationInput("base/filtered/base_model_predictions.dev.filtered.tsv", "base"),
+    EvaluationInput("base/filtered/base_model_predictions.dev.filtered.tsv", "base")
+  ),
+  List(
     EvaluationInput("base/filtered/base_model_predictions.fold0.filtered.tsv", "base-fold0"),
     EvaluationInput("base/filtered/base_model_predictions.fold1.filtered.tsv", "base-fold1"),
     EvaluationInput("base/filtered/base_model_predictions.fold2.filtered.tsv", "base-fold2"),

@@ -50,7 +50,8 @@ case class EvaluationInput(
 
 class TQAEvaluationSetup(
   val label: String,
-  inputs: List[EvaluationInput],
+  allPrompts: Vector[QASRLEvaluationPrompt[SentenceId]],
+  numValidatorsForPrompt: QASRLEvaluationPrompt[SentenceId] => Int,
   frozenEvaluationHITTypeId: Option[String] = None,
   validationAgreementDisqualTypeLabel: Option[String])(
   implicit config: TaskConfig) {
@@ -94,65 +95,6 @@ class TQAEvaluationSetup(
     resourcePath.resolve("tqa/tqa_sentences_trimmed.json")
   ).topicTexts
 
-  def readVerbForm(lcs: LowerCaseString): VerbForm = lcs.toString match {
-    case "stem" => Stem
-    case "presentsingular3rd" => PresentSingular3rd
-    case "presentparticiple" => PresentParticiple
-    case "past" => Past
-    case "pastparticiple" => PastParticiple
-    case _ => ???
-  }
-
-  def allTokensIter = {
-    inputs.iterator.flatMap { case EvaluationInput(filename, _) =>
-      loadInputFile(filename).get.iterator
-        .filter(l => !l.startsWith("\t"))
-        .flatMap(_.split("\t").last.split(" ").iterator)
-    }
-  }
-
-  implicit lazy val inflections = Wiktionary.getInflectionsForTokens(allTokensIter)
-
-  def readPromptsFromFile(filename: String, source: String): Vector[QASRLEvaluationPrompt[SentenceId]] = {
-    case class Loading(
-      prevPrompts: List[QASRLEvaluationPrompt[SentenceId]],
-      curLines: List[String])
-    def processLinesIntoPrompt(lines: List[String]) = {
-      val firstLine :: qaLines = lines
-      val sentenceFields = firstLine.split("\t")
-      val id = SentenceId.fromString(sentenceFields(0))
-      val sentenceTokens = sentenceFields(1).split(" ").toVector
-      val qaPairs = qaLines.map { qaLine =>
-        val fields = qaLine.trim.split("\t")
-
-        val verbIndex = fields(0).toInt
-
-        val verbInflectedForms = inflections.getInflectedForms(sentenceTokens(verbIndex).lowerCase).get
-        val slotsString = fields(2)
-        val abstractedSlots = SlotBasedLabel.fromRenderedString(readVerbForm(_), ",")(slotsString).get
-        val questionString = abstractedSlots.renderQuestionString(verbInflectedForms)
-
-        val answerSpans = fields.drop(3).toList.map { s =>
-          val Array(begin, end) = s.split("-").map(_.toInt)
-          Span(begin, end)
-        }
-
-        VerbQA(verbIndex, questionString, answerSpans)
-      }
-      QASRLEvaluationPrompt(id, source, qaPairs)
-    }
-    val Loading(allPromptsButLast, lastLines) = loadInputFile(filename).get.foldLeft(Loading(Nil, Nil)) {
-      case (Loading(prevPrompts, curLines), nextLine) =>
-        if(nextLine.startsWith("\t") || curLines.isEmpty) {
-          Loading(prevPrompts, curLines ++ List(nextLine))
-        } else {
-          val prompt = processLinesIntoPrompt(curLines)
-          Loading(prompt :: prevPrompts, List(nextLine))
-        }
-    }
-    (processLinesIntoPrompt(lastLines) :: allPromptsButLast).toVector.reverse
-  }
-
   implicit object SentenceIdHasAlignedTokens extends HasTokens[SentenceId] {
     override def getTokens(id: SentenceId): Vector[String] = id match {
       case TQASentenceId(topicId, sentenceIndex) => tqaTexts(topicId).sentences(sentenceIndex).map(_.token)
@@ -160,39 +102,73 @@ class TQAEvaluationSetup(
     }
   }
 
-  lazy val rand =  new Random(136242624L)
-  lazy val promptVecs = inputs.map { case EvaluationInput(filename, sourceId) =>
-    rand.shuffle(readPromptsFromFile(filename, sourceId))
+  def allTokensIter = {
+    allPrompts.iterator.map(_.id).toSet.iterator
+      .flatMap((id: SentenceId) => id.tokens)
   }
-  lazy val promptSets = promptVecs.map(_.toSet)
-  lazy val allPrompts = weightedRoundRobinRandomized(promptVecs, rand)
+
+  implicit lazy val inflections = Wiktionary.getInflectionsForTokens(allTokensIter)
+
+  lazy val allIds = allPrompts.map(_.id).distinct
 
   lazy val experiment = new QASRLEvaluationPipeline(
     allPrompts,
+    numValidatorsForPrompt,
     frozenEvaluationHITTypeId = frozenEvaluationHITTypeId,
     validationAgreementDisqualTypeLabel = validationAgreementDisqualTypeLabel)
 
-  // import qasrl.labeling._
+  def data = new EvaluationDataExporter(experiment)
 
-  // def saveAnnotationData[A](
-  //   filename: String,
-  //   ids: Vector[SentenceId],
-  //   genInfos: List[HITInfo[QASRLGenerationPrompt[SentenceId], List[VerbQA]]],
-  //   valInfos: List[HITInfo[QASRLValidationPrompt[SentenceId], List[QASRLValidationAnswer]]],
-  //   anonymizeWorker: String => String,
-  //   labelMapper: QuestionLabelMapper[String, A],
-  //   labelRenderer: A => String
-  // ) = {
+  def saveAnnotationDataTSV[A](
+    filename: String,
+    ids: Vector[SentenceId],
+    infos: List[HITInfo[QASRLEvaluationPrompt[SentenceId], List[QASRLValidationAnswer]]],
+    labelMapper: QuestionLabelMapper[String, A],
+    labelRenderer: A => String
+  ) = {
+    saveOutputFile(
+      s"$filename.tsv",
+      DataIO.makeEvaluationQAPairTSV(
+        ids.toList,
+        SentenceId.toString,
+        infos,
+        labelMapper,
+        labelRenderer)
+    )
+  }
+
+  def writeSlotsTSV(
+    filename: String,
+    ids: Vector[SentenceId],
+    infos: List[HITInfo[QASRLEvaluationPrompt[SentenceId], List[QASRLValidationAnswer]]]
+  ) = saveAnnotationDataTSV(
+    s"$label/slots-tense/$filename.tsv",
+    ids,
+    infos,
+    SlotBasedLabel.getVerbTenseAbstractedSlotsForQuestion,
+    (slots: SlotBasedLabel[VerbForm]) => slots.renderWithSeparator(_.toString.lowerCase, ",")
+  )
+
+  // def allInfos = dataExporter.infos
+  // lazy val dataset = dataExporter.dataset(SentenceId.toString(_), identity[String])
+
+  // lazy val trainIdStringsSet = trainIds.map(SentenceId.toString).toSet
+  // lazy val devIdStringsSet = devIds.map(SentenceId.toString).toSet
+
+  // lazy val trainDataset = dataset.filterSentenceIds(trainIdStringsSet)
+  // lazy val devDataset = dataset.filterSentenceIds(devIdStringsSet)
+
+  // def writeDatasets = {
+  //   import io.circe.Printer
+  //   import io.circe.syntax._
+  //   import QASRLDataset.JsonCodecs._
   //   saveOutputFile(
-  //     s"$filename.tsv",
-  //     DataIO.makeQAPairTSV(
-  //       ids.toList,
-  //       SentenceId.toString,
-  //       genInfos,
-  //       valInfos,
-  //       // anonymizeWorker, // TODO not outputting worker ID in dataset right now
-  //       labelMapper,
-  //       labelRenderer)
+  //     s"train/$label.json",
+  //     Printer.noSpaces.pretty(trainDataset.asJson)
+  //   )
+  //   saveOutputFile(
+  //     s"dev/$label.json",
+  //     Printer.noSpaces.pretty(devDataset.asJson)
   //   )
   // }
 
@@ -215,7 +191,6 @@ class TQAEvaluationSetup(
   //   )
   // }
 
-  lazy val infos = experiment.allInfos
   // TODO reuse anonymizations from first round? maybe? eh
   // lazy val workerAnonymizationMap: Map[String, String] = {
 
@@ -244,18 +219,9 @@ class TQAEvaluationSetup(
   //   labelMapper: QuestionLabelMapper[String, Label],
   //   labelRenderer: Label => String
   // ) = {
-  //   // train
-  //   saveAnnotationData(s"$label/$labelType/train/tqa", tqaTrainIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
-  //   saveAnnotationData(s"$label/$labelType/train/wikipedia", wikipediaTrainIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
-  //   saveAnnotationData(s"$label/$labelType/train/wikinews", wikinewsTrainIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
-  //   // dev
-  //   saveAnnotationData(s"$label/$labelType/dev/tqa", tqaDevIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
-  //   saveAnnotationData(s"$label/$labelType/dev/wikipedia", wikipediaDevIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
-  //   saveAnnotationData(s"$label/$labelType/dev/wikinews", wikinewsDevIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
-  //   // test
-  //   saveAnnotationData(s"$label/$labelType/test/tqa", tqaTestIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
-  //   saveAnnotationData(s"$label/$labelType/test/wikipedia", wikipediaTestIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
-  //   saveAnnotationData(s"$label/$labelType/test/wikinews", wikinewsTestIds, genInfos, valInfos, workerAnonymizationMap, labelMapper, labelRenderer)
+  //   // all
+  //   saveAnnotationData(s"$label/$labelType/expand1-dev", devIds, allInfos, labelMapper, labelRenderer)
+  //   saveAnnotationData(s"$label/$labelType/expand1-train", trainIds, allInfos, labelMapper, labelRenderer)
   // }
 
   // def writeReadableTSVs = {
