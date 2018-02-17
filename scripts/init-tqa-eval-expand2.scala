@@ -164,6 +164,11 @@ def numValidatorsForPrompt(prompt: QASRLEvaluationPrompt[SentenceId]): Int = {
   }
 }
 
+val settings = new QASRLEvaluationSettings {
+  override val invalidProportionEstimateLowerBound = .40
+  override val invalidProportionEstimateUpperBound = .70
+}
+
 val setup = new TQAEvaluationSetup(
   label,
   allPrompts,
