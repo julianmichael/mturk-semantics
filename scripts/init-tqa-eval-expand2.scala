@@ -28,7 +28,7 @@ import cats.implicits._
 
 val label = "densify-expand2"
 
-val isProduction = true // sandbox. change to true for production
+val isProduction = false // sandbox. change to true for production
 val domain = "localhost" // change to your domain, or keep localhost for testing
 val projectName = "turksem-tqaeval" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
@@ -156,17 +156,7 @@ val allPrompts = weightedRoundRobinRandomized(
   rand)
 
 def numValidatorsForPrompt(prompt: QASRLEvaluationPrompt[SentenceId]): Int = {
-  if(trainExpandPromptSet.contains(prompt)) 3
-  else if(devExpandPromptSet.contains(prompt)) 8
-  else {
-    System.err.println("mysterious prompt: " + prompt.toString)
-    3
-  }
-}
-
-val settings = new QASRLEvaluationSettings {
-  override val invalidProportionEstimateLowerBound = .40
-  override val invalidProportionEstimateUpperBound = .70
+  if(isProduction) 3 else 1
 }
 
 val setup = new TQAEvaluationSetup(

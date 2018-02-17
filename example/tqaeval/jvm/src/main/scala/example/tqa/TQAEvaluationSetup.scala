@@ -49,7 +49,6 @@ case class EvaluationInput(
 )
 
 class TQAEvaluationSetup(
-  val settings: QASRLEvaluationSettings,
   val label: String,
   allPrompts: Vector[QASRLEvaluationPrompt[SentenceId]],
   numValidatorsForPrompt: QASRLEvaluationPrompt[SentenceId] => Int,
@@ -113,7 +112,6 @@ class TQAEvaluationSetup(
   lazy val allIds = allPrompts.map(_.id).distinct
 
   lazy val experiment = new QASRLEvaluationPipeline(
-    settings,
     allPrompts,
     numValidatorsForPrompt,
     frozenEvaluationHITTypeId = frozenEvaluationHITTypeId,
