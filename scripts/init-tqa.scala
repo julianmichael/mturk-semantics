@@ -1,6 +1,5 @@
 import example.tqa._
 import qamr._
-import turksem.qasrl._
 import turksem.util._
 import spacro._
 import spacro.tasks._
@@ -22,16 +21,24 @@ val isProduction = false // sandbox. change to true for production
 val domain = "localhost" // change to your domain, or keep localhost for testing
 val projectName = "turksem-tqa" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
+val interface = "0.0.0.0"
+val httpPort = 8888
+val httpsPort = 8080
+
 
 val annotationPath = java.nio.file.Paths.get(s"data/tqa/$label/annotations")
 implicit val timeout = akka.util.Timeout(5.seconds)
 implicit val config: TaskConfig = {
   if(isProduction) {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("production"))
-    ProductionTaskConfig(projectName, domain, hitDataService)
+    ProductionTaskConfig(projectName, domain,
+                         interface, httpPort, httpsPort,
+                         hitDataService)
   } else {
     val hitDataService = new FileSystemHITDataService(annotationPath.resolve("sandbox"))
-    SandboxTaskConfig(projectName, domain, hitDataService)
+    SandboxTaskConfig(projectName, domain,
+                      interface, httpPort, httpsPort,
+                      hitDataService)
   }
 }
 

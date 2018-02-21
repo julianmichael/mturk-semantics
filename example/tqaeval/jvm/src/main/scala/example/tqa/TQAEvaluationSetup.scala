@@ -52,8 +52,9 @@ class TQAEvaluationSetup(
   val label: String,
   allPrompts: Vector[QASRLEvaluationPrompt[SentenceId]],
   numValidatorsForPrompt: QASRLEvaluationPrompt[SentenceId] => Int,
+  validationAgreementDisqualTypeLabel: Option[String],
   frozenEvaluationHITTypeId: Option[String] = None,
-  validationAgreementDisqualTypeLabel: Option[String])(
+  alternativePromptReaderOpt: Option[Reader[QASRLEvaluationPrompt[SentenceId]]] = None)(
   implicit config: TaskConfig) {
 
   val resourcePath = java.nio.file.Paths.get("resources")
@@ -115,7 +116,8 @@ class TQAEvaluationSetup(
     allPrompts,
     numValidatorsForPrompt,
     frozenEvaluationHITTypeId = frozenEvaluationHITTypeId,
-    validationAgreementDisqualTypeLabel = validationAgreementDisqualTypeLabel)
+    validationAgreementDisqualTypeLabel = validationAgreementDisqualTypeLabel,
+    alternativePromptReaderOpt = alternativePromptReaderOpt)
 
   def data = new EvaluationDataExporter(experiment)
 

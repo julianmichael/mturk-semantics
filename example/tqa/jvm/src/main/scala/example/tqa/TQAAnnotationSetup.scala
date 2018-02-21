@@ -302,14 +302,15 @@ class TQAAnnotationSetup(
 
     val allWorkerIds = (allGenWorkerIdsIter ++ allValWorkerIdsIter).toSet
 
-    val rand = new scala.util.Random(1543754734L)
+    val rand = new Random(1543754734L)
     val randomOrderedWorkerIds = rand.shuffle(allWorkerIds.toVector)
     randomOrderedWorkerIds.zipWithIndex.map {
       case (workerId, index) => workerId -> index.toString
     }.toMap
   }
 
-  lazy val dataset = experiment.dataset(SentenceId.toString(_))
+  lazy val dataExporter = new AnnotationDataExporter(experiment)
+  lazy val dataset = dataExporter.dataset(SentenceId.toString(_), identity[String](_))
 
   lazy val trainIds = (tqaTrainIds ++ wikipediaTrainIds ++ wikinewsTrainIds).toSet
   lazy val devIds = (tqaDevIds ++ wikipediaDevIds ++ wikinewsDevIds).toSet
@@ -322,6 +323,85 @@ class TQAAnnotationSetup(
   lazy val trainDataset = dataset.filterSentenceIds(trainIdStringsSet)
   lazy val devDataset = dataset.filterSentenceIds(devIdStringsSet)
   lazy val testDataset = dataset.filterSentenceIds(testIdStringsSet)
+
+  // sampling sentences for human eval & densification on dev/test
+  lazy val (
+    tqaDevHumanEvalIds, tqaTestHumanEvalIds,
+    wikipediaDevHumanEvalIds, wikipediaTestHumanEvalIds,
+    wikinewsDevHumanEvalIds, wikinewsTestHumanEvalIds
+  ) = {
+    val rand = new Random(1543754734L)
+
+    val tqaDev = rand.shuffle(
+      tqaDevIds.groupBy(_.topicId).toVector
+    ).flatMap(_._2).take(1000).toSet
+    val tqaTest = rand.shuffle(
+      tqaTestIds.groupBy(_.topicId).toVector
+    ).flatMap(_._2).take(1000).toSet
+
+    val wikipediaDev = rand.shuffle(
+      wikipediaDevIds.groupBy(id => id.copy(path = id.path.copy(sentenceNum = 0)))
+    ).flatMap(_._2).take(1000).toSet
+    val wikipediaTest = rand.shuffle(
+      wikipediaTestIds.groupBy(id => id.copy(path = id.path.copy(sentenceNum = 0)))
+    ).flatMap(_._2).take(1000).toSet
+
+    val wikinewsDev = rand.shuffle(
+      wikinewsDevIds.groupBy(id => id.copy(path = id.path.copy(sentenceNum = 0)))
+    ).flatMap(_._2).take(1000).toSet
+    val wikinewsTest = rand.shuffle(
+      wikinewsTestIds.groupBy(id => id.copy(path = id.path.copy(sentenceNum = 0)))
+    ).flatMap(_._2).take(1000).toSet
+
+    (tqaDev, tqaTest, wikipediaDev, wikipediaTest, wikinewsDev, wikinewsTest)
+  }
+
+  def writeHumanEvalSentences(filename: String, ids: List[SentenceId]) = {
+    saveOutputFile(
+      s"human-sentences/$filename.tsv",
+      ids.iterator.map(
+        id => SentenceId.toString(id) + "\t" +
+          id.tokens.mkString(" ") + "\t" +
+          experiment.getKeyIndices(id).mkString(" ")
+      ).mkString("\n")
+    )
+  }
+
+  def writeAllHumanEvalSentences = {
+    writeHumanEvalSentences("dev-tqa", tqaDevHumanEvalIds.toList.sorted)
+    writeHumanEvalSentences("dev-wikipedia", wikipediaDevHumanEvalIds.toList.sorted)
+    writeHumanEvalSentences("dev-wikinews", wikinewsDevHumanEvalIds.toList.sorted)
+    writeHumanEvalSentences("test-tqa", tqaTestHumanEvalIds.toList.sorted)
+    writeHumanEvalSentences("test-wikipedia", wikipediaTestHumanEvalIds.toList.sorted)
+    writeHumanEvalSentences("test-wikinews", wikinewsTestHumanEvalIds.toList.sorted)
+  }
+
+  def writeAllSentences = {
+    saveOutputFile(
+      s"all-sentences/train.tsv",
+      trainIds.iterator.map(
+        id => SentenceId.toString(id) + "\t" +
+          id.tokens.mkString(" ") + "\t" +
+          experiment.getKeyIndices(id).mkString(" ")
+      ).mkString("\n")
+    )
+    saveOutputFile(
+      s"all-sentences/dev.tsv",
+      devIds.iterator.map(
+        id => SentenceId.toString(id) + "\t" +
+          id.tokens.mkString(" ") + "\t" +
+          experiment.getKeyIndices(id).mkString(" ")
+      ).mkString("\n")
+    )
+    saveOutputFile(
+      s"all-sentences/test.tsv",
+      testIds.iterator.map(
+        id => SentenceId.toString(id) + "\t" +
+          id.tokens.mkString(" ") + "\t" +
+          experiment.getKeyIndices(id).mkString(" ")
+      ).mkString("\n")
+    )
+  }
 
   def writeDatasets = {
     import io.circe.Printer

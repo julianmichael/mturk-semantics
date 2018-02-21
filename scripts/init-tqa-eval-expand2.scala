@@ -26,9 +26,9 @@ import scala.util.Random
 
 import cats.implicits._
 
-val label = "densify-expand2"
+val label = "expand2"
 
-val isProduction = false // sandbox. change to true for production
+val isProduction = true
 val domain = "localhost" // change to your domain, or keep localhost for testing
 val projectName = "turksem-tqaeval" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
@@ -163,34 +163,34 @@ val setup = new TQAEvaluationSetup(
   label,
   allPrompts,
   numValidatorsForPrompt(_),
-  validationAgreementDisqualTypeLabel = Some("eval")
+  validationAgreementDisqualTypeLabel = Some("eval"),
+  frozenEvaluationHITTypeId = Some("3Q5AG2X64R0DTOKUYU8OZMO15BCMVW")
 )
 
 import setup.SentenceIdHasAlignedTokens
+import QASRLDataset.JsonCodecs._
 
 val exp = setup.experiment
 exp.server
 
-// def datasets = {
-//   val dataExporter = new EvaluationDataExporter(exp)
-//   val fullDataset = dataExporter.dataset(SentenceId.toString, identity[String])
-//   val trainDataset = fullDataset.filterSentenceIds(trainExpandIdStrings)
-//   val devDataset = fullDataset.filterSentenceIds(devDensifyIdStrings union devExpandIdStrings)
-//   val testDataset = fullDataset.filterSentenceIds(testDensifyIdStrings)
-//   (trainDataset, devDataset, testDataset)
-// }
+def datasets = {
+  val dataExporter = new EvaluationDataExporter(exp)
+  val fullDataset = dataExporter.dataset(SentenceId.toString, identity[String])
+  val trainDataset = fullDataset.filterSentenceIds(trainExpandIdStrings)
+  val devDataset = fullDataset.filterSentenceIds(devExpandIdStrings)
+  (trainDataset, devDataset)
+}
 
-// def writeDataset(data: QASRLDataset, name: String) = {
-//   import io.circe.Printer
-//   setup.saveOutputFile(s"$name.json", Printer.noSpaces.pretty(data.asJson))
-// }
+def writeDataset(data: QASRLDataset, name: String) = {
+  import io.circe.Printer
+  setup.saveOutputFile(s"$name.json", Printer.noSpaces.pretty(data.asJson))
+}
 
-// def writeAllDatasets = {
-//   val (train, dev, test) = datasets
-//   writeDataset(train, "train")
-//   writeDataset(dev, "dev")
-//   writeDataset(test, "test")
-// }
+def writeAllDatasets = {
+  val (train, dev) = datasets
+  writeDataset(train, "train")
+  writeDataset(dev, "dev")
+}
 
 // use with caution... intended mainly for sandbox
 def deleteAll = {
