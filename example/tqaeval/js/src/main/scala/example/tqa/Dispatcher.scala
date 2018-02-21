@@ -159,7 +159,7 @@ object Dispatcher extends QASRLEvaluationDispatcher[SentenceId] with JSApp {
       <.li("Who blamed someone? --> ", <.span(Styles.goodGreen, " Protesters ")),
       <.li("Who did someone blame something on? --> ", <.span(Styles.goodGreen, " local officials / they")),
       <.li("What did someone blame on someone? --> ", <.span(Styles.goodGreen, " the corruption scandal"))),
-    <.p(s"""You will be paid a ${dollarsToCents(validationBonusPerQuestion)}c bonus per question after the first question if there is more than one."""),
+    <.p(s"""You will be paid a ${dollarsToCents(validationBonusPerQuestion)}c bonus per question writing fourth question if there are more than four."""),
     <.h2("""Guidelines"""),
     <.ol(
       <.li(

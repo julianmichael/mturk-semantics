@@ -142,22 +142,35 @@ def readDatasetFromPromptFile(
       case x => println("uh oh!!!!!!! no match!!! " + x); 0.0
     }.max
 
-    if(maxAnswerScore < threshold) None else Some {
+    if(maxAnswerScore < threshold) None else {
       val verbIndex = fields(1).toInt
       val verbInflectedForms = inflections.getInflectedForms(sentenceTokens(verbIndex).lowerCase).get
       val modelString = fields(2).takeWhile(_ != ":")
       val slotsString = fields(3)
       val slots = SlotBasedLabel.fromRenderedString(readVerbForm(_), ",")(slotsString).get
       val questionString = slots.renderQuestionString(verbInflectedForms)
-      QASRLLabel(
-        QuestionLabel(
-          Set(source),
-          verbIndex,
-          verbInflectedForms,
-          questionString,
-          slots),
-        Set.empty
-      )
+      val reprocessedSlotsOpt = SlotBasedLabel.getVerbTenseAbstractedSlotsForQuestion(
+        sentenceTokens, verbInflectedForms, List(questionString)
+      ).head match {
+        case Some(reprocessedSlots) =>
+          Some(
+            QASRLLabel(
+              QuestionLabel(
+                Set(source),
+                verbIndex,
+                verbInflectedForms,
+                questionString,
+                slots),
+              Set.empty
+            )
+          )
+        case None =>
+          println("Could not reprocess question:")
+          println(s"slots: $slotsString")
+          println(s"question: $questionString")
+          None
+      }
+      reprocessedSlotsOpt
     }
   }
 
@@ -272,7 +285,7 @@ val setup = new TQAEvaluationSetup(
   label,
   allPrompts,
   numValidatorsForPrompt(_),
-  validationAgreementDisqualTypeLabel = Some("eval-final")
+  validationAgreementDisqualTypeLabel = Some("eval-v3")
 )
 
 import setup.SentenceIdHasAlignedTokens
