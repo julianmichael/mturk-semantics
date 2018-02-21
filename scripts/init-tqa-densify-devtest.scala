@@ -198,9 +198,7 @@ def readDatasetFromPromptFile(
 import QASRLDataset.JsonCodecs._
 
 val devData = jawn.decodeFile[QASRLDataset](
-  new File("qasrl-data-separate/dev/tqa-wiki.json")
-).right.get |+| jawn.decodeFile[QASRLDataset](
-  new File("qasrl-data-separate/dev/tqa-wiki-expand1.json")
+  new File("qasrl-data/dev.json")
 ).right.get
 
 val devDensifyData = devData.filterSentenceIds(idStringsForHumanEvalSet)
@@ -217,7 +215,7 @@ val devDataToAnnotate = devDensifyData |+| devEvalData
 val allDevIdStrings = devDataToAnnotate.entries.keySet
 
 val testData = jawn.decodeFile[QASRLDataset](
-  new File("qasrl-data-separate/test/tqa-wiki.json")
+  new File("qasrl-data/test.json")
 ).right.get
 
 val testDensifyData = testData.filterSentenceIds(idStringsForHumanEvalSet)
