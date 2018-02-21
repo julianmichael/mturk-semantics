@@ -111,6 +111,8 @@ def readVerbForm(lcs: LowerCaseString): VerbForm = lcs.toString match {
   case _ => ???
 }
 
+val threshold = 0.2
+
 def readDatasetFromPromptFile(
   filename: String,
   source: String,
@@ -126,26 +128,37 @@ def readDatasetFromPromptFile(
     (idString, tokensString.split(" ").toVector)
   }
 
+  val AnswerMatchToScoreString = "[0-9]+-[0-9]+\\[(.*)\\]".r
+
   def loadQuestionInfoFromLine(
     line: String,
     sentenceTokens: Vector[String]
   ) = {
     val fields = line.split("\t")
-    val verbIndex = fields(1).toInt
-    val verbInflectedForms = inflections.getInflectedForms(sentenceTokens(verbIndex).lowerCase).get
-    val modelString = fields(2).takeWhile(_ != ":")
-    val slotsString = fields(3)
-    val slots = SlotBasedLabel.fromRenderedString(readVerbForm(_), ",")(slotsString).get
-    val questionString = slots.renderQuestionString(verbInflectedForms)
-    QASRLLabel(
-      QuestionLabel(
-        Set(source),
-        verbIndex,
-        verbInflectedForms,
-        questionString,
-        slots),
-      Set.empty
-    )
+
+    val answerStrings = fields.toList.drop(4)
+    val maxAnswerScore = answerStrings.map {
+      case AnswerMatchToScoreString(scoreString) => scoreString.toDouble
+      case x => println("uh oh!!!!!!! no match!!! " + x); 0.0
+    }.max
+
+    if(maxAnswerScore < threshold) None else Some {
+      val verbIndex = fields(1).toInt
+      val verbInflectedForms = inflections.getInflectedForms(sentenceTokens(verbIndex).lowerCase).get
+      val modelString = fields(2).takeWhile(_ != ":")
+      val slotsString = fields(3)
+      val slots = SlotBasedLabel.fromRenderedString(readVerbForm(_), ",")(slotsString).get
+      val questionString = slots.renderQuestionString(verbInflectedForms)
+      QASRLLabel(
+        QuestionLabel(
+          Set(source),
+          verbIndex,
+          verbInflectedForms,
+          questionString,
+          slots),
+        Set.empty
+      )
+    }
   }
 
   val filepath = Paths.get(filename)
@@ -158,8 +171,12 @@ def readDatasetFromPromptFile(
       Loading(prevEntries, Some(newEntry))
     case (Loading(prevEntries, Some(curEntry)), nextLine) =>
       if(nextLine.startsWith("\t")) { // is QA pair
-        val newLabel = loadQuestionInfoFromLine(nextLine, curEntry.sentenceTokens)
-        Loading(prevEntries, Some(QASRLSentenceEntry.labels.modify(newLabel :: _)(curEntry)))
+        loadQuestionInfoFromLine(nextLine, curEntry.sentenceTokens) match {
+          case None =>
+            Loading(prevEntries, Some(curEntry))
+          case Some(newLabel) =>
+            Loading(prevEntries, Some(QASRLSentenceEntry.labels.modify(newLabel :: _)(curEntry)))
+        }
       } else { // is new sentence
         val newEntries = prevEntries + (
           curEntry.sentenceId -> QASRLSentenceEntry.labels.modify(_.reverse)(curEntry)
@@ -223,15 +240,18 @@ def getPromptsWithNumNecessaryAnnotations(data: QASRLDataset, rand: Random) = {
     data.entries.iterator.flatMap { case (sidString, sentenceEntry) =>
       val id = SentenceId.fromString(sidString)
       sentenceEntry.labels.groupBy(_.answers.size).iterator
-        .map { case (numAnswers, labels) =>
+        .flatMap { case (numAnswers, labels) =>
           val numValidatorsNeeded = 6 - numAnswers
-          val sourcedQuestions = labels.map(_.question).map {
-            case QuestionLabel(sourceIds, verbIndex, _, question, _) =>
-              SourcedQuestion(verbIndex, question, sourceIds)
-          }
-          QASRLEvaluationPrompt(id, sourcedQuestions) -> numValidatorsNeeded
+          rand.shuffle(
+            labels.map(_.question).map {
+              case QuestionLabel(sourceIds, verbIndex, _, question, _) =>
+                SourcedQuestion(verbIndex, question, sourceIds)
+            }
+          ).grouped(8).map(qs =>
+            QASRLEvaluationPrompt(id, qs.sortBy(_.verbIndex)) -> numValidatorsNeeded
+          )
       }
-    }.toVector
+    }.filter(_._2 > 0).toVector
   )
 }
 
