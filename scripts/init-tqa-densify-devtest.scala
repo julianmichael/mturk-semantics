@@ -28,7 +28,7 @@ import cats.implicits._
 
 val label = "human-eval"
 
-val isProduction = false // sandbox. change to true for production
+val isProduction = true // sandbox. change to true for production
 val domain = "localhost" // change to your domain, or keep localhost for testing
 val projectName = "turksem-tqaeval" // make sure it matches the SBT project;
 // this is how the .js file is found to send to the server
@@ -285,7 +285,8 @@ val setup = new TQAEvaluationSetup(
   label,
   allPrompts,
   numValidatorsForPrompt(_),
-  validationAgreementDisqualTypeLabel = Some("eval-v3")
+  validationAgreementDisqualTypeLabel = Some("eval-v3"),
+  frozenEvaluationHITTypeId = Some("377YSAKP63H0LJBLW3MXP5UOJ8BNMH")
 )
 
 import setup.SentenceIdHasAlignedTokens
@@ -298,19 +299,19 @@ def datasets = {
   val fullDataset = dataExporter.dataset(SentenceId.toString, identity[String])
   val devDataset = fullDataset.filterSentenceIds(allDevIdStrings)
   val testDataset = fullDataset.filterSentenceIds(allTestIdStrings)
-  (devDataset, testDataset)
+  (fullDataset, devDataset, testDataset)
 }
 
-def writeDataset(data: QASRLDataset, name: String) = {
-  import io.circe.Printer
-  setup.saveOutputFile(s"$name.json", Printer.noSpaces.pretty(data.asJson))
-}
+// def writeDataset(data: QASRLDataset, name: String) = {
+//   import io.circe.Printer
+//   setup.saveOutputFile(s"$name.json", Printer.noSpaces.pretty(data.asJson))
+// }
 
-def writeAllDatasets = {
-  val (dev, test) = datasets
-  writeDataset(dev, "dev")
-  writeDataset(test, "test")
-}
+// def writeAllDatasets = {
+//   val (dev, test) = datasets
+//   writeDataset(dev, "dev")
+//   writeDataset(test, "test")
+// }
 
 // use with caution... intended mainly for sandbox
 def deleteAll = {

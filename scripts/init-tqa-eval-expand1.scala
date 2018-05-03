@@ -181,7 +181,7 @@ val setup = new TQAEvaluationSetup(
 )
 
 import setup.SentenceIdHasAlignedTokens
-import QASRLDataset.JsonCodecs._
+// import QASRLDatasetNew.QASRLDataset.JsonCodecs._
 
 val exp = setup.experiment
 exp.server
@@ -194,16 +194,16 @@ def datasets = {
   (trainDataset, devDataset)
 }
 
-def writeDataset(data: QASRLDataset, name: String) = {
-  import io.circe.Printer
-  setup.saveOutputFile(s"$name.json", Printer.noSpaces.pretty(data.asJson))
-}
+// def writeDataset(data: QASRLDataset, name: String) = {
+//   import io.circe.Printer
+//   setup.saveOutputFile(s"$name.json", Printer.noSpaces.pretty(data.asJson))
+// }
 
-def writeAllDatasets = {
-  val (train, dev) = datasets
-  writeDataset(train, "train")
-  writeDataset(dev, "dev")
-}
+// def writeAllDatasets = {
+//   val (train, dev) = datasets
+//   writeDataset(train, "train")
+//   writeDataset(dev, "dev")
+// }
 
 // use with caution... intended mainly for sandbox
 def deleteAll = {

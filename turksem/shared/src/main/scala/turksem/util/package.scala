@@ -167,6 +167,8 @@ package object util extends PackagePlatformExtensions {
 
   implicit class RichFoldable[F[_]: Foldable, A](val fa: F[A]) {
 
+    def abstractify: AbstractFoldable[A] = AbstractFoldable.fromFoldable(fa)
+
     // def counts: Map[A, Int] =
     //   fa.foldLeft(Map.empty[A, Int].withDefaultValue(0)) {
     //     case (m, a) => m.updated(a, m(a) + 1)
@@ -188,6 +190,13 @@ package object util extends PackagePlatformExtensions {
       if(count == 0) None else Some(N.toDouble(sum) / N.toDouble(count))
     }
 
+    def proportionOpt(predicate: A => Boolean): Option[Double] = fa.foldLeft((0, 0)) {
+      case ((trues, total), a) =>
+        if(predicate(a)) (trues + 1, total + 1)
+        else (trues, total + 1)
+    } match { case (trues, total) => if(total == 0) None else Some(trues.toDouble / total) }
+
+    // unsafe
     def proportion(predicate: A => Boolean): Double = fa.foldLeft((0, 0)) {
       case ((trues, total), a) =>
         if(predicate(a)) (trues + 1, total + 1)
@@ -216,15 +225,16 @@ package object util extends PackagePlatformExtensions {
 
     // TODO other optional versions
 
-    // def sse(implicit N: Numeric[A]): Double = {
-    //   val m = a.mean
-    //   a.map(x => math.pow(N.toDouble(x) - m, 2)).sum
-    // }
-    // def variance(implicit N: Numeric[A]) = a.sse / a.size
-    // def varianceSample(implicit N: Numeric[A]) = a.sse / (a.size - 1)
+    def sseOpt(implicit N: Numeric[A]): Option[Double] = {
+      fa.meanOpt.map(m =>
+        abstractify.map(x => math.pow(N.toDouble(x) - m, 2)).sum
+      )
+    }
+    def varianceOpt(implicit N: Numeric[A]) = fa.sseOpt.map(_ / fa.size)
+    def varianceSampleOpt(implicit N: Numeric[A]) = fa.sseOpt.map(_ / (fa.size - 1))
 
-    // def stdev(implicit N: Numeric[A]) = math.sqrt(a.variance)
-    // def stdevSample(implicit N: Numeric[A]) = math.sqrt(a.varianceSample)
+    def stdevOpt(implicit N: Numeric[A]) = fa.varianceOpt.map(math.sqrt)
+    def stdevSampleOpt(implicit N: Numeric[A]) = fa.varianceSampleOpt.map(math.sqrt)
   }
 
   implicit class RichTraverse[F[_]: Traverse, A](val fa: F[A]) {

@@ -320,9 +320,9 @@ class TQAAnnotationSetup(
   lazy val devIdStringsSet = devIds.map(SentenceId.toString)
   lazy val testIdStringsSet = testIds.map(SentenceId.toString)
 
-  lazy val trainDataset = dataset.filterSentenceIds(trainIdStringsSet)
-  lazy val devDataset = dataset.filterSentenceIds(devIdStringsSet)
-  lazy val testDataset = dataset.filterSentenceIds(testIdStringsSet)
+  // lazy val trainDataset = dataset.filterSentenceIds(trainIdStringsSet)
+  // lazy val devDataset = dataset.filterSentenceIds(devIdStringsSet)
+  // lazy val testDataset = dataset.filterSentenceIds(testIdStringsSet)
 
   // sampling sentences for human eval & densification on dev/test
   lazy val (
@@ -403,23 +403,47 @@ class TQAAnnotationSetup(
     )
   }
 
-  def writeDatasets = {
+  lazy val dataExporter = new AnnotationDataExporter(experiment)
+  lazy val dataset = dataExporter.dataset(SentenceId.toString(_), identity[String](_))
+  def writeDataset(part: String, dataset: QASRLDatasetNew.QASRLDataset) = {
     import io.circe.Printer
     import io.circe.syntax._
-    import QASRLDataset.JsonCodecs._
+    import QASRLDatasetNew.QASRLDataset.JsonCodecs._
     saveOutputFile(
-      s"train/$label.json",
-      Printer.noSpaces.pretty(trainDataset.asJson)
-    )
-    saveOutputFile(
-      s"dev/$label.json",
-      Printer.noSpaces.pretty(devDataset.asJson)
-    )
-    saveOutputFile(
-      s"test/$label.json",
-      Printer.noSpaces.pretty(testDataset.asJson)
+      s"$part/$label.jsonl",
+      dataset.sentences.toVector.sortBy(_._1)
+        .map(_._2.asJson)
+        .map(Printer.noSpaces.pretty)
+        .mkString("\n")
     )
   }
+
+  // def writeDatasets = {
+  //   import io.circe.Printer
+  //   import io.circe.syntax._
+  //   import QASRLDatasetNew.QASRLDataset.JsonCodecs._
+  //   saveOutputFile(
+  //     s"train/$label.jsonl",
+  //     trainDataset.sentences.toVector.sortBy(_._1)
+  //       .map(_._2.asJson)
+  //       .map(Printer.noSpaces.pretty)
+  //       .mkString("\n")
+  //   )
+  //   saveOutputFile(
+  //     s"dev/$label.jsonl",
+  //     devDataset.sentences.toVector.sortBy(_._1)
+  //       .map(_._2.asJson)
+  //       .map(Printer.noSpaces.pretty)
+  //       .mkString("\n")
+  //   )
+  //   saveOutputFile(
+  //     s"test/$label.jsonl",
+  //     testDataset.sentences.toVector.sortBy(_._1)
+  //       .map(_._2.asJson)
+  //       .map(Printer.noSpaces.pretty)
+  //       .mkString("\n")
+  //   )
+  // }
 
   def dataLabelIterator = for {
     hi <- genInfos.iterator

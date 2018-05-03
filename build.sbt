@@ -67,6 +67,7 @@ lazy val turksem = crossProject
     "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
     "com.typesafe.slick" %% "slick" % "3.2.1",
     "com.typesafe.slick" %% "slick-hikaricp" % "3.2.1",
+    "org.scala-lang.modules" %% "scala-xml" % "1.0.2",
     // java deps:
     "org.slf4j" % "slf4j-api" % "1.7.21" // decided to match scala-logging transitive dep
   )
@@ -248,4 +249,44 @@ lazy val qtrans = project.in(file("example/qtrans"))
     case PathList("META-INF", "MANIFEST.MF") => MergeStrategy.discard
     case x => MergeStrategy.last
   }
+)
+
+lazy val extra = project.in(file("example/extra"))
+  .settings(
+  organization := "com.github.julianmichael",
+  name := "turksem-extra",
+  version := "0.1-SNAPSHOT",
+  scalaVersion in ThisBuild := "2.11.8",
+  scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked", "-language:higherKinds", "-Ypartial-unification"),
+  resolvers += Resolver.sonatypeRepo("snapshots"),
+  addCompilerPlugin("org.spire-math" %% "kind-projector" % "0.9.4"),
+  libraryDependencies += "co.fs2" %% "fs2-core" % "0.10.1",
+  libraryDependencies += "co.fs2" %% "fs2-io" % "0.10.1",
+  libraryDependencies += "com.slamdata" %% "matryoshka-core" % "0.18.3"
+  // libraryDependencies += "com.github.julianmichael" %%% "nlpdata" % "0.1-SNAPSHOT",
+  // libraryDependencies += "org.typelevel" %% "cats" % "1.0.0",
+  // libraryDependencies += "com.monovore" %% "decline" % "0.3.0"
+)
+
+
+lazy val facty = crossProject.in(file("example/facty"))
+  .settings(name := "turksem-facty", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(exampleProjectJSSettings)
+
+// lazy val factyJS =  facty.js.dependsOn(turksemJS)
+lazy val factyJVM = facty.jvm.dependsOn(turksemJVM)
+
+lazy val qacmp = crossProject.in(file("example/qacmp"))
+  .settings(name := "turksem-qacmp", version := "0.1-SNAPSHOT")
+  .settings(exampleProjectSettings)
+  .jvmSettings(exampleProjectJVMSettings)
+  .jsSettings(exampleProjectJSSettings)
+
+lazy val qacmpJS = qacmp.js.dependsOn(turksemJS)
+lazy val qacmpJVM = qacmp.jvm.dependsOn(turksemJVM).settings(
+  (resources in Compile) += (fastOptJS in (qacmpJS, Compile)).value.data,
+  (resources in Compile) += (packageScalaJSLauncher in (qacmpJS, Compile)).value.data,
+  (resources in Compile) += (packageJSDependencies in (qacmpJS, Compile)).value
 )

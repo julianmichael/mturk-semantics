@@ -119,7 +119,21 @@ class TQAEvaluationSetup(
     validationAgreementDisqualTypeLabel = validationAgreementDisqualTypeLabel,
     alternativePromptReaderOpt = alternativePromptReaderOpt)
 
-  def data = new EvaluationDataExporter(experiment)
+  lazy val data = new EvaluationDataExporter(experiment)
+  // lazy val dataset = data.dataset(SentenceId.toString, identity)
+
+  def writeDataset(name: String, dataset: QASRLDatasetNew.QASRLDataset) = {
+    import io.circe.Printer
+    import io.circe.syntax._
+    import QASRLDatasetNew.QASRLDataset.JsonCodecs._
+    saveOutputFile(
+      s"$name/$label.jsonl",
+      dataset.sentences.toVector.sortBy(_._1)
+        .map(_._2.asJson)
+        .map(Printer.noSpaces.pretty)
+        .mkString("\n")
+    )
+  }
 
   def saveAnnotationDataTSV[A](
     filename: String,
@@ -151,115 +165,136 @@ class TQAEvaluationSetup(
     (slots: SlotBasedLabel[VerbForm]) => slots.renderWithSeparator(_.toString.lowerCase, ",")
   )
 
-  import qasrl.Frame
-  import qasrl.QuestionProcessor
-  import qasrl.TemplateStateMachine
-  import qasrl.labeling.QuestionLabelMapper
+// import qasrl.Frame
+// import qasrl.QuestionProcessor
+// import qasrl.TemplateStateMachine
+// import qasrl.labeling.QuestionLabelMapper
 
-  import qasrl.crowd.util.CategoricalDistribution
-  import qasrl.crowd.util.implicits._
+// import qasrl.crowd.util.CategoricalDistribution
+// import qasrl.crowd.util.implicits._
 
-  import cats.Foldable
-  import cats.data.NonEmptyList
-  import cats.implicits._
+// import cats.Foldable
+// import cats.data.NonEmptyList
+// import cats.implicits._
 
-  import spacro.HITInfo
-  import spacro.util.Span
+// import spacro.HITInfo
+// import spacro.util.Span
 
-  import nlpdata.datasets.wiktionary.Inflections
-  import nlpdata.datasets.wiktionary.InflectedForms
-  import nlpdata.util.HasTokens.ops._
-  import nlpdata.util.LowerCaseStrings._
-  import nlpdata.util.HasTokens
-  import nlpdata.util.Text
+// import nlpdata.datasets.wiktionary.Inflections
+// import nlpdata.datasets.wiktionary.InflectedForms
+// import nlpdata.util.HasTokens.ops._
+// import nlpdata.util.LowerCaseStrings._
+// import nlpdata.util.HasTokens
+// import nlpdata.util.Text
 
-  def makeFinalEvaluationQAPairTSV[QuestionLabel](
-    ids: List[SentenceId],
-    writeId: SentenceId => String, // serialize sentence ID for distribution in data file
-    infos: List[HITInfo[QASRLEvaluationPrompt[SentenceId], List[QASRLValidationAnswer]]],
-    mapLabels: QuestionLabelMapper[String, QuestionLabel],
-    renderLabel: QuestionLabel => String)(
-    implicit inflections: Inflections
-  ): String = {
-    val infosBySentenceId = infos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
-    // val genInfosBySentenceId = genInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
-    // val valInfosByGenAssignmentId = valInfos.groupBy(_.hit.prompt.sourceAssignmentId).withDefaultValue(Nil)
-    val sb = new StringBuilder
-    for(id <- ids) {
-      val idString = writeId(id)
-      val sentenceTokens = id.tokens
-      val sentenceSB = new StringBuilder
-      var shouldIncludeSentence = false // for now, print everything
-      sentenceSB.append(s"${idString}\t${sentenceTokens.mkString(" ")}\n")
-      val qaTuplesByVerbIndex = {
-        val qas = for {
-          HITInfo(hit, assignments) <- infosBySentenceId(id)
-          (sourcedQuestion, answers) <- hit.prompt.sourcedQuestions.zip(assignments.map(_.response).transpose)
-        } yield (sourcedQuestion, answers)
-        qas.groupBy(_._1.verbIndex)
-      }
-      for {
-        (verbIndex, qaPairs) <- qaTuplesByVerbIndex
-        inflForms <- inflections.getInflectedForms(sentenceTokens(verbIndex).lowerCase).toList
-        labels = mapLabels(sentenceTokens, inflForms, qaPairs.map(_._1.question))
-        ((SourcedQuestion(_, _, sources), answers), Some(qLabel)) <- qaPairs.zip(labels)
-      } yield {
-        // val valResp= answers.flatMap(_.getAnswer).map(_.spans)
-        if(answers.size == 6) {
-          shouldIncludeSentence = true
-          sentenceSB.append("\t")
-          sentenceSB.append(verbIndex.toString + "\t")
-          sentenceSB.append(sources.mkString(";") + "\t")
-          sentenceSB.append(renderLabel(qLabel) + "\t")
-          sentenceSB.append(
-            answers.map {
-              case Answer(spans) => spans
-                  .map(span => s"${span.begin}-${span.end}")
-                  .mkString(";")
-              case InvalidQuestion => "<Invalid>"
-            }.mkString("\t")
-          )
-          sentenceSB.append("\n")
-        } else {
-          System.err.println(s"Missing some responses for: ${SentenceId.toString(id)}; num: ${answers.size}" )
-        }
-      }
-      if(shouldIncludeSentence) {
-        sb.append(sentenceSB.toString)
-      }
-    }
-    sb.toString
-  }
+// def makeFinalEvaluationQAPairTSV[QuestionLabel](
+//   ids: List[SentenceId],
+//   writeId: SentenceId => String, // serialize sentence ID for distribution in data file
+//   infos: List[HITInfo[QASRLEvaluationPrompt[SentenceId], List[QASRLValidationAnswer]]],
+//   existingData: QASRLDataset,
+//   mapLabels: QuestionLabelMapper[String, QuestionLabel],
+//   renderLabel: QuestionLabel => String)(
+//   implicit inflections: Inflections
+// ): String = {
+//   val infosBySentenceId = infos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
+//   // val genInfosBySentenceId = genInfos.groupBy(_.hit.prompt.id).withDefaultValue(Nil)
+//   // val valInfosByGenAssignmentId = valInfos.groupBy(_.hit.prompt.sourceAssignmentId).withDefaultValue(Nil)
+//   val sb = new StringBuilder
+//   for(id <- ids) {
+//     val idString = writeId(id)
+//     val sentenceTokens = id.tokens
+//     val sentenceSB = new StringBuilder
+//     var shouldIncludeSentence = false // for now, print everything
+//     sentenceSB.append(s"${idString}\t${sentenceTokens.mkString(" ")}\n")
+//     val turkQATuplesByVerbIndex = {
+//       val qas = for {
+//         HITInfo(hit, assignments) <- infosBySentenceId(id)
+//         (sourcedQuestion, answers) <- hit.prompt.sourcedQuestions.zip(assignments.map(_.response).transpose)
+//       } yield (sourcedQuestion, answers)
+//       qas.groupBy(_._1.verbIndex)
+//     }
+//     val oldQALabelsByVerbIndex = existingData.entries(SentenceId.toString(id)).labels.groupBy(_.question.verbIndex)
+//     for {
+//       verbIndex <- (turkQATuplesByVerbIndex.keySet union oldQALabelsByVerbIndex.keySet).toList.sorted
+//       inflForms <- inflections.getInflectedForms(sentenceTokens(verbIndex).lowerCase).toList
+//       qasrlLabels = oldQALabelsByVerbIndex(verbIndex)
+//       labels = mapLabels(sentenceTokens, inflForms, qasrlLabels.map(_.question.questionString))
+//       (qasrlLabel, Some(qLabel)) <- qasrlLabels.zip(labels)
+//     } yield {
+//       val newLabelOpt = turkQATuplesByVerbIndex(verbIndex)
+//         .find(t => t._1.question == qasrlLabel.question.questionString && t._1.sources == qasrlLabel.question.sourceIds)
+//       val newAnswers = newLabelOpt.fold(List.empty[QASRLValidationAnswer])(_._2)
+//       val oldAnswers = qasrlLabel.answers.toList.map(_.judgment)
+//       val question = qasrlLabel.question.questionString
+//       val sources = qasrlLabel.question.sourceIds
+//       // SourcedQuestion(verbIndex, question, sources)
+//       val answers = newAnswers ++ oldAnswers
+//       // val valResp= answers.flatMap(_.getAnswer).map(_.spans)
+//       if(answers.size == 6) {
+//         shouldIncludeSentence = true
+//         sentenceSB.append("\t")
+//         sentenceSB.append(verbIndex.toString + "\t")
+//         sentenceSB.append(sources.mkString(";") + "\t")
+//         sentenceSB.append(renderLabel(qLabel) + "\t")
+//         sentenceSB.append(
+//           answers.map {
+//             case Answer(spans) => spans
+//                 .map(span => s"${span.begin}-${span.end}")
+//                 .mkString(";")
+//             case InvalidQuestion => "<Invalid>"
+//           }.mkString("\t")
+//         )
+//         sentenceSB.append("\n")
+//       } else {
+//         import QASRLDataset.JsonCodecs._
+//         import io.circe.syntax._
+//         System.err.println(s"Missing some responses for: ${SentenceId.toString(id)}; num: ${answers.size}" )
+//         System.err.println(Text.render(id))
+//         System.err.println(question)
+//         System.err.println(newAnswers + " ### " + oldAnswers)
+//         System.err.println(io.circe.Printer.spaces2.pretty(existingData.filterQASRLLabels(_ == qasrlLabel).asJson))
+//       }
+//     }
+//     if(shouldIncludeSentence) {
+//       sb.append(sentenceSB.toString)
+//     }
+//   }
+//   sb.toString
+// }
 
-  def saveFinalAnnotationDataTSV[A](
-    filename: String,
-    ids: Vector[SentenceId],
-    infos: List[HITInfo[QASRLEvaluationPrompt[SentenceId], List[QASRLValidationAnswer]]],
-    labelMapper: QuestionLabelMapper[String, A],
-    labelRenderer: A => String
-  ) = {
-    saveOutputFile(
-      s"$filename.tsv",
-      makeFinalEvaluationQAPairTSV(
-        ids.toList,
-        SentenceId.toString,
-        infos,
-        labelMapper,
-        labelRenderer)
-    )
-  }
+// def saveFinalAnnotationDataTSV[A](
+//   filename: String,
+//   ids: Vector[SentenceId],
+//   infos: List[HITInfo[QASRLEvaluationPrompt[SentenceId], List[QASRLValidationAnswer]]],
+//   existingData: QASRLDataset,
+//   labelMapper: QuestionLabelMapper[String, A],
+//   labelRenderer: A => String
+// ) = {
+//   setup.saveOutputFile(
+//     s"$filename.tsv",
+//     makeFinalEvaluationQAPairTSV(
+//       ids.toList,
+//       SentenceId.toString,
+//       infos,
+//       existingData,
+//       labelMapper,
+//       labelRenderer)
+//   )
+// }
 
-  def writeFinalSlotsTSV(
-    filename: String,
-    ids: Vector[SentenceId],
-    infos: List[HITInfo[QASRLEvaluationPrompt[SentenceId], List[QASRLValidationAnswer]]]
-  ) = saveFinalAnnotationDataTSV(
-    s"$label/slots-tense/$filename.tsv",
-    ids,
-    infos,
-    SlotBasedLabel.getVerbTenseAbstractedSlotsForQuestion,
-    (slots: SlotBasedLabel[VerbForm]) => slots.renderWithSeparator(_.toString.lowerCase, ",")
-  )
+// def writeFinalSlotsTSV(
+//   filename: String,
+//   ids: Vector[SentenceId],
+//   infos: List[HITInfo[QASRLEvaluationPrompt[SentenceId], List[QASRLValidationAnswer]]],
+//   existingData: QASRLDataset
+// ) = saveFinalAnnotationDataTSV(
+//   s"$label/slots-tense/$filename",
+//   ids,
+//   infos,
+//   existingData,
+//   SlotBasedLabel.getVerbTenseAbstractedSlotsForQuestion,
+//   (slots: SlotBasedLabel[VerbForm]) => slots.renderWithSeparator(_.toString.lowerCase, ",")
+// )
 
   // def allInfos = dataExporter.infos
   // lazy val dataset = dataExporter.dataset(SentenceId.toString(_), identity[String])

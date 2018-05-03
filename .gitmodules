@@ -16,3 +16,6 @@
 [submodule "lib/qasrl-crowdsourcing"]
 	path = lib/qasrl-crowdsourcing
 	url = https://github.com/julianmichael/qasrl-crowdsourcing.git
+[submodule "lib/qasrl-bank"]
+	path = lib/qasrl-bank
+	url = https://github.com/julianmichael/qasrl-bank
