@@ -47,10 +47,10 @@ class QACmpAnnotationSetup(
 
   val resourcePath = java.nio.file.Paths.get("resources")
 
-  private[this] val liveDataPath = Paths.get(s"data/tqa/$label/live")
+  private[this] val liveDataPath = Paths.get(s"data/qacmp/$label/live")
   val liveAnnotationDataService = new FileSystemAnnotationDataService(liveDataPath)
 
-  val staticDataPath = Paths.get(s"data/tqa/$label/static")
+  val staticDataPath = Paths.get(s"data/qacmp/$label/static")
 
   def saveOutputFile(name: String, contents: String): Try[Unit] = Try {
     val path = staticDataPath.resolve("out").resolve(name)
